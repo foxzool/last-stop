@@ -1,27 +1,7 @@
-// Plugin to register all grid-related systems
-use crate::screens::Screen;
-use bevy::{
-    prelude::*,
-    window::{PrimaryWindow, WindowResized},
-};
-
-pub(super) fn plugin(app: &mut App) {
-    app.init_resource::<GridConfig>()
-        .init_resource::<GridState>()
-        .add_systems(OnEnter(Screen::Gameplay), adapt_grid_to_window_system) // Run on startup
-        .add_systems(
-            Update,
-            (
-                grid_snap_system,
-                update_grid_state_system,
-                // Run on window resize events
-                adapt_grid_to_window_system.run_if(|er: EventReader<WindowResized>| !er.is_empty()),
-            ),
-        );
-}
+use bevy::prelude::*;
 
 // Grid position component - represents logical grid coordinates
-#[derive(Component, Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct GridPosition {
     pub x: i32,
     pub y: i32,
@@ -46,30 +26,6 @@ impl GridPosition {
     pub fn distance_to(&self, other: &GridPosition) -> i32 {
         (self.x - other.x).abs() + (self.y - other.y).abs()
     }
-}
-
-// System to adapt grid configuration to window size
-fn adapt_grid_to_window_system(
-    mut grid_config: ResMut<GridConfig>,
-    window: Single<&Window, With<PrimaryWindow>>,
-) {
-    let window_width = window.width();
-    let window_height = window.height();
-
-    if window_width <= 0.0 || window_height <= 0.0 || grid_config.tile_size <= 0.0 {
-        // Avoid division by zero, non-positive tile size, or zero window size
-        return;
-    }
-
-    grid_config.grid_width = (window_width / grid_config.tile_size).ceil() as i32;
-    grid_config.grid_height = (window_height / grid_config.tile_size).ceil() as i32;
-
-    // World coordinates of the screen's bottom-left corner (which is our grid's logical 0,0)
-    let grid_logical_origin_world_x = -window_width / 2.0;
-    let grid_logical_origin_world_y = -window_height / 2.0;
-
-    grid_config.origin_offset.x = grid_logical_origin_world_x;
-    grid_config.origin_offset.y = grid_logical_origin_world_y;
 }
 
 // Resource to manage grid configuration
@@ -131,11 +87,11 @@ pub enum RouteSegment {
     TJunction, // ┬ ┴ ├ ┤
     Cross,     // ┼
     Station,   // Bus station/stop
-    Grass,     // grass
+    Grass,     // Grass terrain/background
 }
 
 // Direction enum for route segments
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Direction {
     North = 0,
     East = 1,
@@ -280,4 +236,15 @@ pub fn spawn_route_segment(
             },
         ))
         .id()
+}
+
+// Plugin to register all grid-related systems
+pub struct GridPlugin;
+
+impl Plugin for GridPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<GridConfig>()
+            .init_resource::<GridState>()
+            .add_systems(Update, (grid_snap_system, update_grid_state_system));
+    }
 }

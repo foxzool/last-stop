@@ -1,37 +1,8 @@
-use bevy::input::mouse::MouseButtonInput;
-// Plugin to register all mouse interaction systems
-use crate::{
-    game::grid::{
-        Direction, GridConfig, GridPosition, GridState, RouteSegment, RouteSegmentComponent,
-        spawn_route_segment,
-    },
-    screens::Screen,
+use crate::game::grid::{
+    Direction, GridConfig, GridPosition, GridState, RouteSegment, RouteSegmentComponent,
+    spawn_route_segment,
 };
-use bevy::{prelude::*, window::PrimaryWindow};
-
-pub(super) fn plugin(app: &mut App) {
-    app.init_resource::<MouseState>()
-        .init_resource::<SelectedTool>()
-        .add_event::<PlaceSegmentEvent>()
-        .add_event::<SelectEntityEvent>()
-        .add_event::<RotateSegmentEvent>()
-        .add_systems(
-            Update,
-            (
-                update_mouse_position_system,
-                mouse_button_system,
-                place_segment_system,
-                select_entity_system,
-                rotate_segment_system,
-                preview_system,
-                tool_selection_system,
-                remove_segment_system,
-                clear_selection_system,
-            )
-                .chain()
-                .run_if(in_state(Screen::Gameplay)), // Ensure proper execution order
-        );
-}
+use bevy::{input::mouse::MouseButtonInput, prelude::*, window::PrimaryWindow};
 
 // Resource to track current mouse state and selected tool
 #[derive(Resource, Default)]
@@ -93,12 +64,11 @@ pub struct RotateSegmentEvent {
 // System to update mouse world position
 pub fn update_mouse_position_system(
     mut mouse_state: ResMut<MouseState>,
-    q_windows: Query<&Window, With<PrimaryWindow>>,
-    q_camera: Query<(&Camera, &GlobalTransform)>,
+    window: Single<&Window, With<PrimaryWindow>>,
+    q_camera: Single<(&Camera, &GlobalTransform)>,
     grid_config: Res<GridConfig>,
-) -> Result {
-    let (camera, camera_transform) = q_camera.single()?;
-    let window = q_windows.single()?;
+) {
+    let (camera, camera_transform) = q_camera.into_inner();
 
     if let Some(cursor_position) = window.cursor_position() {
         // Convert screen coordinates to world coordinates
@@ -107,8 +77,6 @@ pub fn update_mouse_position_system(
             mouse_state.grid_position = grid_config.world_to_grid(world_position);
         }
     }
-
-    Ok(())
 }
 
 // System to handle mouse button events
@@ -308,6 +276,9 @@ pub fn tool_selection_system(
     if keys.just_pressed(KeyCode::Digit5) {
         selected_tool.segment_type = RouteSegment::Station;
     }
+    if keys.just_pressed(KeyCode::Digit6) {
+        selected_tool.segment_type = RouteSegment::Grass;
+    }
 
     // R key to rotate current tool direction
     if keys.just_pressed(KeyCode::KeyR) {
@@ -359,5 +330,33 @@ pub fn clear_selection_system(
                 mouse_state.selected_entity = None;
             }
         }
+    }
+}
+
+// Plugin to register all mouse interaction systems
+pub struct MouseInteractionPlugin;
+
+impl Plugin for MouseInteractionPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<MouseState>()
+            .init_resource::<SelectedTool>()
+            .add_event::<PlaceSegmentEvent>()
+            .add_event::<SelectEntityEvent>()
+            .add_event::<RotateSegmentEvent>()
+            .add_systems(
+                Update,
+                (
+                    update_mouse_position_system,
+                    mouse_button_system,
+                    place_segment_system,
+                    select_entity_system,
+                    rotate_segment_system,
+                    preview_system,
+                    tool_selection_system,
+                    remove_segment_system,
+                    clear_selection_system,
+                )
+                    .chain(), // Ensure proper execution order
+            );
     }
 }
