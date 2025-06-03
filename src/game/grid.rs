@@ -8,7 +8,7 @@ pub(super) fn plugin(app: &mut App) {
 }
 
 // Grid position component - represents logical grid coordinates
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Component, Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct GridPosition {
     pub x: i32,
     pub y: i32,
@@ -94,6 +94,7 @@ pub enum RouteSegment {
     TJunction, // ┬ ┴ ├ ┤
     Cross,     // ┼
     Station,   // Bus station/stop
+    Grass,     // 草地/绿化带
 }
 
 // Direction enum for route segments
@@ -138,7 +139,7 @@ impl Direction {
 }
 
 // Component for route segment with direction
-#[derive(Component)]
+#[derive(Component, Clone)]
 pub struct RouteSegmentComponent {
     pub segment_type: RouteSegment,
     pub direction: Direction,
@@ -222,6 +223,7 @@ pub fn spawn_route_segment(
         RouteSegment::TJunction => "sprites/road_t_junction.png",
         RouteSegment::Cross => "sprites/road_cross.png",
         RouteSegment::Station => "sprites/bus_station.png",
+        RouteSegment::Grass => "sprites/grass.png",
     };
 
     commands
