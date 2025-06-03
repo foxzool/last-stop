@@ -264,6 +264,7 @@ pub fn preview_system(
             RouteSegment::TJunction => "sprites/road_t_junction.png",
             RouteSegment::Cross => "sprites/road_cross.png",
             RouteSegment::Station => "sprites/bus_station.png",
+            RouteSegment::Grass => "sprites/grass.png",
         };
 
         let world_pos = grid_config.grid_to_world(grid_pos);
