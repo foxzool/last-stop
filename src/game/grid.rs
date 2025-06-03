@@ -1,7 +1,31 @@
-use bevy::prelude::*;
+// Plugin to register all grid-related systems
+use crate::screens::Screen;
+use bevy::{
+    prelude::*,
+    window::{PrimaryWindow, WindowResized},
+};
+
+pub struct GridPlugin;
+
+impl Plugin for GridPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<GridConfig>()
+            .init_resource::<GridState>()
+            .add_systems(OnEnter(Screen::Gameplay), setup_grid_from_window_size)
+            .add_systems(
+                Update,
+                (
+                    grid_snap_system,
+                    update_grid_state_system,
+                    setup_grid_from_window_size
+                        .run_if(|ev: EventReader<WindowResized>| !ev.is_empty()),
+                ),
+            );
+    }
+}
 
 // Grid position component - represents logical grid coordinates
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[derive(Component, Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct GridPosition {
     pub x: i32,
     pub y: i32,
@@ -29,7 +53,7 @@ impl GridPosition {
 }
 
 // Resource to manage grid configuration
-#[derive(Resource)]
+#[derive(Resource, Debug)] // Added Debug for logging
 pub struct GridConfig {
     pub tile_size: f32,      // Size of each grid tile in world units
     pub grid_width: i32,     // Number of tiles horizontally
@@ -87,7 +111,7 @@ pub enum RouteSegment {
     TJunction, // ┬ ┴ ├ ┤
     Cross,     // ┼
     Station,   // Bus station/stop
-    Grass,     // Grass terrain/background
+    Grass,     // grass
 }
 
 // Direction enum for route segments
@@ -178,6 +202,25 @@ impl GridState {
 }
 
 // System to snap entities with GridSnap component to grid positions
+// System to setup GridConfig based on window size at startup
+fn setup_grid_from_window_size(
+    mut grid_config: ResMut<GridConfig>,
+    window: Single<&Window, With<PrimaryWindow>>,
+) {
+    let window_width = window.width();
+    let window_height = window.height();
+
+    // Assuming (0,0) in world coordinates is the center of the window.
+    // The world coordinates of the window's bottom-left corner.
+    grid_config.origin_offset = Vec2::new(-window_width / 2.0, -window_height / 2.0);
+
+    grid_config.grid_width = (window_width / grid_config.tile_size).ceil() as i32;
+    grid_config.grid_height = (window_height / grid_config.tile_size).ceil() as i32;
+
+    info!("GridConfig adapted to window size: {:?}", *grid_config);
+}
+
+// System to snap entities with GridSnap component to grid positions
 pub fn grid_snap_system(
     mut query: Query<(&mut Transform, &GridPosition), (With<GridSnap>, Changed<GridPosition>)>,
     grid_config: Res<GridConfig>,
@@ -236,15 +279,4 @@ pub fn spawn_route_segment(
             },
         ))
         .id()
-}
-
-// Plugin to register all grid-related systems
-pub struct GridPlugin;
-
-impl Plugin for GridPlugin {
-    fn build(&self, app: &mut App) {
-        app.init_resource::<GridConfig>()
-            .init_resource::<GridState>()
-            .add_systems(Update, (grid_snap_system, update_grid_state_system));
-    }
 }

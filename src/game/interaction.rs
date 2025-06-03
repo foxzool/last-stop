@@ -1,6 +1,9 @@
-use crate::game::grid::{
-    Direction, GridConfig, GridPosition, GridState, RouteSegment, RouteSegmentComponent,
-    spawn_route_segment,
+use crate::{
+    game::grid::{
+        Direction, GridConfig, GridPosition, GridState, RouteSegment, RouteSegmentComponent,
+        spawn_route_segment,
+    },
+    screens::Screen,
 };
 use bevy::{input::mouse::MouseButtonInput, prelude::*, window::PrimaryWindow};
 
@@ -356,7 +359,8 @@ impl Plugin for MouseInteractionPlugin {
                     remove_segment_system,
                     clear_selection_system,
                 )
-                    .chain(), // Ensure proper execution order
+                    .chain()
+                    .run_if(in_state(Screen::Gameplay)), // Ensure proper execution order
             );
     }
 }
