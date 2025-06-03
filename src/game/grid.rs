@@ -1,0 +1,244 @@
+// Plugin to register all grid-related systems
+use bevy::prelude::*;
+
+pub(super) fn plugin(app: &mut App) {
+    app.init_resource::<GridConfig>()
+        .init_resource::<GridState>()
+        .add_systems(Update, (grid_snap_system, update_grid_state_system));
+}
+
+// Grid position component - represents logical grid coordinates
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct GridPosition {
+    pub x: i32,
+    pub y: i32,
+}
+
+impl GridPosition {
+    pub fn new(x: i32, y: i32) -> Self {
+        Self { x, y }
+    }
+
+    // Get adjacent positions (up, down, left, right)
+    pub fn adjacent(&self) -> [GridPosition; 4] {
+        [
+            GridPosition::new(self.x, self.y + 1), // Up
+            GridPosition::new(self.x, self.y - 1), // Down
+            GridPosition::new(self.x - 1, self.y), // Left
+            GridPosition::new(self.x + 1, self.y), // Right
+        ]
+    }
+
+    // Calculate Manhattan distance to another grid position
+    pub fn distance_to(&self, other: &GridPosition) -> i32 {
+        (self.x - other.x).abs() + (self.y - other.y).abs()
+    }
+}
+
+// Resource to manage grid configuration
+#[derive(Resource)]
+pub struct GridConfig {
+    pub tile_size: f32,      // Size of each grid tile in world units
+    pub grid_width: i32,     // Number of tiles horizontally
+    pub grid_height: i32,    // Number of tiles vertically
+    pub origin_offset: Vec2, // Offset from world origin to grid center
+}
+
+impl Default for GridConfig {
+    fn default() -> Self {
+        Self {
+            tile_size: 64.0,
+            grid_width: 12,
+            grid_height: 8,
+            origin_offset: Vec2::ZERO,
+        }
+    }
+}
+
+impl GridConfig {
+    // Convert grid position to world coordinates
+    pub fn grid_to_world(&self, grid_pos: GridPosition) -> Vec2 {
+        Vec2::new(
+            grid_pos.x as f32 * self.tile_size + self.origin_offset.x,
+            grid_pos.y as f32 * self.tile_size + self.origin_offset.y,
+        )
+    }
+
+    // Convert world coordinates to grid position
+    pub fn world_to_grid(&self, world_pos: Vec2) -> GridPosition {
+        let adjusted_pos = world_pos - self.origin_offset;
+        GridPosition::new(
+            (adjusted_pos.x / self.tile_size).round() as i32,
+            (adjusted_pos.y / self.tile_size).round() as i32,
+        )
+    }
+
+    // Check if grid position is within bounds
+    pub fn is_valid_position(&self, grid_pos: GridPosition) -> bool {
+        grid_pos.x >= 0
+            && grid_pos.x < self.grid_width
+            && grid_pos.y >= 0
+            && grid_pos.y < self.grid_height
+    }
+}
+
+// Component to mark entities that should snap to grid
+#[derive(Component)]
+pub struct GridSnap;
+
+// Route segment types
+#[derive(Component, Debug, Clone, Copy, PartialEq)]
+pub enum RouteSegment {
+    Straight,  // ─ or │
+    Corner,    // └ ┘ ┐ ┌
+    TJunction, // ┬ ┴ ├ ┤
+    Cross,     // ┼
+    Station,   // Bus station/stop
+}
+
+// Direction enum for route segments
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Direction {
+    North = 0,
+    East = 1,
+    South = 2,
+    West = 3,
+}
+
+impl Direction {
+    // Rotate direction clockwise
+    pub fn rotate_cw(&self) -> Direction {
+        match self {
+            Direction::North => Direction::East,
+            Direction::East => Direction::South,
+            Direction::South => Direction::West,
+            Direction::West => Direction::North,
+        }
+    }
+
+    // Get opposite direction
+    pub fn opposite(&self) -> Direction {
+        match self {
+            Direction::North => Direction::South,
+            Direction::East => Direction::West,
+            Direction::South => Direction::North,
+            Direction::West => Direction::East,
+        }
+    }
+
+    // Convert to grid offset
+    pub fn to_offset(&self) -> (i32, i32) {
+        match self {
+            Direction::North => (0, 1),
+            Direction::East => (1, 0),
+            Direction::South => (0, -1),
+            Direction::West => (-1, 0),
+        }
+    }
+}
+
+// Component for route segment with direction
+#[derive(Component)]
+pub struct RouteSegmentComponent {
+    pub segment_type: RouteSegment,
+    pub direction: Direction,
+}
+
+// Grid state resource to track what's placed where
+#[derive(Resource, Default)]
+pub struct GridState {
+    pub occupied: std::collections::HashMap<GridPosition, Entity>,
+    pub route_segments: std::collections::HashMap<GridPosition, RouteSegmentComponent>,
+}
+
+impl GridState {
+    // Check if a grid position is occupied
+    pub fn is_occupied(&self, pos: GridPosition) -> bool {
+        self.occupied.contains_key(&pos)
+    }
+
+    // Place an entity at a grid position
+    pub fn place_entity(&mut self, pos: GridPosition, entity: Entity) {
+        self.occupied.insert(pos, entity);
+    }
+
+    // Remove entity from grid position
+    pub fn remove_entity(&mut self, pos: GridPosition) -> Option<Entity> {
+        self.occupied.remove(&pos)
+    }
+
+    // Get entity at grid position
+    pub fn get_entity(&self, pos: GridPosition) -> Option<Entity> {
+        self.occupied.get(&pos).copied()
+    }
+
+    // Place a route segment
+    pub fn place_route_segment(&mut self, pos: GridPosition, segment: RouteSegmentComponent) {
+        self.route_segments.insert(pos, segment);
+    }
+
+    // Get route segment at position
+    pub fn get_route_segment(&self, pos: GridPosition) -> Option<&RouteSegmentComponent> {
+        self.route_segments.get(&pos)
+    }
+}
+
+// System to snap entities with GridSnap component to grid positions
+pub fn grid_snap_system(
+    mut query: Query<(&mut Transform, &GridPosition), (With<GridSnap>, Changed<GridPosition>)>,
+    grid_config: Res<GridConfig>,
+) {
+    for (mut transform, grid_pos) in query.iter_mut() {
+        let world_pos = grid_config.grid_to_world(*grid_pos);
+        transform.translation.x = world_pos.x;
+        transform.translation.y = world_pos.y;
+    }
+}
+
+// System to update grid state when entities with GridPosition move
+pub fn update_grid_state_system(
+    mut grid_state: ResMut<GridState>,
+    query: Query<(Entity, &GridPosition), Changed<GridPosition>>,
+) {
+    for (entity, grid_pos) in query.iter() {
+        // Remove from old position if exists
+        grid_state.occupied.retain(|_, &mut v| v != entity);
+        // Add to new position
+        grid_state.place_entity(*grid_pos, entity);
+    }
+}
+
+// Helper function to spawn a route segment at grid position
+pub fn spawn_route_segment(
+    commands: &mut Commands,
+    grid_pos: GridPosition,
+    segment_type: RouteSegment,
+    direction: Direction,
+    asset_server: &Res<AssetServer>,
+) -> Entity {
+    let texture_path = match segment_type {
+        RouteSegment::Straight => "sprites/road_straight.png",
+        RouteSegment::Corner => "sprites/road_corner.png",
+        RouteSegment::TJunction => "sprites/road_t_junction.png",
+        RouteSegment::Cross => "sprites/road_cross.png",
+        RouteSegment::Station => "sprites/bus_station.png",
+    };
+
+    commands
+        .spawn((
+            Sprite::from_image(asset_server.load(texture_path)),
+            Transform {
+                rotation: Quat::from_rotation_z(
+                    direction as u8 as f32 * std::f32::consts::PI / 2.0,
+                ),
+                ..default()
+            },
+            grid_pos,
+            GridSnap,
+            RouteSegmentComponent {
+                segment_type,
+                direction,
+            },
+        ))
+        .id()
+}
