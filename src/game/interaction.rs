@@ -133,7 +133,7 @@ pub fn mouse_button_system(
             }
             MouseButton::Right => {
                 // Right click to remove segment
-                if let Some(entity) = grid_state.get_entity(grid_pos) {
+                if let Some(_entity) = grid_state.get_entity(grid_pos) {
                     // Will be handled by remove_segment_system
                 }
             }
@@ -148,6 +148,7 @@ pub fn place_segment_system(
     mut place_segment_events: EventReader<PlaceSegmentEvent>,
     mut grid_state: ResMut<GridState>,
     asset_server: Res<AssetServer>,
+    grid_config: Res<GridConfig>, // Added GridConfig resource
 ) {
     for event in place_segment_events.read() {
         let entity = spawn_route_segment(
@@ -156,6 +157,7 @@ pub fn place_segment_system(
             event.segment_type,
             event.direction,
             &asset_server,
+            &grid_config, // Pass GridConfig
         );
 
         // Add to grid state

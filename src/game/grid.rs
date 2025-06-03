@@ -252,6 +252,7 @@ pub fn spawn_route_segment(
     segment_type: RouteSegment,
     direction: Direction,
     asset_server: &Res<AssetServer>,
+    grid_config: &Res<GridConfig>, // Added GridConfig resource
 ) -> Entity {
     let texture_path = match segment_type {
         RouteSegment::Straight => "sprites/road_straight.png",
@@ -266,13 +267,13 @@ pub fn spawn_route_segment(
         .spawn((
             Sprite::from_image(asset_server.load(texture_path)),
             Transform {
+                translation: grid_config.grid_to_world(grid_pos).extend(0.0), // Set initial world position
                 rotation: Quat::from_rotation_z(
                     direction as u8 as f32 * std::f32::consts::PI / 2.0,
                 ),
                 ..default()
             },
-            grid_pos,
-            GridSnap,
+            grid_pos, // Keep GridPosition for state tracking and other systems
             RouteSegmentComponent {
                 segment_type,
                 direction,
