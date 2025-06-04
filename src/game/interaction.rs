@@ -1,10 +1,7 @@
 use crate::{
-    game::{
-        grid::{
-            Direction, GridConfig, GridPosition, GridState, RouteSegment, RouteSegmentComponent,
-            spawn_route_segment,
-        },
-        passenger::Passenger,
+    game::grid::{
+        Direction, GridConfig, GridPosition, GridState, RouteSegment, RouteSegmentComponent,
+        spawn_route_segment,
     },
     screens::Screen,
 };
@@ -32,7 +29,6 @@ impl Plugin for MouseInteractionPlugin {
                     tool_selection_system,
                     remove_segment_system,
                     clear_selection_system,
-                    visualize_path_system,
                 )
                     .chain()
                     .run_if(in_state(Screen::Gameplay)), // Ensure proper execution order
@@ -272,6 +268,11 @@ pub fn preview_system(
         let texture_atlas_layout = texture_atlas_layouts.add(layout);
         let texture_index = selected_tool.segment_type as usize;
 
+        let final_rotation_angle = crate::game::grid::segment_type_rotation(
+            selected_tool.segment_type,
+            selected_tool.direction,
+        );
+
         let world_pos = grid_config.grid_to_world(grid_pos);
 
         commands.spawn((
@@ -286,9 +287,7 @@ pub fn preview_system(
             },
             Transform {
                 translation: Vec3::new(world_pos.x, world_pos.y, -1.0), // Behind other sprites
-                rotation: Quat::from_rotation_z(
-                    selected_tool.direction as u8 as f32 * std::f32::consts::PI / 2.0,
-                ),
+                rotation: Quat::from_rotation_z(final_rotation_angle),
                 ..default()
             },
             Preview,
@@ -323,6 +322,11 @@ pub fn tool_selection_system(
 
     // R key to rotate current tool direction
     if keys.just_pressed(KeyCode::KeyR) {
+        info!(
+            "selected_tool direction: {:?} => {:?}",
+            selected_tool.direction,
+            selected_tool.direction.rotate_cw()
+        );
         selected_tool.direction = selected_tool.direction.rotate_cw();
     }
 }
@@ -373,44 +377,3 @@ pub fn clear_selection_system(
         }
     }
 }
-
-// 在 interaction.rs 中添加
-pub fn visualize_path_system(
-    mut commands: Commands,
-    query: Query<&Passenger>,
-    grid_config: Res<GridConfig>,
-    asset_server: Res<AssetServer>,
-    keys: Res<ButtonInput<KeyCode>>,
-    path_markers: Query<Entity, With<PathMarker>>,
-) {
-    // 按下 F1 键时可视化所有乘客的路径
-    if keys.just_pressed(KeyCode::F1) {
-        // 先清除现有的路径标记
-        for entity in path_markers.iter() {
-            commands.entity(entity).despawn();
-        }
-
-        // 为每个乘客的路径创建可视化标记
-        for passenger in query.iter() {
-            for &pos in passenger.path.iter() {
-                commands.spawn((
-                    Sprite {
-                        color: Color::Srgba(Srgba::new(0.0, 1.0, 0.0, 0.5)),
-                        custom_size: Some(Vec2::new(
-                            grid_config.tile_size * 0.5,
-                            grid_config.tile_size * 0.5,
-                        )),
-                        ..default()
-                    },
-                    Transform::from_translation(grid_config.grid_to_world(pos).extend(10.0)),
-                    PathMarker,
-                ));
-            }
-        }
-        info!("已可视化所有乘客路径");
-    }
-}
-
-// 添加一个组件标记路径可视化实体
-#[derive(Component)]
-pub struct PathMarker;

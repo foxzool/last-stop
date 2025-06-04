@@ -1,6 +1,6 @@
 // 乘客系统实现
 use crate::game::{
-    grid::{GridPosition, GridState, RouteSegment},
+    grid::{GridPosition, GridState},
     validation::can_segments_connect,
 };
 use bevy::{color::palettes::basic, prelude::*};

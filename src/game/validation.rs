@@ -118,7 +118,20 @@ impl ConnectionMap {
     }
 }
 
-// 验证所有路线连接的系统
+// 系统：验证网格中所有路线分段的连接。
+// 该系统会执行以下操作：
+// 1. 清除先前所有连接的验证状态（包括连接映射和无效/孤立路段的标记）。
+// 2. 移除所有路段实体上的 `InvalidConnection` 和 `ValidConnection` 组件。
+// 3. 遍历所有带有 `RouteSegmentComponent` 的实体（即路线分段）：
+//    a. 获取每个路段的连接点。
+//    b. 对于每个连接点，计算其目标连接点和目标位置。
+//    c. 检查目标位置是否存在另一个路段（非草地等地形）。
+//    d. 如果目标路段存在且其连接点与当前路段的目标连接点匹配，则在 `ConnectionMap` 中添加此双向连接。
+// 4. 再次遍历所有路段实体，以确定其最终的连接状态：
+//    a. 检查其每个连接点是否在 `ConnectionMap` 中有记录（即有效连接）。
+//    b. 如果任何连接点指向一个存在路段但无法连接的位置（例如，方向不匹配或目标路段是草地但被错误地视为可连接），则标记为无效连接。
+//    c. 根据是否有有效连接或无效连接，为实体添加 `ValidConnection` 或 `InvalidConnection` 组件。
+//    d. 如果一个路段没有任何连接（既没有有效连接也没有无效连接，例如一个孤立的直路），则将其记录到 `isolated_segments` 中。
 pub fn validate_connections_system(
     mut connection_map: ResMut<ConnectionMap>,
     mut commands: Commands,

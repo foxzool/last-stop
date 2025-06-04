@@ -106,11 +106,11 @@ pub struct GridSnap;
 // 路线段类型
 #[derive(Component, Debug, Clone, Copy, PartialEq)]
 pub enum RouteSegment {
-    Straight = 3, // ─ or │
-    Corner = 11,  // └ ┘ ┐ ┌
-    TJunction = 13, // ┬ ┴ ├ ┤
-    Cross = 16, // ┼
-    Station = 17, // Bus station/stop
+    Straight = 3,   // ─ or │
+    Corner = 11,    // └ ┘ ┐ ┌
+    TJunction = 15, // ┬ ┴ ├ ┤
+    Cross = 16,     // ┼
+    Station = 17,   // Bus station/stop
     Grass = 5,
 }
 
@@ -262,10 +262,16 @@ pub fn spawn_route_segment(
     grid_config: &Res<GridConfig>, // 添加GridConfig资源
     texture_atlas_layouts: &mut ResMut<Assets<TextureAtlasLayout>>,
 ) -> Entity {
+    info!(
+        "Spawning route segment: pos={:?}, type={:?}, dir={:?}",
+        grid_pos, segment_type, direction
+    );
     let texture = asset_server.load("textures/roads2W.png");
     let layout = TextureAtlasLayout::from_grid(UVec2::splat(64), 8, 3, None, None);
     let texture_atlas_layout = texture_atlas_layouts.add(layout);
     let texture_index = segment_type as usize;
+
+    let final_rotation_angle = segment_type_rotation(segment_type, direction);
 
     commands
         .spawn((
@@ -278,9 +284,7 @@ pub fn spawn_route_segment(
             ),
             Transform {
                 translation: grid_config.grid_to_world(grid_pos).extend(0.0), // 设置初始世界位置
-                rotation: Quat::from_rotation_z(
-                    direction as u8 as f32 * std::f32::consts::PI / 2.0,
-                ),
+                rotation: Quat::from_rotation_z(final_rotation_angle),
                 ..default()
             },
             grid_pos, // 保留GridPosition用于状态跟踪和其他系统
@@ -291,4 +295,29 @@ pub fn spawn_route_segment(
             },
         ))
         .id()
+}
+
+pub fn segment_type_rotation(segment_type: RouteSegment, direction: Direction) -> f32 {
+    // Calculate rotation
+    let current_direction_angle = direction as u8 as f32 * std::f32::consts::PI / 2.0;
+    let final_rotation_angle = if segment_type == RouteSegment::Corner {
+        let corner_rotation_factor = match direction {
+            Direction::North => 0.0,
+            Direction::East => 3.0,
+            Direction::South => 2.0,
+            Direction::West => 1.0,
+        };
+        corner_rotation_factor * std::f32::consts::PI / 2.0
+    } else if segment_type == RouteSegment::TJunction {
+        let corner_rotation_factor = match direction {
+            Direction::North => 1.0,
+            Direction::East => 0.0,
+            Direction::South => 3.0,
+            Direction::West => 2.0,
+        };
+        corner_rotation_factor * std::f32::consts::PI / 2.0
+    } else {
+        current_direction_angle
+    };
+    final_rotation_angle
 }
