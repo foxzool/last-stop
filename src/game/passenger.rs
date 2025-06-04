@@ -1,5 +1,6 @@
 // Passenger system implementation
 use crate::game::grid::{Direction, GridPosition, GridState, RouteSegment};
+use crate::game::validation::can_segments_connect;
 use bevy::{color::palettes::basic, prelude::*};
 use rand::Rng;
 use std::collections::VecDeque;
@@ -322,80 +323,10 @@ impl PassengerManager {
             Some(s) => s,
             None => return false,
         };
-
-        // 确定两个位置的相对方向
-        let direction = if pos2.x > pos1.x {
-            Direction::East
-        } else if pos2.x < pos1.x {
-            Direction::West
-        } else if pos2.y > pos1.y {
-            Direction::North
-        } else {
-            Direction::South
-        };
-
-        // 检查第一个位置是否可以向指定方向移动
-        let can_exit_pos1 = match segment1.segment_type {
-            RouteSegment::Straight => {
-                // 直线只能沿着其方向移动
-                segment1.direction == direction || segment1.direction.opposite() == direction
-            }
-            RouteSegment::Corner => {
-                // 转角可以向两个方向移动
-                let dir1 = segment1.direction;
-                let dir2 = dir1.rotate_cw();
-                direction == dir1 || direction == dir2
-            }
-            RouteSegment::TJunction => {
-                // T型路口可以向三个方向移动，不能向其背面移动
-                direction != segment1.direction.opposite()
-            }
-            RouteSegment::Cross => {
-                // 十字路口可以向所有方向移动
-                true
-            }
-            RouteSegment::Station => {
-                // 车站可以向所有方向移动
-                true
-            }
-            RouteSegment::Grass => {
-                // 草地不能移动
-                false
-            }
-        };
-
-        // 检查第二个位置是否可以从指定方向进入
-        let can_enter_pos2 = match segment2.segment_type {
-            RouteSegment::Straight => {
-                // 直线只能沿着其方向移动
-                segment2.direction == direction.opposite()
-                    || segment2.direction.opposite() == direction.opposite()
-            }
-            RouteSegment::Corner => {
-                // 转角可以从两个方向进入
-                let dir1 = segment2.direction;
-                let dir2 = dir1.rotate_cw();
-                direction.opposite() == dir1 || direction.opposite() == dir2
-            }
-            RouteSegment::TJunction => {
-                // T型路口可以从三个方向进入，不能从其背面进入
-                direction.opposite() != segment2.direction.opposite()
-            }
-            RouteSegment::Cross => {
-                // 十字路口可以从所有方向进入
-                true
-            }
-            RouteSegment::Station => {
-                // 车站可以从所有方向进入
-                true
-            }
-            RouteSegment::Grass => {
-                // 草地不能进入
-                false
-            }
-        };
-
-        can_exit_pos1 && can_enter_pos2
+        
+        // 使用 validation 模块中的 can_segments_connect 方法检查连接
+        // 创建一个临时的 ConnectionMap，因为我们只需要检查连接性，不需要保存状态
+        can_segments_connect(*pos1, segment1, *pos2, segment2, &Default::default())
     }
 }
 
