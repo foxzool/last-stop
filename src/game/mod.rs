@@ -4,6 +4,7 @@ use bevy::prelude::*;
 mod grid;
 mod interaction;
 pub mod level;
+mod passenger;
 mod validation;
 
 pub(super) fn plugin(app: &mut App) {
@@ -12,6 +13,7 @@ pub(super) fn plugin(app: &mut App) {
         grid::GridPlugin,
         interaction::MouseInteractionPlugin,
         validation::ConnectionValidationPlugin,
+        passenger::PassengerPlugin,
     ));
     app.add_systems(OnEnter(Screen::Gameplay), spawn_level);
 }
