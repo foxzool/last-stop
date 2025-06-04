@@ -5,7 +5,7 @@ use crate::game::{
 use bevy::prelude::*;
 use std::collections::{HashMap, HashSet};
 
-// Connection point represents where routes can connect
+// 连接点表示路线可以连接的位置
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ConnectionPoint {
     pub position: GridPosition,
@@ -20,7 +20,7 @@ impl ConnectionPoint {
         }
     }
 
-    // Get the connection point this one should connect to
+    // 获取此连接点应该连接到的目标连接点
     pub fn get_target(&self) -> ConnectionPoint {
         let (dx, dy) = self.direction.to_offset();
         let target_pos = GridPosition::new(self.position.x + dx, self.position.y + dy);
@@ -28,15 +28,15 @@ impl ConnectionPoint {
     }
 }
 
-// Component to mark invalid connections with visual feedback
+// 用于标记无效连接并提供视觉反馈的组件
 #[derive(Component)]
 pub struct InvalidConnection;
 
-// Component to mark valid connections
+// 用于标记有效连接的组件
 #[derive(Component)]
 pub struct ValidConnection;
 
-// Resource to track all connections in the grid
+// 用于跟踪网格中所有连接的资源
 #[derive(Resource, Default)]
 pub struct ConnectionMap {
     pub connections: HashMap<ConnectionPoint, ConnectionPoint>,
@@ -45,24 +45,24 @@ pub struct ConnectionMap {
 }
 
 impl ConnectionMap {
-    // Add a bidirectional connection between two points
+    // 在两个点之间添加双向连接
     pub fn add_connection(&mut self, point1: ConnectionPoint, point2: ConnectionPoint) {
         self.connections.insert(point1, point2);
         self.connections.insert(point2, point1);
     }
 
-    // Remove all connections involving a specific position
+    // 移除涉及特定位置的所有连接
     pub fn remove_connections_at(&mut self, position: GridPosition) {
         self.connections
             .retain(|point, _| point.position != position);
     }
 
-    // Check if a connection point has a valid connection
+    // 检查连接点是否有有效连接
     pub fn has_connection(&self, point: &ConnectionPoint) -> bool {
         self.connections.contains_key(point)
     }
 
-    // Get all connection points from a grid position
+    // 从网格位置获取所有连接点
     pub fn get_connection_points(
         &self,
         position: GridPosition,
@@ -70,21 +70,21 @@ impl ConnectionMap {
     ) -> Vec<ConnectionPoint> {
         match segment.segment_type {
             RouteSegment::Straight => {
-                // Straight segments connect in two opposite directions
+                // 直线段在两个相反方向上连接
                 vec![
                     ConnectionPoint::new(position, segment.direction),
                     ConnectionPoint::new(position, segment.direction.opposite()),
                 ]
             }
             RouteSegment::Corner => {
-                // Corner segments connect in two perpendicular directions
+                // 转角段在两个垂直方向上连接
                 vec![
                     ConnectionPoint::new(position, segment.direction),
                     ConnectionPoint::new(position, segment.direction.rotate_cw()),
                 ]
             }
             RouteSegment::TJunction => {
-                // T-junction connects in three directions
+                // T型路口在三个方向上连接
                 vec![
                     ConnectionPoint::new(position, segment.direction),
                     ConnectionPoint::new(position, segment.direction.rotate_cw()),
@@ -95,7 +95,7 @@ impl ConnectionMap {
                 ]
             }
             RouteSegment::Cross => {
-                // Cross connects in all four directions
+                // 十字路口在所有四个方向上连接
                 vec![
                     ConnectionPoint::new(position, Direction::North),
                     ConnectionPoint::new(position, Direction::East),
@@ -104,7 +104,7 @@ impl ConnectionMap {
                 ]
             }
             RouteSegment::Station => {
-                // Station connects in two opposite directions (like straight)
+                // 车站在两个相反方向上连接（类似于直线段）
                 vec![
                     ConnectionPoint::new(position, segment.direction),
                     ConnectionPoint::new(position, segment.direction.opposite()),
@@ -118,7 +118,7 @@ impl ConnectionMap {
     }
 }
 
-// System to validate all route connections
+// 验证所有路线连接的系统
 pub fn validate_connections_system(
     mut connection_map: ResMut<ConnectionMap>,
     mut commands: Commands,
@@ -198,7 +198,7 @@ pub fn validate_connections_system(
     }
 }
 
-// System to provide visual feedback for connection validation
+// 为连接验证提供视觉反馈的系统
 pub fn connection_visual_feedback_system(
     mut query: Query<(
         &mut Sprite,
@@ -230,7 +230,7 @@ pub fn connection_visual_feedback_system(
     }
 }
 
-// System to find connected route networks
+// 查找连接的路线网络的系统
 pub fn find_route_networks_system(
     connection_map: Res<ConnectionMap>,
     grid_state: Res<GridState>,
@@ -285,14 +285,14 @@ pub fn find_route_networks_system(
     }
 }
 
-// Event for route network discovery
+// 路线网络发现的事件
 #[derive(Event)]
 pub struct RouteNetworkEvent {
     pub network_id: usize,
     pub positions: HashSet<GridPosition>,
 }
 
-// System to check if placement would create valid connections
+// 检查放置是否会创建有效连接的系统
 pub fn validate_placement_system(
     grid_state: Res<GridState>,
     connection_map: Res<ConnectionMap>,
@@ -335,7 +335,7 @@ pub fn validate_placement_system(
     }
 }
 
-// Event for placement validation results
+// 放置验证结果的事件
 #[derive(Event)]
 pub struct PlacementValidationEvent {
     pub position: GridPosition,
@@ -346,7 +346,7 @@ pub struct PlacementValidationEvent {
     pub is_valid: bool,
 }
 
-// System to prevent invalid placements (optional - can be disabled for puzzle flexibility)
+// 防止无效放置的系统（可选 - 可以为了谜题的灵活性而禁用）
 pub fn prevent_invalid_placement_system(
     mut placement_events: EventReader<PlacementValidationEvent>,
     mut commands: Commands,
@@ -363,7 +363,7 @@ pub fn prevent_invalid_placement_system(
     }
 }
 
-// Helper function to check if two segments can connect
+// 检查两个路段是否可以连接的辅助函数
 pub fn can_segments_connect(
     pos1: GridPosition,
     segment1: &RouteSegmentComponent,
@@ -383,7 +383,7 @@ pub fn can_segments_connect(
     false
 }
 
-// Plugin to register all connection validation systems
+// 注册所有连接验证系统的插件
 pub struct ConnectionValidationPlugin;
 
 impl Plugin for ConnectionValidationPlugin {
