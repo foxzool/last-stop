@@ -106,12 +106,12 @@ pub struct GridSnap;
 // 路线段类型
 #[derive(Component, Debug, Clone, Copy, PartialEq)]
 pub enum RouteSegment {
-    Straight,  // ─ or │
-    Corner,    // └ ┘ ┐ ┌
-    TJunction, // ┬ ┴ ├ ┤
-    Cross,     // ┼
-    Station,   // Bus station/stop
-    Grass,     // Grass terrain/background
+    Straight = 3, // ─ or │
+    Corner = 11,  // └ ┘ ┐ ┌
+    TJunction = 13, // ┬ ┴ ├ ┤
+    Cross = 16, // ┼
+    Station = 17, // Bus station/stop
+    Grass = 5,
 }
 
 // 路线段的方向枚举
@@ -265,14 +265,7 @@ pub fn spawn_route_segment(
     let texture = asset_server.load("textures/roads2W.png");
     let layout = TextureAtlasLayout::from_grid(UVec2::splat(64), 8, 3, None, None);
     let texture_atlas_layout = texture_atlas_layouts.add(layout);
-    let texture_index = match segment_type {
-        RouteSegment::Straight => 3,
-        RouteSegment::Corner => 11,
-        RouteSegment::TJunction => 13,
-        RouteSegment::Cross => 16,
-        RouteSegment::Station => 17,
-        RouteSegment::Grass => 5,
-    };
+    let texture_index = segment_type as usize;
 
     commands
         .spawn((

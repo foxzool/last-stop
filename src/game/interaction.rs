@@ -270,14 +270,7 @@ pub fn preview_system(
         let texture = asset_server.load("textures/roads2W.png");
         let layout = TextureAtlasLayout::from_grid(UVec2::splat(64), 8, 3, None, None);
         let texture_atlas_layout = texture_atlas_layouts.add(layout);
-        let texture_index = match selected_tool.segment_type {
-            RouteSegment::Straight => 3,
-            RouteSegment::Corner => 11,
-            RouteSegment::TJunction => 13,
-            RouteSegment::Cross => 16,
-            RouteSegment::Station => 17,
-            RouteSegment::Grass => 5,
-        };
+        let texture_index = selected_tool.segment_type as usize;
 
         let world_pos = grid_config.grid_to_world(grid_pos);
 

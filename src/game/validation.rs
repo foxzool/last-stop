@@ -278,7 +278,7 @@ pub fn find_route_networks_system(
 
     // Send network events
     for (index, network) in networks.iter().enumerate() {
-        network_events.send(RouteNetworkEvent {
+        network_events.write(RouteNetworkEvent {
             network_id: index,
             positions: network.clone(),
         });
