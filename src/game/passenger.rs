@@ -3,7 +3,7 @@ use crate::game::{
     grid::{GridPosition, GridState},
     validation::can_segments_connect,
 };
-use bevy::{color::palettes::basic, prelude::*};
+use bevy::{color::palettes::basic, ecs::system::entity_command::observe, prelude::*};
 use rand::Rng;
 use std::collections::VecDeque;
 
@@ -14,16 +14,15 @@ impl Plugin for PassengerPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<PassengerSpawnTimer>()
             .init_resource::<PassengerManager>()
-            .add_event::<RequestPathReplanEvent>()
             .add_systems(
                 Update,
                 (
                     spawn_passengers,
                     update_passengers,
                     remove_impatient_passengers,
-                    handle_path_replan_requests,
                 ),
-            );
+            )
+            .add_observer(handle_path_replan_requests);
     }
 }
 
@@ -128,14 +127,23 @@ impl Passenger {
 
             self.path.pop_front(); // 移除已到达的当前 target_position (路径点)
 
-            if let Some(next_waypoint) = self.path.front() { // 查看路径中的下一个点
+            if let Some(next_waypoint) = self.path.front() {
+                // 查看路径中的下一个点
                 self.target_position = *next_waypoint; // 设置为新的目标
-                debug!("Passenger: Reached {:?}, next target {:?}. Path segments remaining: {}", self.current_position, self.target_position, self.path.len());
+                debug!(
+                    "Passenger: Reached {:?}, next target {:?}. Path segments remaining: {}",
+                    self.current_position,
+                    self.target_position,
+                    self.path.len()
+                );
                 true // 仍然在移动
             } else {
                 // 路径已完成 (path is now empty after pop_front and front() is None)
                 self.arrived = true;
-                debug!("Passenger: Reached final destination {:?}. Path completed.", self.current_position);
+                debug!(
+                    "Passenger: Reached final destination {:?}. Path completed.",
+                    self.current_position
+                );
                 false // 停止移动
             }
         } else {
@@ -393,16 +401,14 @@ impl PassengerManager {
 
 // Event to request a path replan for a specific passenger
 #[derive(Event, Debug)]
-pub struct RequestPathReplanEvent(pub Entity);
+pub struct RequestPathReplanEvent;
 
 // 生成乘客系统
 fn spawn_passengers(
-    mut event_writer: EventWriter<RequestPathReplanEvent>,
     mut commands: Commands,
     time: Res<Time>,
     mut spawn_timer: ResMut<PassengerSpawnTimer>,
     mut passenger_manager: ResMut<PassengerManager>,
-    grid_state: Res<GridState>,
     asset_server: Res<AssetServer>,
 ) {
     // 更新计时器
@@ -453,7 +459,7 @@ fn spawn_passengers(
                 passenger_manager.add_passenger(passenger_entity);
 
                 // Request initial path plan for the new passenger
-                event_writer.send(RequestPathReplanEvent(passenger_entity));
+                commands.trigger_targets(RequestPathReplanEvent, [passenger_entity]);
 
                 info!(
                     "成功生成 {:?} 乘客，实体ID: {:?}",
@@ -546,57 +552,62 @@ fn remove_impatient_passengers(
 
 // System to handle path replan requests from events
 fn handle_path_replan_requests(
-    mut events: EventReader<RequestPathReplanEvent>,
-    mut passenger_manager: ResMut<PassengerManager>,
+    trigger: Trigger<RequestPathReplanEvent>,
+    passenger_manager: ResMut<PassengerManager>,
     grid_state: Res<GridState>,
     mut query: Query<(Entity, &mut Passenger)>,
 ) {
-    for event in events.read() {
-        let passenger_entity = event.0;
-        if let Ok((entity, mut passenger)) = query.get_mut(passenger_entity) {
-            // 跳过已经到达目的地的乘客
-            if passenger.arrived {
-                debug!("Passenger {:?} already arrived, skipping replan.", entity);
-                continue;
-            }
+    let passenger_entity = trigger.target();
+    if let Ok((entity, mut passenger)) = query.get_mut(passenger_entity) {
+        // 跳过已经到达目的地的乘客
+        if passenger.arrived {
+            debug!("Passenger {:?} already arrived, skipping replan.", entity);
+            return;
+        }
 
-            // 获取乘客当前位置和目的地类型
-            let current_pos = passenger.current_position;
-            let destination_type = passenger.destination;
+        // 获取乘客当前位置和目的地类型
+        let current_pos = passenger.current_position;
+        let destination_type = passenger.destination;
 
-            debug!("Handling RequestPathReplanEvent for {:?} from ({}, {}) to {:?}", 
-                   entity, current_pos.x, current_pos.y, destination_type);
+        debug!(
+            "Handling RequestPathReplanEvent for {:?} from ({}, {}) to {:?}",
+            entity, current_pos.x, current_pos.y, destination_type
+        );
 
-            // 寻找对应目的地类型的终点站
-            if let Some(end_pos) =
-                passenger_manager.find_destination_station(destination_type, Some(current_pos))
-            {
-                // 寻找从当前位置到终点的路径
-                let path_result = passenger_manager.find_path(current_pos, end_pos, &grid_state);
+        // 寻找对应目的地类型的终点站
+        if let Some(end_pos) =
+            passenger_manager.find_destination_station(destination_type, Some(current_pos))
+        {
+            // 寻找从当前位置到终点的路径
+            let path_result = passenger_manager.find_path(current_pos, end_pos, &grid_state);
 
-                if let Some(path) = path_result {
-                    info!(
-                        "Path found for {:?} from ({}, {}) to ({}, {}). Length: {}. Setting path.",
-                        entity,
-                        current_pos.x,
-                        current_pos.y,
-                        end_pos.x,
-                        end_pos.y,
-                        path.len()
-                    );
-                    passenger.set_path(path);
-                } else {
-                    warn!(
-                        "Could not find path for {:?} from ({}, {}) to ({}, {}).",
-                        entity, current_pos.x, current_pos.y, end_pos.x, end_pos.y
-                    );
-                }
+            if let Some(path) = path_result {
+                info!(
+                    "Path found for {:?} from ({}, {}) to ({}, {}). Length: {}. Setting path.",
+                    entity,
+                    current_pos.x,
+                    current_pos.y,
+                    end_pos.x,
+                    end_pos.y,
+                    path.len()
+                );
+                passenger.set_path(path);
             } else {
-                warn!("Could not find destination station for {:?} (type: {:?}) from ({}, {}).", 
-                       entity, destination_type, current_pos.x, current_pos.y);
+                warn!(
+                    "Could not find path for {:?} from ({}, {}) to ({}, {}).",
+                    entity, current_pos.x, current_pos.y, end_pos.x, end_pos.y
+                );
             }
         } else {
-            warn!("Received RequestPathReplanEvent for non-existent or invalid passenger entity: {:?}", passenger_entity);
+            warn!(
+                "Could not find destination station for {:?} (type: {:?}) from ({}, {}).",
+                entity, destination_type, current_pos.x, current_pos.y
+            );
         }
+    } else {
+        warn!(
+            "Received RequestPathReplanEvent for non-existent or invalid passenger entity: {:?}",
+            passenger_entity
+        );
     }
 }
