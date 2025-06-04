@@ -14,14 +14,14 @@ impl Plugin for PassengerPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<PassengerSpawnTimer>()
             .init_resource::<PassengerManager>()
-            .init_resource::<PathReplannigTimer>()
+            .add_event::<RequestPathReplanEvent>()
             .add_systems(
                 Update,
                 (
                     spawn_passengers,
                     update_passengers,
                     remove_impatient_passengers,
-                    replan_passenger_paths,
+                    handle_path_replan_requests,
                 ),
             );
     }
@@ -37,20 +37,6 @@ impl Default for PassengerSpawnTimer {
     fn default() -> Self {
         Self {
             timer: Timer::from_seconds(5.0, TimerMode::Repeating),
-        }
-    }
-}
-
-// 路径重新规划计时器
-#[derive(Resource)]
-pub struct PathReplannigTimer {
-    pub timer: Timer,
-}
-
-impl Default for PathReplannigTimer {
-    fn default() -> Self {
-        Self {
-            timer: Timer::from_seconds(10.0, TimerMode::Repeating),
         }
     }
 }
@@ -405,8 +391,13 @@ impl PassengerManager {
     }
 }
 
+// Event to request a path replan for a specific passenger
+#[derive(Event, Debug)]
+pub struct RequestPathReplanEvent(pub Entity);
+
 // 生成乘客系统
 fn spawn_passengers(
+    mut event_writer: EventWriter<RequestPathReplanEvent>,
     mut commands: Commands,
     time: Res<Time>,
     mut spawn_timer: ResMut<PassengerSpawnTimer>,
@@ -458,8 +449,12 @@ fn spawn_passengers(
                     ))
                     .id();
 
-                // 添加到乘客管理器
+                // 将乘客添加到管理器
                 passenger_manager.add_passenger(passenger_entity);
+
+                // Request initial path plan for the new passenger
+                event_writer.send(RequestPathReplanEvent(passenger_entity));
+
                 info!(
                     "成功生成 {:?} 乘客，实体ID: {:?}",
                     destination, passenger_entity
@@ -549,27 +544,19 @@ fn remove_impatient_passengers(
     }
 }
 
-// 定期重新规划乘客路径系统
-fn replan_passenger_paths(
-    time: Res<Time>,
-    mut replan_timer: ResMut<PathReplannigTimer>,
+// System to handle path replan requests from events
+fn handle_path_replan_requests(
+    mut events: EventReader<RequestPathReplanEvent>,
     mut passenger_manager: ResMut<PassengerManager>,
     grid_state: Res<GridState>,
     mut query: Query<(Entity, &mut Passenger)>,
 ) {
-    // 更新计时器
-    replan_timer.timer.tick(time.delta());
-
-    // 如果计时器完成，为每个乘客重新规划路径
-    if replan_timer.timer.just_finished() {
-        info!("开始为所有乘客重新规划路径");
-
-        let mut replan_count = 0;
-        let mut success_count = 0;
-
-        for (entity, mut passenger) in query.iter_mut() {
+    for event in events.read() {
+        let passenger_entity = event.0;
+        if let Ok((entity, mut passenger)) = query.get_mut(passenger_entity) {
             // 跳过已经到达目的地的乘客
             if passenger.arrived {
+                debug!("Passenger {:?} already arrived, skipping replan.", entity);
                 continue;
             }
 
@@ -577,19 +564,19 @@ fn replan_passenger_paths(
             let current_pos = passenger.current_position;
             let destination_type = passenger.destination;
 
+            debug!("Handling RequestPathReplanEvent for {:?} from ({}, {}) to {:?}", 
+                   entity, current_pos.x, current_pos.y, destination_type);
+
             // 寻找对应目的地类型的终点站
-            // Pass passenger's current_pos as the position to avoid
             if let Some(end_pos) =
                 passenger_manager.find_destination_station(destination_type, Some(current_pos))
             {
-                replan_count += 1;
-
                 // 寻找从当前位置到终点的路径
                 let path_result = passenger_manager.find_path(current_pos, end_pos, &grid_state);
 
                 if let Some(path) = path_result {
                     info!(
-                        "为乘客 {:?} 重新规划路径，从 ({}, {}) 到 ({}, {}), 路径长度: {}",
+                        "Path found for {:?} from ({}, {}) to ({}, {}). Length: {}. Setting path.",
                         entity,
                         current_pos.x,
                         current_pos.y,
@@ -598,19 +585,18 @@ fn replan_passenger_paths(
                         path.len()
                     );
                     passenger.set_path(path);
-                    success_count += 1;
                 } else {
                     warn!(
-                        "无法为乘客 {:?} 重新规划从 ({}, {}) 到 ({}, {}) 的路径",
+                        "Could not find path for {:?} from ({}, {}) to ({}, {}).",
                         entity, current_pos.x, current_pos.y, end_pos.x, end_pos.y
                     );
                 }
+            } else {
+                warn!("Could not find destination station for {:?} (type: {:?}) from ({}, {}).", 
+                       entity, destination_type, current_pos.x, current_pos.y);
             }
+        } else {
+            warn!("Received RequestPathReplanEvent for non-existent or invalid passenger entity: {:?}", passenger_entity);
         }
-
-        info!(
-            "路径重新规划完成，共 {} 个乘客需要规划，成功 {} 个",
-            replan_count, success_count
-        );
     }
 }
