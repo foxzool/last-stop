@@ -106,12 +106,12 @@ pub struct GridSnap;
 // Route segment types
 #[derive(Component, Debug, Clone, Copy, PartialEq)]
 pub enum RouteSegment {
-    Straight,  // ─ or │
-    Corner,    // └ ┘ ┐ ┌
-    TJunction, // ┬ ┴ ├ ┤
-    Cross,     // ┼
-    Station,   // Bus station/stop
-    Grass,     // grass
+    Straight,    // ─ or │
+    Corner,      // └ ┘ ┐ ┌
+    TJunction,   // ┬ ┴ ├ ┤
+    Cross,       // ┼
+    Station,     // Bus station/stop
+    Grass,       // Grass terrain/background
 }
 
 // Direction enum for route segments
@@ -162,6 +162,14 @@ pub struct RouteSegmentComponent {
     pub direction: Direction,
 }
 
+// Component to mark terrain/background elements (like grass)
+#[derive(Component)]
+pub struct TerrainElement;
+
+// Component to mark actual route elements (roads, stations)
+#[derive(Component)]
+pub struct RouteElement;
+
 // Grid state resource to track what's placed where
 #[derive(Resource, Default)]
 pub struct GridState {
@@ -201,7 +209,6 @@ impl GridState {
     }
 }
 
-// System to snap entities with GridSnap component to grid positions
 // System to setup GridConfig based on window size at startup
 fn setup_grid_from_window_size(
     mut grid_config: ResMut<GridConfig>,
@@ -274,6 +281,7 @@ pub fn spawn_route_segment(
                 ..default()
             },
             grid_pos, // Keep GridPosition for state tracking and other systems
+            GridSnap,
             RouteSegmentComponent {
                 segment_type,
                 direction,

@@ -136,7 +136,7 @@ pub fn validate_connections_system(
         commands.entity(entity).remove::<ValidConnection>();
     }
 
-    // Build connection map
+    // Build connection map (only for route elements, not terrain)
     for (entity, grid_pos) in query.iter() {
         if let Some(segment) = grid_state.get_route_segment(*grid_pos) {
             let connection_points = connection_map.get_connection_points(*grid_pos, segment);
@@ -144,8 +144,13 @@ pub fn validate_connections_system(
             for point in connection_points {
                 let target = point.get_target();
 
-                // Check if target position has a segment that can connect
+                // Check if target position has a route segment (not terrain)
                 if let Some(target_segment) = grid_state.get_route_segment(target.position) {
+                    // Skip if target is grass (terrain element)
+                    if target_segment.segment_type == RouteSegment::Grass {
+                        continue;
+                    }
+
                     let target_points =
                         connection_map.get_connection_points(target.position, target_segment);
 
@@ -158,7 +163,7 @@ pub fn validate_connections_system(
         }
     }
 
-    // Validate each segment
+    // Validate each segment (only route elements)
     for (entity, grid_pos) in query.iter() {
         if let Some(segment) = grid_state.get_route_segment(*grid_pos) {
             let connection_points = connection_map.get_connection_points(*grid_pos, segment);
@@ -169,10 +174,12 @@ pub fn validate_connections_system(
                 if connection_map.has_connection(&point) {
                     has_valid_connection = true;
                 } else {
-                    // Check if there's a segment at target position but no valid connection
+                    // Check if there's a route segment (not grass) at target position but no valid connection
                     let target = point.get_target();
-                    if grid_state.get_route_segment(target.position).is_some() {
-                        has_invalid_connection = true;
+                    if let Some(target_segment) = grid_state.get_route_segment(target.position) {
+                        if target_segment.segment_type != RouteSegment::Grass {
+                            has_invalid_connection = true;
+                        }
                     }
                 }
             }
@@ -195,20 +202,30 @@ pub fn validate_connections_system(
 pub fn connection_visual_feedback_system(
     mut query: Query<(
         &mut Sprite,
+        &RouteSegmentComponent,
         Option<&InvalidConnection>,
         Option<&ValidConnection>,
     )>,
 ) {
-    for (mut sprite, invalid, valid) in query.iter_mut() {
-        if invalid.is_some() {
-            // Red tint for invalid connections
-            sprite.color = Color::srgb(1.0, 0.3, 0.3);
-        } else if valid.is_some() {
-            // Green tint for valid connections
-            sprite.color = Color::srgb(0.3, 1.0, 0.3);
-        } else {
-            // White for isolated segments (not connected to anything)
-            sprite.color = Color::WHITE;
+    for (mut sprite, segment, invalid, valid) in query.iter_mut() {
+        match segment.segment_type {
+            RouteSegment::Grass => {
+                // Grass always stays green
+                sprite.color = Color::srgb(0.4, 0.8, 0.4);
+            }
+            _ => {
+                // Route elements get validation colors
+                if invalid.is_some() {
+                    // Red tint for invalid connections
+                    sprite.color = Color::srgb(1.0, 0.3, 0.3);
+                } else if valid.is_some() {
+                    // Green tint for valid connections
+                    sprite.color = Color::srgb(0.3, 1.0, 0.3);
+                } else {
+                    // White for isolated segments (not connected to anything)
+                    sprite.color = Color::WHITE;
+                }
+            }
         }
     }
 }
@@ -307,7 +324,7 @@ pub fn validate_placement_system(
             }
         }
 
-        validation_events.write(PlacementValidationEvent {
+        validation_events.send(PlacementValidationEvent {
             position: event.position,
             segment_type: event.segment_type,
             direction: event.direction,
