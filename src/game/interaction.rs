@@ -182,6 +182,7 @@ pub fn place_segment_system(
     mut grid_state: ResMut<GridState>,
     asset_server: Res<AssetServer>,
     grid_config: Res<GridConfig>, // Added GridConfig resource
+    mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
 ) {
     for event in place_segment_events.read() {
         let entity = spawn_route_segment(
@@ -191,6 +192,7 @@ pub fn place_segment_system(
             event.direction,
             &asset_server,
             &grid_config, // Pass GridConfig
+            &mut texture_atlas_layouts,
         );
 
         // Add to grid state
@@ -254,6 +256,7 @@ pub fn preview_system(
     grid_state: Res<GridState>,
     asset_server: Res<AssetServer>,
     preview_query: Query<Entity, With<Preview>>,
+    mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
 ) {
     // Remove existing preview
     for entity in preview_query.iter() {
@@ -264,21 +267,27 @@ pub fn preview_system(
 
     // Only show preview if position is valid and empty
     if grid_config.is_valid_position(grid_pos) && !grid_state.is_occupied(grid_pos) {
-        let texture_path = match selected_tool.segment_type {
-            RouteSegment::Straight => "sprites/road_straight.png",
-            RouteSegment::Corner => "sprites/road_corner.png",
-            RouteSegment::TJunction => "sprites/road_t_junction.png",
-            RouteSegment::Cross => "sprites/road_cross.png",
-            RouteSegment::Station => "sprites/bus_station.png",
-            RouteSegment::Grass => "sprites/grass.png",
+        let texture = asset_server.load("textures/roads2W.png");
+        let layout = TextureAtlasLayout::from_grid(UVec2::splat(64), 8, 3, None, None);
+        let texture_atlas_layout = texture_atlas_layouts.add(layout);
+        let texture_index = match selected_tool.segment_type {
+            RouteSegment::Straight => 3,
+            RouteSegment::Corner => 11,
+            RouteSegment::TJunction => 13,
+            RouteSegment::Cross => 16,
+            RouteSegment::Station => 17,
+            RouteSegment::Grass => 5,
         };
 
         let world_pos = grid_config.grid_to_world(grid_pos);
 
         commands.spawn((
             Sprite {
-                image: asset_server.load(texture_path),
-                custom_size: Some(Vec2::splat(grid_config.tile_size)),
+                image: texture,
+                texture_atlas: Some(TextureAtlas {
+                    layout: texture_atlas_layout,
+                    index: texture_index,
+                }),
                 color: Color::srgba(1.0, 1.0, 1.0, 0.5),
                 ..default()
             },

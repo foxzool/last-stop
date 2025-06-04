@@ -1,6 +1,8 @@
 // Passenger system implementation
-use crate::game::grid::{Direction, GridPosition, GridState, RouteSegment};
-use crate::game::validation::can_segments_connect;
+use crate::game::{
+    grid::{GridPosition, GridState, RouteSegment},
+    validation::can_segments_connect,
+};
 use bevy::{color::palettes::basic, prelude::*};
 use rand::Rng;
 use std::collections::VecDeque;
@@ -496,17 +498,29 @@ fn replan_passenger_paths(
                 let path_result = passenger_manager.find_path(current_pos, end_pos, &grid_state);
 
                 if let Some(path) = path_result {
-                    info!("为乘客 {:?} 重新规划路径，从 ({}, {}) 到 ({}, {}), 路径长度: {}",
-                          entity, current_pos.x, current_pos.y, end_pos.x, end_pos.y, path.len());
+                    info!(
+                        "为乘客 {:?} 重新规划路径，从 ({}, {}) 到 ({}, {}), 路径长度: {}",
+                        entity,
+                        current_pos.x,
+                        current_pos.y,
+                        end_pos.x,
+                        end_pos.y,
+                        path.len()
+                    );
                     passenger.set_path(path);
                     success_count += 1;
                 } else {
-                    warn!("无法为乘客 {:?} 重新规划从 ({}, {}) 到 ({}, {}) 的路径",
-                         entity, current_pos.x, current_pos.y, end_pos.x, end_pos.y);
+                    warn!(
+                        "无法为乘客 {:?} 重新规划从 ({}, {}) 到 ({}, {}) 的路径",
+                        entity, current_pos.x, current_pos.y, end_pos.x, end_pos.y
+                    );
                 }
             }
         }
 
-        info!("路径重新规划完成，共 {} 个乘客需要规划，成功 {} 个", replan_count, success_count);
+        info!(
+            "路径重新规划完成，共 {} 个乘客需要规划，成功 {} 个",
+            replan_count, success_count
+        );
     }
 }

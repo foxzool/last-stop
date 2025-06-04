@@ -260,23 +260,29 @@ pub fn spawn_route_segment(
     direction: Direction,
     asset_server: &Res<AssetServer>,
     grid_config: &Res<GridConfig>, // Added GridConfig resource
+    texture_atlas_layouts: &mut ResMut<Assets<TextureAtlasLayout>>,
 ) -> Entity {
-    let texture_path = match segment_type {
-        RouteSegment::Straight => "sprites/road_straight.png",
-        RouteSegment::Corner => "sprites/road_corner.png",
-        RouteSegment::TJunction => "sprites/road_t_junction.png",
-        RouteSegment::Cross => "sprites/road_cross.png",
-        RouteSegment::Station => "sprites/bus_station.png",
-        RouteSegment::Grass => "sprites/grass.png",
+    let texture = asset_server.load("textures/roads2W.png");
+    let layout = TextureAtlasLayout::from_grid(UVec2::splat(64), 8, 3, None, None);
+    let texture_atlas_layout = texture_atlas_layouts.add(layout);
+    let texture_index = match segment_type {
+        RouteSegment::Straight => 3,
+        RouteSegment::Corner => 11,
+        RouteSegment::TJunction => 13,
+        RouteSegment::Cross => 16,
+        RouteSegment::Station => 17,
+        RouteSegment::Grass => 5,
     };
 
     commands
         .spawn((
-            Sprite {
-                image: asset_server.load(texture_path),
-                custom_size: Some(Vec2::splat(grid_config.tile_size)),
-                    ..default()
-            },
+            Sprite::from_atlas_image(
+                texture,
+                TextureAtlas {
+                    layout: texture_atlas_layout,
+                    index: texture_index,
+                },
+            ),
             Transform {
                 translation: grid_config.grid_to_world(grid_pos).extend(0.0), // Set initial world position
                 rotation: Quat::from_rotation_z(

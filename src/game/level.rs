@@ -1,8 +1,10 @@
 // spawn main level
 
+use crate::game::{
+    grid::{Direction, GridConfig, GridPosition, RouteSegment, spawn_route_segment},
+    passenger::{Destination, PassengerManager},
+};
 use bevy::prelude::*;
-use crate::game::grid::{GridPosition, RouteSegment, Direction, spawn_route_segment, GridConfig};
-use crate::game::passenger::{PassengerManager, Destination};
 
 pub(super) fn plugin(app: &mut App) {
     // 可以在这里添加关卡相关的系统
@@ -14,9 +16,16 @@ pub fn spawn_level(
     asset_server: Res<AssetServer>,
     grid_config: Res<GridConfig>,
     mut passenger_manager: ResMut<PassengerManager>,
+    mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
 ) {
     // 生成一些基础路线和车站
-    spawn_initial_routes(&mut commands, &asset_server, &grid_config, &mut passenger_manager);
+    spawn_initial_routes(
+        &mut commands,
+        &asset_server,
+        &grid_config,
+        &mut passenger_manager,
+        &mut texture_atlas_layouts,
+    );
 }
 
 // 生成初始路线和车站
@@ -25,6 +34,7 @@ fn spawn_initial_routes(
     asset_server: &Res<AssetServer>,
     grid_config: &Res<GridConfig>,
     passenger_manager: &mut PassengerManager,
+    mut texture_atlas_layouts: &mut ResMut<Assets<TextureAtlasLayout>>,
 ) {
     // // 生成红色线路车站
     // let red_station_pos = GridPosition::new(1, 1);
@@ -63,7 +73,8 @@ fn spawn_initial_routes(
     // passenger_manager.add_station(green_station_pos, vec![Destination::Green]);
 
     // 生成黄色线路车站
-    let yellow_station_pos = GridPosition::new(grid_config.grid_width - 2, grid_config.grid_height - 2);
+    let yellow_station_pos =
+        GridPosition::new(grid_config.grid_width - 2, grid_config.grid_height - 2);
     spawn_route_segment(
         commands,
         yellow_station_pos,
@@ -71,11 +82,13 @@ fn spawn_initial_routes(
         Direction::West,
         asset_server,
         grid_config,
+        &mut texture_atlas_layouts,
     );
     passenger_manager.add_station(yellow_station_pos, vec![Destination::Yellow]);
 
     // 生成中央换乘站
-    let central_station_pos = GridPosition::new(grid_config.grid_width / 2, grid_config.grid_height / 2);
+    let central_station_pos =
+        GridPosition::new(grid_config.grid_width / 2, grid_config.grid_height / 2);
     spawn_route_segment(
         commands,
         central_station_pos,
@@ -83,10 +96,16 @@ fn spawn_initial_routes(
         Direction::North,
         asset_server,
         grid_config,
+        &mut texture_atlas_layouts,
     );
     passenger_manager.add_station(
         central_station_pos,
-        vec![Destination::Red, Destination::Blue, Destination::Green, Destination::Yellow]
+        vec![
+            Destination::Red,
+            Destination::Blue,
+            Destination::Green,
+            Destination::Yellow,
+        ],
     );
 
     // 可以在这里添加更多的初始路线
