@@ -75,7 +75,7 @@ fn spawn_initial_routes(
     // 生成黄色线路车站
     let yellow_station_pos =
         // GridPosition::new(grid_config.grid_width - 2, grid_config.grid_height - 2);
-        GridPosition::new(grid_config.grid_width / 2 + 2, grid_config.grid_height / 2 + 2);
+        GridPosition::new(grid_config.grid_width / 2 , grid_config.grid_height / 2 + 3);
     spawn_route_segment(
         commands,
         yellow_station_pos,

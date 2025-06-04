@@ -158,8 +158,16 @@ impl Passenger {
     // 设置路径
     pub fn set_path(&mut self, path: VecDeque<GridPosition>) {
         self.path = path;
-        if let Some(next_pos) = self.path.front() {
-            self.target_position = *next_pos;
+        if !self.path.is_empty() { // 确保路径不为空
+            // 从路径的第一个点开始
+            self.target_position = *self.path.front().unwrap(); // unwrap是安全的，因为我们检查了is_empty
+            self.arrived = false; // 重置到达状态，准备开始新的路径
+            self.progress = 0.0; // 重置移动进度
+        } else {
+            // 如果路径为空，标记为已到达 (或处理错误)
+            self.arrived = true;
+            // 可以考虑在这里打日志，因为通常不应该给乘客设置一个空路径
+            warn!("Attempted to set an empty path for a passenger.");
         }
     }
 
@@ -199,29 +207,56 @@ impl PassengerManager {
 
     // 获取随机起点站
     pub fn get_random_start_station(&self) -> Option<GridPosition> {
-        return Some(self.stations[0].0);
         if self.stations.is_empty() {
             return None;
         }
+       
+
 
         let index = rand::thread_rng().gen_range(0..self.stations.len());
         Some(self.stations[index].0)
     }
 
     // 为指定目的地找到合适的终点站
-    pub fn find_destination_station(&self, destination: Destination) -> Option<GridPosition> {
-        let valid_stations: Vec<_> = self
+    pub fn find_destination_station(
+        &self,
+        destination: Destination,
+        current_pos_to_avoid: Option<GridPosition>,
+    ) -> Option<GridPosition> {
+        let all_matching_stations: Vec<GridPosition> = self
             .stations
             .iter()
             .filter(|(_, dests)| dests.contains(&destination))
+            .map(|(pos, _)| *pos)
             .collect();
 
-        if valid_stations.is_empty() {
+        if all_matching_stations.is_empty() {
+            return None; // No station serves this destination type
+        }
+
+        let final_candidate_list = if let Some(avoid_pos) = current_pos_to_avoid {
+            let preferred_options: Vec<GridPosition> = all_matching_stations
+                .iter()
+                .filter(|&&p| p != avoid_pos)
+                .cloned()
+                .collect();
+            if !preferred_options.is_empty() {
+                preferred_options
+            } else {
+                all_matching_stations // Fallback: current pos is the only option, or no other options
+            }
+        } else {
+            all_matching_stations // No position to avoid specified
+        };
+
+        if final_candidate_list.is_empty() {
+            // This should ideally not happen if all_matching_stations was not empty.
+            // However, to be safe, one might return None or log an error.
             return None;
         }
 
-        let index = rand::thread_rng().gen_range(0..valid_stations.len());
-        Some(valid_stations[index].0)
+        let index = rand::thread_rng().gen_range(0..final_candidate_list.len());
+        Some(final_candidate_list[index])
     }
 
     // 寻找从起点到终点的最短路径
@@ -384,7 +419,8 @@ fn spawn_passengers(
             info!("随机选择目的地类型: {:?}", destination);
 
             // 寻找对应目的地类型的终点站
-            if let Some(end_pos) = passenger_manager.find_destination_station(destination) {
+            // Pass start_pos as the position to avoid for the initial destination
+            if let Some(end_pos) = passenger_manager.find_destination_station(destination, Some(start_pos)) {
                 info!("找到终点站: ({}, {})", end_pos.x, end_pos.y);
 
                 // 创建乘客
@@ -499,7 +535,8 @@ fn replan_passenger_paths(
             let destination_type = passenger.destination;
 
             // 寻找对应目的地类型的终点站
-            if let Some(end_pos) = passenger_manager.find_destination_station(destination_type) {
+            // Pass passenger's current_pos as the position to avoid
+            if let Some(end_pos) = passenger_manager.find_destination_station(destination_type, Some(current_pos)) {
                 replan_count += 1;
 
                 // 寻找从当前位置到终点的路径

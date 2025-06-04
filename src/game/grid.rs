@@ -4,19 +4,40 @@ use bevy::{
     prelude::*,
     window::{PrimaryWindow, WindowResized},
 };
+use crate::game::validation::ConnectionMap;
 
 pub struct GridPlugin;
+
+// System to update the GridState.route_segments HashMap
+pub fn update_route_segments_system(
+    mut grid_state: ResMut<GridState>,
+    query: Query<(&GridPosition, &RouteSegmentComponent)>, // Query for all entities with these components
+) {
+    // Clear the existing route segments. This is a simple approach.
+    // For more complex scenarios (e.g., dynamically adding/removing segments frequently),
+    // you might want a more sophisticated update logic that handles additions,
+    // removals, and changes without a full clear and rebuild.
+    grid_state.route_segments.clear();
+
+    for (grid_pos, route_segment_comp) in query.iter() {
+        grid_state
+            .route_segments
+            .insert(*grid_pos, *route_segment_comp); // RouteSegmentComponent is Copy
+    }
+}
 
 impl Plugin for GridPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<GridConfig>()
             .init_resource::<GridState>()
+            .init_resource::<ConnectionMap>() // Initialize ConnectionMap
             .add_systems(OnEnter(Screen::Gameplay), setup_grid_from_window_size)
             .add_systems(
                 Update,
                 (
                     grid_snap_system,
                     update_grid_state_system,
+                update_route_segments_system,
                     setup_grid_from_window_size
                         .run_if(|ev: EventReader<WindowResized>| !ev.is_empty()),
                 ),
@@ -156,7 +177,7 @@ impl Direction {
 }
 
 // 带方向的路线段组件
-#[derive(Component, Clone)]
+#[derive(Component, Debug, Clone, Copy, PartialEq)]
 pub struct RouteSegmentComponent {
     pub segment_type: RouteSegment,
     pub direction: Direction,

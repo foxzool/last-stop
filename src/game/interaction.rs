@@ -322,11 +322,6 @@ pub fn tool_selection_system(
 
     // R key to rotate current tool direction
     if keys.just_pressed(KeyCode::KeyR) {
-        info!(
-            "selected_tool direction: {:?} => {:?}",
-            selected_tool.direction,
-            selected_tool.direction.rotate_cw()
-        );
         selected_tool.direction = selected_tool.direction.rotate_cw();
     }
 }
