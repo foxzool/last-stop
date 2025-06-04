@@ -74,7 +74,8 @@ fn spawn_initial_routes(
 
     // 生成黄色线路车站
     let yellow_station_pos =
-        GridPosition::new(grid_config.grid_width - 2, grid_config.grid_height - 2);
+        // GridPosition::new(grid_config.grid_width - 2, grid_config.grid_height - 2);
+        GridPosition::new(grid_config.grid_width / 2 + 2, grid_config.grid_height / 2 + 2);
     spawn_route_segment(
         commands,
         yellow_station_pos,
@@ -101,9 +102,9 @@ fn spawn_initial_routes(
     passenger_manager.add_station(
         central_station_pos,
         vec![
-            Destination::Red,
-            Destination::Blue,
-            Destination::Green,
+            // Destination::Red,
+            // Destination::Blue,
+            // Destination::Green,
             Destination::Yellow,
         ],
     );

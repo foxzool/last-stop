@@ -50,7 +50,7 @@ pub struct PathReplannigTimer {
 impl Default for PathReplannigTimer {
     fn default() -> Self {
         Self {
-            timer: Timer::from_seconds(10.0, TimerMode::Once),
+            timer: Timer::from_seconds(1.0, TimerMode::Repeating),
         }
     }
 }
@@ -199,6 +199,7 @@ impl PassengerManager {
 
     // 获取随机起点站
     pub fn get_random_start_station(&self) -> Option<GridPosition> {
+        return Some(self.stations[0].0);
         if self.stations.is_empty() {
             return None;
         }
@@ -318,17 +319,38 @@ impl PassengerManager {
         // 获取两个位置的路线段
         let segment1 = match grid_state.get_route_segment(*pos1) {
             Some(s) => s,
-            None => return false,
+            None => {
+                trace!("is_connected: No segment at pos1: {:?}", pos1);
+                return false;
+            }
         };
 
         let segment2 = match grid_state.get_route_segment(*pos2) {
             Some(s) => s,
-            None => return false,
+            None => {
+                trace!("is_connected: No segment at pos2: {:?}", pos2);
+                return false;
+            }
         };
+
+        trace!(
+            "is_connected: Checking connection between {:?} ({:?}/{:?}) and {:?} ({:?}/{:?})",
+            pos1,
+            segment1.segment_type,
+            segment1.direction,
+            pos2,
+            segment2.segment_type,
+            segment2.direction
+        );
 
         // 使用 validation 模块中的 can_segments_connect 方法检查连接
         // 创建一个临时的 ConnectionMap，因为我们只需要检查连接性，不需要保存状态
-        can_segments_connect(*pos1, segment1, *pos2, segment2, &Default::default())
+        let result = can_segments_connect(*pos1, segment1, *pos2, segment2, &Default::default());
+        trace!(
+            "is_connected: Result for {:?} and {:?} is {}",
+            pos1, pos2, result
+        );
+        result
     }
 }
 
@@ -357,7 +379,8 @@ fn spawn_passengers(
             info!("选择起点站: ({}, {})", start_pos.x, start_pos.y);
 
             // 随机选择目的地类型
-            let destination = Destination::random();
+            // let destination = Destination::random();
+            let destination = Destination::Yellow;
             info!("随机选择目的地类型: {:?}", destination);
 
             // 寻找对应目的地类型的终点站
@@ -365,23 +388,8 @@ fn spawn_passengers(
                 info!("找到终点站: ({}, {})", end_pos.x, end_pos.y);
 
                 // 创建乘客
-                let mut passenger = Passenger::new(start_pos, destination);
+                let passenger = Passenger::new(start_pos, destination);
 
-                // 寻找从起点到终点的路径
-                let path_result = passenger_manager.find_path(start_pos, end_pos, &grid_state);
-
-                if let Some(path) = path_result {
-                    info!("找到路径，长度: {}", path.len());
-                    passenger.set_path(path);
-                } else {
-                    warn!(
-                        "无法找到从 ({}, {}) 到 ({}, {}) 的路径，乘客将无法移动",
-                        start_pos.x, start_pos.y, end_pos.x, end_pos.y
-                    );
-                    // 即使没有路径，也会生成乘客，但它们会停留在原地直到失去耐心
-                }
-
-                // 无论是否找到路径，都生成乘客实体
                 let passenger_entity = commands
                     .spawn((
                         passenger,

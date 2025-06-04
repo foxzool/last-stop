@@ -104,10 +104,12 @@ impl ConnectionMap {
                 ]
             }
             RouteSegment::Station => {
-                // 车站在两个相反方向上连接（类似于直线段）
+                // 车站路口在所有四个方向上连接
                 vec![
-                    ConnectionPoint::new(position, segment.direction),
-                    ConnectionPoint::new(position, segment.direction.opposite()),
+                    ConnectionPoint::new(position, Direction::North),
+                    ConnectionPoint::new(position, Direction::East),
+                    ConnectionPoint::new(position, Direction::South),
+                    ConnectionPoint::new(position, Direction::West),
                 ]
             }
             RouteSegment::Grass => {
@@ -382,17 +384,35 @@ pub fn can_segments_connect(
     segment1: &RouteSegmentComponent,
     pos2: GridPosition,
     segment2: &RouteSegmentComponent,
-    connection_map: &ConnectionMap,
+    connection_map: &ConnectionMap, // This parameter's state is not directly used by get_connection_points
 ) -> bool {
-    let points1 = connection_map.get_connection_points(pos1, segment1);
-    let points2 = connection_map.get_connection_points(pos2, segment2);
+    // get_connection_points could be a static/helper method or a method on RouteSegmentComponent
+    // as it doesn't rely on the internal state of 'connection_map' instance here.
+    let points1 = ConnectionMap::default().get_connection_points(pos1, segment1);
+    let points2 = ConnectionMap::default().get_connection_points(pos2, segment2);
+
+    trace!(
+        "can_segments_connect: pos1={:?}, seg1={:?}/{:?}, points1={:?}",
+        pos1, segment1.segment_type, segment1.direction, points1
+    );
+    trace!(
+        "can_segments_connect: pos2={:?}, seg2={:?}/{:?}, points2={:?}",
+        pos2, segment2.segment_type, segment2.direction, points2
+    );
 
     for point1 in points1 {
         let target = point1.get_target();
-        if target.position == pos2 && points2.contains(&target) {
+        let contains_target = points2.contains(&target);
+        trace!(
+            "can_segments_connect: point1={:?}, target={:?}, points2_contains_target={}",
+            point1, target, contains_target
+        );
+        if target.position == pos2 && contains_target {
+            trace!("can_segments_connect: Found connection!");
             return true;
         }
     }
+    trace!("can_segments_connect: No connection found.");
     false
 }
 
