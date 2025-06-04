@@ -278,6 +278,7 @@ pub fn preview_system(
         commands.spawn((
             Sprite {
                 image: asset_server.load(texture_path),
+                custom_size: Some(Vec2::splat(grid_config.tile_size)),
                 color: Color::srgba(1.0, 1.0, 1.0, 0.5),
                 ..default()
             },

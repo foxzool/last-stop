@@ -48,7 +48,7 @@ pub struct PathReplannigTimer {
 impl Default for PathReplannigTimer {
     fn default() -> Self {
         Self {
-            timer: Timer::from_seconds(10.0, TimerMode::Repeating),
+            timer: Timer::from_seconds(10.0, TimerMode::Once),
         }
     }
 }
@@ -160,7 +160,7 @@ impl Passenger {
             self.target_position = *next_pos;
         }
     }
-    
+
     // 获取目的地位置
     pub fn get_destination_position(&self) -> Option<GridPosition> {
         if !self.path.is_empty() {
@@ -323,7 +323,7 @@ impl PassengerManager {
             Some(s) => s,
             None => return false,
         };
-        
+
         // 使用 validation 模块中的 can_segments_connect 方法检查连接
         // 创建一个临时的 ConnectionMap，因为我们只需要检查连接性，不需要保存状态
         can_segments_connect(*pos1, segment1, *pos2, segment2, &Default::default())
@@ -470,43 +470,43 @@ fn replan_passenger_paths(
 ) {
     // 更新计时器
     replan_timer.timer.tick(time.delta());
-    
+
     // 如果计时器完成，为每个乘客重新规划路径
     if replan_timer.timer.just_finished() {
         info!("开始为所有乘客重新规划路径");
-        
+
         let mut replan_count = 0;
         let mut success_count = 0;
-        
+
         for (entity, mut passenger) in query.iter_mut() {
             // 跳过已经到达目的地的乘客
             if passenger.arrived {
                 continue;
             }
-            
+
             // 获取乘客当前位置和目的地类型
             let current_pos = passenger.current_position;
             let destination_type = passenger.destination;
-            
+
             // 寻找对应目的地类型的终点站
             if let Some(end_pos) = passenger_manager.find_destination_station(destination_type) {
                 replan_count += 1;
-                
+
                 // 寻找从当前位置到终点的路径
                 let path_result = passenger_manager.find_path(current_pos, end_pos, &grid_state);
-                
+
                 if let Some(path) = path_result {
-                    info!("为乘客 {:?} 重新规划路径，从 ({}, {}) 到 ({}, {}), 路径长度: {}", 
+                    info!("为乘客 {:?} 重新规划路径，从 ({}, {}) 到 ({}, {}), 路径长度: {}",
                           entity, current_pos.x, current_pos.y, end_pos.x, end_pos.y, path.len());
                     passenger.set_path(path);
                     success_count += 1;
                 } else {
-                    warn!("无法为乘客 {:?} 重新规划从 ({}, {}) 到 ({}, {}) 的路径", 
+                    warn!("无法为乘客 {:?} 重新规划从 ({}, {}) 到 ({}, {}) 的路径",
                          entity, current_pos.x, current_pos.y, end_pos.x, end_pos.y);
                 }
             }
         }
-        
+
         info!("路径重新规划完成，共 {} 个乘客需要规划，成功 {} 个", replan_count, success_count);
     }
 }

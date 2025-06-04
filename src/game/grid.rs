@@ -106,12 +106,12 @@ pub struct GridSnap;
 // Route segment types
 #[derive(Component, Debug, Clone, Copy, PartialEq)]
 pub enum RouteSegment {
-    Straight,    // ─ or │
-    Corner,      // └ ┘ ┐ ┌
-    TJunction,   // ┬ ┴ ├ ┤
-    Cross,       // ┼
-    Station,     // Bus station/stop
-    Grass,       // Grass terrain/background
+    Straight,  // ─ or │
+    Corner,    // └ ┘ ┐ ┌
+    TJunction, // ┬ ┴ ├ ┤
+    Cross,     // ┼
+    Station,   // Bus station/stop
+    Grass,     // Grass terrain/background
 }
 
 // Direction enum for route segments
@@ -272,7 +272,11 @@ pub fn spawn_route_segment(
 
     commands
         .spawn((
-            Sprite::from_image(asset_server.load(texture_path)),
+            Sprite {
+                image: asset_server.load(texture_path),
+                custom_size: Some(Vec2::splat(grid_config.tile_size)),
+                    ..default()
+            },
             Transform {
                 translation: grid_config.grid_to_world(grid_pos).extend(0.0), // Set initial world position
                 rotation: Quat::from_rotation_z(
