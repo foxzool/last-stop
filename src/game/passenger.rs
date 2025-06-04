@@ -1,5 +1,5 @@
 // Passenger system implementation
-use crate::game::grid::{Direction, GridPosition, GridState, RouteSegment, RouteSegmentComponent};
+use crate::game::grid::{Direction, GridPosition, GridState, RouteSegment};
 use bevy::{color::palettes::basic, prelude::*};
 use std::collections::VecDeque;
 use rand::Rng;
@@ -371,38 +371,58 @@ fn spawn_passengers(
 
     // 如果计时器完成，生成新乘客
     if spawn_timer.timer.just_finished() {
+        info!("尝试生成新乘客，当前已有乘客数量: {}", passenger_manager.passengers.len());
+        info!("可用车站数量: {}", passenger_manager.stations.len());
+
         // 获取随机起点站
         if let Some(start_pos) = passenger_manager.get_random_start_station() {
+            info!("选择起点站: ({}, {})", start_pos.x, start_pos.y);
+
             // 随机选择目的地类型
             let destination = Destination::random();
+            info!("随机选择目的地类型: {:?}", destination);
 
             // 寻找对应目的地类型的终点站
             if let Some(end_pos) = passenger_manager.find_destination_station(destination) {
+                info!("找到终点站: ({}, {})", end_pos.x, end_pos.y);
+
+                // 创建乘客
+                let mut passenger = Passenger::new(start_pos, destination);
+
                 // 寻找从起点到终点的路径
-                if let Some(path) = passenger_manager.find_path(start_pos, end_pos, &grid_state) {
-                    // 创建乘客
-                    let mut passenger = Passenger::new(start_pos, destination);
+                let path_result = passenger_manager.find_path(start_pos, end_pos, &grid_state);
+
+                if let Some(path) = path_result {
+                    info!("找到路径，长度: {}", path.len());
                     passenger.set_path(path);
-
-                    // 生成乘客实体
-                    let passenger_entity = commands
-                        .spawn((
-                            passenger,
-                            Sprite {
-                                image: asset_server.load("sprites/passenger.png"),
-                                color: destination.get_color(),
-                                custom_size: Some(Vec2::new(16.0, 16.0)),
-                                ..default()
-                            },
-                            Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
-                            Name::new(format!("{:?} Passenger", destination)),
-                        ))
-                        .id();
-
-                    // 添加到乘客管理器
-                    passenger_manager.add_passenger(passenger_entity);
+                } else {
+                    warn!("无法找到从 ({}, {}) 到 ({}, {}) 的路径，乘客将无法移动", start_pos.x, start_pos.y, end_pos.x, end_pos.y);
+                    // 即使没有路径，也会生成乘客，但它们会停留在原地直到失去耐心
                 }
+
+                // 无论是否找到路径，都生成乘客实体
+                let passenger_entity = commands
+                    .spawn((
+                        passenger,
+                        Sprite {
+                            image: asset_server.load("sprites/passenger.png"),
+                            color: destination.get_color(),
+                            custom_size: Some(Vec2::new(16.0, 16.0)),
+                            ..default()
+                        },
+                        Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
+                        Name::new(format!("{:?} Passenger", destination)),
+                    ))
+                    .id();
+
+                // 添加到乘客管理器
+                passenger_manager.add_passenger(passenger_entity);
+                info!("成功生成 {:?} 乘客，实体ID: {:?}", destination, passenger_entity);
+            } else {
+                warn!("无法为目的地类型 {:?} 找到终点站", destination);
             }
+        } else {
+            warn!("没有可用的起点站");
         }
     }
 }
