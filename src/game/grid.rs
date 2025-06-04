@@ -1,4 +1,4 @@
-// Plugin to register all grid-related systems
+// 注册所有网格相关系统的插件
 use crate::screens::Screen;
 use bevy::{
     prelude::*,
@@ -24,7 +24,7 @@ impl Plugin for GridPlugin {
     }
 }
 
-// Grid position component - represents logical grid coordinates
+// 网格位置组件 - 表示逻辑网格坐标
 #[derive(Component, Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct GridPosition {
     pub x: i32,
@@ -36,29 +36,29 @@ impl GridPosition {
         Self { x, y }
     }
 
-    // Get adjacent positions (up, down, left, right)
+    // 获取相邻位置（上、下、左、右）
     pub fn adjacent(&self) -> [GridPosition; 4] {
         [
-            GridPosition::new(self.x, self.y + 1), // Up
-            GridPosition::new(self.x, self.y - 1), // Down
-            GridPosition::new(self.x - 1, self.y), // Left
-            GridPosition::new(self.x + 1, self.y), // Right
+            GridPosition::new(self.x, self.y + 1), // 上
+            GridPosition::new(self.x, self.y - 1), // 下
+            GridPosition::new(self.x - 1, self.y), // 左
+            GridPosition::new(self.x + 1, self.y), // 右
         ]
     }
 
-    // Calculate Manhattan distance to another grid position
+    // 计算到另一个网格位置的曼哈顿距离
     pub fn distance_to(&self, other: &GridPosition) -> i32 {
         (self.x - other.x).abs() + (self.y - other.y).abs()
     }
 }
 
-// Resource to manage grid configuration
-#[derive(Resource, Debug)] // Added Debug for logging
+// 管理网格配置的资源
+#[derive(Resource, Debug)] // 添加Debug用于日志记录
 pub struct GridConfig {
-    pub tile_size: f32,      // Size of each grid tile in world units
-    pub grid_width: i32,     // Number of tiles horizontally
-    pub grid_height: i32,    // Number of tiles vertically
-    pub origin_offset: Vec2, // Offset from world origin to grid center
+    pub tile_size: f32,      // 每个网格瓦片在世界单位中的大小
+    pub grid_width: i32,     // 水平方向的瓦片数量
+    pub grid_height: i32,    // 垂直方向的瓦片数量
+    pub origin_offset: Vec2, // 从世界原点到网格中心的偏移量
 }
 
 impl Default for GridConfig {
@@ -73,7 +73,7 @@ impl Default for GridConfig {
 }
 
 impl GridConfig {
-    // Convert grid position to world coordinates
+    // 将网格位置转换为世界坐标
     pub fn grid_to_world(&self, grid_pos: GridPosition) -> Vec2 {
         Vec2::new(
             grid_pos.x as f32 * self.tile_size + self.origin_offset.x,
@@ -81,7 +81,7 @@ impl GridConfig {
         )
     }
 
-    // Convert world coordinates to grid position
+    // 将世界坐标转换为网格位置
     pub fn world_to_grid(&self, world_pos: Vec2) -> GridPosition {
         let adjusted_pos = world_pos - self.origin_offset;
         GridPosition::new(
@@ -90,7 +90,7 @@ impl GridConfig {
         )
     }
 
-    // Check if grid position is within bounds
+    // 检查网格位置是否在边界内
     pub fn is_valid_position(&self, grid_pos: GridPosition) -> bool {
         grid_pos.x >= 0
             && grid_pos.x < self.grid_width
@@ -99,11 +99,11 @@ impl GridConfig {
     }
 }
 
-// Component to mark entities that should snap to grid
+// 标记应该对齐到网格的实体的组件
 #[derive(Component)]
 pub struct GridSnap;
 
-// Route segment types
+// 路线段类型
 #[derive(Component, Debug, Clone, Copy, PartialEq)]
 pub enum RouteSegment {
     Straight,  // ─ or │
@@ -114,7 +114,7 @@ pub enum RouteSegment {
     Grass,     // Grass terrain/background
 }
 
-// Direction enum for route segments
+// 路线段的方向枚举
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Direction {
     North = 0,
@@ -124,7 +124,7 @@ pub enum Direction {
 }
 
 impl Direction {
-    // Rotate direction clockwise
+    // 顺时针旋转方向
     pub fn rotate_cw(&self) -> Direction {
         match self {
             Direction::North => Direction::East,
@@ -134,7 +134,7 @@ impl Direction {
         }
     }
 
-    // Get opposite direction
+    // 获取相反方向
     pub fn opposite(&self) -> Direction {
         match self {
             Direction::North => Direction::South,
@@ -144,7 +144,7 @@ impl Direction {
         }
     }
 
-    // Convert to grid offset
+    // 转换为网格偏移量
     pub fn to_offset(&self) -> (i32, i32) {
         match self {
             Direction::North => (0, 1),
@@ -155,22 +155,22 @@ impl Direction {
     }
 }
 
-// Component for route segment with direction
+// 带方向的路线段组件
 #[derive(Component, Clone)]
 pub struct RouteSegmentComponent {
     pub segment_type: RouteSegment,
     pub direction: Direction,
 }
 
-// Component to mark terrain/background elements (like grass)
+// 标记地形/背景元素（如草地）的组件
 #[derive(Component)]
 pub struct TerrainElement;
 
-// Component to mark actual route elements (roads, stations)
+// 标记实际路线元素（道路、车站）的组件
 #[derive(Component)]
 pub struct RouteElement;
 
-// Grid state resource to track what's placed where
+// 网格状态资源，用于跟踪各处放置的内容
 #[derive(Resource, Default)]
 pub struct GridState {
     pub occupied: std::collections::HashMap<GridPosition, Entity>,
@@ -209,7 +209,7 @@ impl GridState {
     }
 }
 
-// System to setup GridConfig based on window size at startup
+// 在启动时根据窗口大小设置GridConfig的系统
 fn setup_grid_from_window_size(
     mut grid_config: ResMut<GridConfig>,
     window: Single<&Window, With<PrimaryWindow>>,
@@ -217,17 +217,17 @@ fn setup_grid_from_window_size(
     let window_width = window.width();
     let window_height = window.height();
 
-    // Assuming (0,0) in world coordinates is the center of the window.
-    // The world coordinates of the window's bottom-left corner.
+    // 假设世界坐标中的(0,0)是窗口的中心。
+    // 窗口左下角的世界坐标。
     grid_config.origin_offset = Vec2::new(-window_width / 2.0, -window_height / 2.0);
 
     grid_config.grid_width = (window_width / grid_config.tile_size).ceil() as i32;
     grid_config.grid_height = (window_height / grid_config.tile_size).ceil() as i32;
 
-    info!("GridConfig adapted to window size: {:?}", *grid_config);
+    info!("GridConfig适应窗口大小：{:?}", *grid_config);
 }
 
-// System to snap entities with GridSnap component to grid positions
+// 将带有GridSnap组件的实体对齐到网格位置的系统
 pub fn grid_snap_system(
     mut query: Query<(&mut Transform, &GridPosition), (With<GridSnap>, Changed<GridPosition>)>,
     grid_config: Res<GridConfig>,
@@ -239,27 +239,27 @@ pub fn grid_snap_system(
     }
 }
 
-// System to update grid state when entities with GridPosition move
+// 当带有GridPosition的实体移动时更新网格状态的系统
 pub fn update_grid_state_system(
     mut grid_state: ResMut<GridState>,
     query: Query<(Entity, &GridPosition), Changed<GridPosition>>,
 ) {
     for (entity, grid_pos) in query.iter() {
-        // Remove from old position if exists
+        // 从旧位置移除
         grid_state.occupied.retain(|_, &mut v| v != entity);
-        // Add to new position
+        // 添加到新位置
         grid_state.place_entity(*grid_pos, entity);
     }
 }
 
-// Helper function to spawn a route segment at grid position
+// 在网格位置生成路线段的辅助函数
 pub fn spawn_route_segment(
     commands: &mut Commands,
     grid_pos: GridPosition,
     segment_type: RouteSegment,
     direction: Direction,
     asset_server: &Res<AssetServer>,
-    grid_config: &Res<GridConfig>, // Added GridConfig resource
+    grid_config: &Res<GridConfig>, // 添加GridConfig资源
     texture_atlas_layouts: &mut ResMut<Assets<TextureAtlasLayout>>,
 ) -> Entity {
     let texture = asset_server.load("textures/roads2W.png");
@@ -284,13 +284,13 @@ pub fn spawn_route_segment(
                 },
             ),
             Transform {
-                translation: grid_config.grid_to_world(grid_pos).extend(0.0), // Set initial world position
+                translation: grid_config.grid_to_world(grid_pos).extend(0.0), // 设置初始世界位置
                 rotation: Quat::from_rotation_z(
                     direction as u8 as f32 * std::f32::consts::PI / 2.0,
                 ),
                 ..default()
             },
-            grid_pos, // Keep GridPosition for state tracking and other systems
+            grid_pos, // 保留GridPosition用于状态跟踪和其他系统
             GridSnap,
             RouteSegmentComponent {
                 segment_type,

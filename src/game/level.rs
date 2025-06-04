@@ -1,4 +1,4 @@
-// spawn main level
+// 生成主要关卡
 
 use crate::game::{
     grid::{Direction, GridConfig, GridPosition, RouteSegment, spawn_route_segment},

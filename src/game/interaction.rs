@@ -10,7 +10,7 @@ use crate::{
 };
 use bevy::{input::mouse::MouseButtonInput, prelude::*, window::PrimaryWindow};
 
-// Plugin to register all mouse interaction systems
+// 注册所有鼠标交互系统的插件
 pub struct MouseInteractionPlugin;
 
 impl Plugin for MouseInteractionPlugin {
@@ -40,7 +40,7 @@ impl Plugin for MouseInteractionPlugin {
     }
 }
 
-// Resource to track current mouse state and selected tool
+// 用于跟踪当前鼠标状态和选定工具的资源
 #[derive(Resource, Default)]
 pub struct MouseState {
     pub world_position: Vec2,
@@ -50,7 +50,7 @@ pub struct MouseState {
     pub selected_entity: Option<Entity>,
 }
 
-// Resource for current selected tool/segment type
+// 当前选定工具/路段类型的资源
 #[derive(Resource)]
 pub struct SelectedTool {
     pub segment_type: RouteSegment,
@@ -66,19 +66,19 @@ impl Default for SelectedTool {
     }
 }
 
-// Component to mark entities as selectable/draggable
+// 标记实体为可选择/可拖动的组件
 #[derive(Component)]
 pub struct Selectable;
 
-// Component to mark entities as hoverable (shows preview)
+// 标记实体为可悬停的组件（显示预览）
 #[derive(Component)]
 pub struct Hoverable;
 
-// Component for preview/ghost entities
+// 预览/幽灵实体的组件
 #[derive(Component)]
 pub struct Preview;
 
-// Mouse interaction events
+// 鼠标交互事件
 #[derive(Event)]
 pub struct PlaceSegmentEvent {
     pub position: GridPosition,
@@ -97,7 +97,7 @@ pub struct RotateSegmentEvent {
     pub entity: Entity,
 }
 
-// System to update mouse world position
+// 更新鼠标世界位置的系统
 pub fn update_mouse_position_system(
     mut mouse_state: ResMut<MouseState>,
     window: Single<&Window, With<PrimaryWindow>>,
@@ -115,7 +115,7 @@ pub fn update_mouse_position_system(
     }
 }
 
-// System to handle mouse button events
+// 处理鼠标按钮事件的系统
 pub fn mouse_button_system(
     mut mouse_button_events: EventReader<MouseButtonInput>,
     mut mouse_state: ResMut<MouseState>,
@@ -175,7 +175,7 @@ pub fn mouse_button_system(
     }
 }
 
-// System to handle segment placement
+// 处理路段放置的系统
 pub fn place_segment_system(
     mut commands: Commands,
     mut place_segment_events: EventReader<PlaceSegmentEvent>,
@@ -210,7 +210,7 @@ pub fn place_segment_system(
     }
 }
 
-// System to handle entity selection
+// 处理实体选择的系统
 pub fn select_entity_system(
     mut select_entity_events: EventReader<SelectEntityEvent>,
     mut query: Query<&mut Sprite>,
@@ -223,7 +223,7 @@ pub fn select_entity_system(
     }
 }
 
-// System to handle segment rotation
+// 处理路段旋转的系统
 pub fn rotate_segment_system(
     mut rotate_segment_events: EventReader<RotateSegmentEvent>,
     mut query: Query<(&mut Transform, &mut RouteSegmentComponent)>,
@@ -247,7 +247,7 @@ pub fn rotate_segment_system(
     }
 }
 
-// System to show preview/ghost segment at mouse position
+// 在鼠标位置显示预览/幽灵路段的系统
 pub fn preview_system(
     mut commands: Commands,
     mouse_state: Res<MouseState>,
@@ -303,7 +303,7 @@ pub fn preview_system(
     }
 }
 
-// System to handle keyboard input for tool selection
+// 处理工具选择的键盘输入的系统
 pub fn tool_selection_system(
     mut selected_tool: ResMut<SelectedTool>,
     keys: Res<ButtonInput<KeyCode>>,
@@ -334,7 +334,7 @@ pub fn tool_selection_system(
     }
 }
 
-// System to remove segments on right click
+// 右键点击移除路段的系统
 pub fn remove_segment_system(
     mut commands: Commands,
     mut mouse_button_events: EventReader<MouseButtonInput>,
@@ -356,7 +356,7 @@ pub fn remove_segment_system(
     }
 }
 
-// System to clear selection when clicking empty space
+// 点击空白区域清除选择的系统
 pub fn clear_selection_system(
     mut mouse_button_events: EventReader<MouseButtonInput>,
     mut mouse_state: ResMut<MouseState>,

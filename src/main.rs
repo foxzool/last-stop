@@ -1,6 +1,6 @@
-// Support configuring Bevy lints within code.
+// 支持在代码中配置Bevy的lint检查。
 #![cfg_attr(bevy_lint, feature(register_tool), register_tool(bevy))]
-// Disable console on Windows for non-dev builds.
+// 在Windows非开发版本中禁用控制台。
 #![cfg_attr(not(feature = "dev"), windows_subsystem = "windows")]
 
 mod asset_tracking;
@@ -22,13 +22,13 @@ pub struct AppPlugin;
 
 impl Plugin for AppPlugin {
     fn build(&self, app: &mut App) {
-        // Add Bevy plugins.
+        // 添加Bevy插件。
         app.add_plugins(
             DefaultPlugins
                 .set(AssetPlugin {
-                    // Wasm builds will check for meta files (that don't exist) if this isn't set.
-                    // This causes errors and even panics on web build on itch.
-                    // See https://github.com/bevyengine/bevy_github_ci_template/issues/48.
+                    // 如果不设置这个，Wasm构建将检查元数据文件（不存在的）。
+                    // 这会在itch上的web构建中导致错误，甚至崩溃。
+                    // 参见 https://github.com/bevyengine/bevy_github_ci_template/issues/48。
                     meta_check: AssetMetaCheck::Never,
                     ..default()
                 })
@@ -43,7 +43,7 @@ impl Plugin for AppPlugin {
                 }),
         );
 
-        // Add other plugins.
+        // 添加其他插件。
         app.add_plugins((
             asset_tracking::plugin,
             audio::plugin,
@@ -55,7 +55,7 @@ impl Plugin for AppPlugin {
             theme::plugin,
         ));
 
-        // Order new `AppSystems` variants by adding them here:
+        // 通过在这里添加新的`AppSystems`变体来排序：
         app.configure_sets(
             Update,
             (
@@ -66,34 +66,34 @@ impl Plugin for AppPlugin {
                 .chain(),
         );
 
-        // Set up the `Pause` state.
+        // 设置`Pause`状态。
         app.init_state::<Pause>();
         app.configure_sets(Update, PausableSystems.run_if(in_state(Pause(false))));
 
-        // Spawn the main camera.
+        // 生成主摄像机。
         app.add_systems(Startup, spawn_camera);
     }
 }
 
-/// High-level groupings of systems for the app in the `Update` schedule.
-/// When adding a new variant, make sure to order it in the `configure_sets`
-/// call above.
+/// 应用程序在`Update`调度中的高级系统分组。
+/// 添加新的变体时，请确保在`configure_sets`中对其进行排序
+/// 上面的调用。
 #[derive(SystemSet, Debug, Clone, Copy, Eq, PartialEq, Hash, PartialOrd, Ord)]
 enum AppSystems {
-    /// Tick timers.
+    /// 更新计时器。
     TickTimers,
-    /// Record player input.
+    /// 记录玩家输入。
     RecordInput,
-    /// Do everything else (consider splitting this into further variants).
+    /// 处理所有其他事项（考虑将其拆分为更多变体）。
     Update,
 }
 
-/// Whether or not the game is paused.
+/// 游戏是否暂停。
 #[derive(States, Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
 #[states(scoped_entities)]
 struct Pause(pub bool);
 
-/// A system set for systems that shouldn't run while the game is paused.
+/// 在游戏暂停时不应运行的系统集。
 #[derive(SystemSet, Copy, Clone, Eq, PartialEq, Hash, Debug)]
 struct PausableSystems;
 

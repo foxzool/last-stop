@@ -1,4 +1,4 @@
-//! The screen state for the main gameplay.
+//! 主要游戏玩法的屏幕状态。
 
 use bevy::{input::common_conditions::input_just_pressed, prelude::*, ui::Val::*};
 
@@ -7,7 +7,7 @@ use crate::{Pause, menus::Menu, screens::Screen};
 pub(super) fn plugin(app: &mut App) {
   
 
-    // Toggle pause on key press.
+    // 按键切换暂停状态。
     app.add_systems(
         Update,
         (

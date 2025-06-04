@@ -354,7 +354,7 @@ pub fn prevent_invalid_placement_system(
     for event in placement_events.read() {
         if !event.is_valid {
             info!(
-                "Invalid placement at {:?}: {} invalid connections",
+                "在 {:?} 处的无效放置: {} 个无效连接",
                 event.position, event.invalid_connections
             );
             // Could prevent placement here if desired

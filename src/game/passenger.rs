@@ -1,4 +1,4 @@
-// Passenger system implementation
+// 乘客系统实现
 use crate::game::{
     grid::{GridPosition, GridState, RouteSegment},
     validation::can_segments_connect,

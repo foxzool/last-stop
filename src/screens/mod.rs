@@ -1,4 +1,4 @@
-//! The game's main screen states and transitions between them.
+//! 游戏的主要屏幕状态及其之间的转换。
 
 mod gameplay;
 mod loading;
@@ -18,7 +18,7 @@ pub(super) fn plugin(app: &mut App) {
     ));
 }
 
-/// The game's main screen states.
+/// 游戏的主要屏幕状态。
 #[derive(States, Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
 #[states(scoped_entities)]
 pub enum Screen {
