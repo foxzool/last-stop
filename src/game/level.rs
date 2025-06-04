@@ -36,41 +36,44 @@ fn spawn_initial_routes(
     passenger_manager: &mut PassengerManager,
     mut texture_atlas_layouts: &mut ResMut<Assets<TextureAtlasLayout>>,
 ) {
-    // // 生成红色线路车站
-    // let red_station_pos = GridPosition::new(1, 1);
-    // spawn_route_segment(
-    //     commands,
-    //     red_station_pos,
-    //     RouteSegment::Station,
-    //     Direction::East,
-    //     asset_server,
-    //     grid_config,
-    // );
-    // passenger_manager.add_station(red_station_pos, vec![Destination::Red]);
-    //
-    // // 生成蓝色线路车站
-    // let blue_station_pos = GridPosition::new(grid_config.grid_width - 2, 1);
-    // spawn_route_segment(
-    //     commands,
-    //     blue_station_pos,
-    //     RouteSegment::Station,
-    //     Direction::West,
-    //     asset_server,
-    //     grid_config,
-    // );
-    // passenger_manager.add_station(blue_station_pos, vec![Destination::Blue]);
-    //
-    // // 生成绿色线路车站
-    // let green_station_pos = GridPosition::new(1, grid_config.grid_height - 2);
-    // spawn_route_segment(
-    //     commands,
-    //     green_station_pos,
-    //     RouteSegment::Station,
-    //     Direction::East,
-    //     asset_server,
-    //     grid_config,
-    // );
-    // passenger_manager.add_station(green_station_pos, vec![Destination::Green]);
+    // 生成红色线路车站
+    let red_station_pos = GridPosition::new(1, 1);
+    spawn_route_segment(
+        commands,
+        red_station_pos,
+        RouteSegment::Station,
+        Direction::East,
+        asset_server,
+        grid_config,
+        &mut texture_atlas_layouts,
+    );
+    passenger_manager.add_station(red_station_pos, vec![Destination::Red]);
+
+    // 生成蓝色线路车站
+    let blue_station_pos = GridPosition::new(grid_config.grid_width - 2, 1);
+    spawn_route_segment(
+        commands,
+        blue_station_pos,
+        RouteSegment::Station,
+        Direction::West,
+        asset_server,
+        grid_config,
+        &mut texture_atlas_layouts,
+    );
+    passenger_manager.add_station(blue_station_pos, vec![Destination::Blue]);
+
+    // 生成绿色线路车站
+    let green_station_pos = GridPosition::new(1, grid_config.grid_height - 2);
+    spawn_route_segment(
+        commands,
+        green_station_pos,
+        RouteSegment::Station,
+        Direction::East,
+        asset_server,
+        grid_config,
+        &mut texture_atlas_layouts,
+    );
+    passenger_manager.add_station(green_station_pos, vec![Destination::Green]);
 
     // 生成黄色线路车站
     let yellow_station_pos =
@@ -102,9 +105,9 @@ fn spawn_initial_routes(
     passenger_manager.add_station(
         central_station_pos,
         vec![
-            // Destination::Red,
-            // Destination::Blue,
-            // Destination::Green,
+            Destination::Red,
+            Destination::Blue,
+            Destination::Green,
             Destination::Yellow,
         ],
     );
