@@ -3,7 +3,10 @@ use crate::game::{
     grid::{GridPosition, GridState},
     validation::can_segments_connect,
 };
-use bevy::{color::palettes::basic, ecs::system::entity_command::observe, prelude::*};
+use bevy::{color::palettes::basic, prelude::*};
+
+#[derive(Event, Debug)]
+pub struct PassengerArrivedEvent;
 use rand::Rng;
 use std::collections::VecDeque;
 
@@ -22,7 +25,8 @@ impl Plugin for PassengerPlugin {
                     remove_impatient_passengers,
                 ),
             )
-            .add_observer(handle_path_replan_requests);
+            .add_observer(handle_path_replan_requests)
+            .add_observer(handle_passenger_arrival_system);
     }
 }
 
@@ -106,7 +110,7 @@ impl Passenger {
             if self.path.is_empty() && !self.arrived {
                 // This case is interesting: path is empty, but not yet marked arrived.
                 // This might happen if set_path was called with an empty path, then arrived was somehow reset.
-                debug!(
+                trace!(
                     "Passenger: update_position - path is empty and not arrived. Returning false."
                 );
             }
@@ -477,19 +481,30 @@ fn spawn_passengers(
 // 更新乘客位置和状态
 fn update_passengers(
     time: Res<Time>,
-    mut query: Query<(Entity, &mut Passenger, &mut Transform)>, // Added Entity
+    mut passenger_query: Query<(Entity, &mut Passenger, &mut Transform)>,
     grid_config: Res<crate::game::grid::GridConfig>,
+    mut commands: Commands,
 ) {
-    for (entity, mut passenger, mut transform) in query.iter_mut() {
+    for (entity, mut passenger, mut transform) in passenger_query.iter_mut() {
         // 如果已到达目的地，不再更新
         if passenger.arrived {
             continue;
         }
 
         // 更新乘客位置
-        let is_moving = passenger.update_position(time.delta_secs());
+        let was_path_not_empty_before_update = !passenger.path.is_empty(); // Check before update_position potentially clears it
+        let is_still_moving = passenger.update_position(time.delta_secs());
 
-        if is_moving {
+        if !is_still_moving && passenger.arrived && was_path_not_empty_before_update {
+            // Passenger has just arrived in this frame
+            info!(
+                "Passenger {:?} has arrived. Sending PassengerArrivedEvent.",
+                entity
+            );
+            commands.trigger_targets(PassengerArrivedEvent, [entity]);
+        }
+
+        if is_still_moving {
             // 如果乘客正在移动，更新其世界坐标
             let current_world_pos = grid_config.grid_to_world(passenger.current_position);
             let target_world_pos = grid_config.grid_to_world(passenger.target_position);
@@ -514,6 +529,7 @@ fn update_passengers(
                 passenger.path.is_empty()
             );
         } else if !passenger.arrived {
+            // ensure we don't apply negative patience if arrived this frame and event sent
             // 如果没有移动且未到达目的地，减少更多耐心值
             let amount = time.delta_secs() * 5.0;
             passenger.decrease_patience(amount);
@@ -527,6 +543,24 @@ fn update_passengers(
             );
         }
     }
+}
+
+fn handle_passenger_arrival_system(
+    arrived_event: Trigger<PassengerArrivedEvent>,
+    mut commands: Commands,
+    mut passenger_manager: ResMut<PassengerManager>,
+) {
+    let passenger_entity = arrived_event.target();
+    info!(
+        "Passenger {:?} handling PassengerArrivedEvent. Despawning.",
+        passenger_entity
+    );
+
+    // Despawn the entity from the world
+    commands.entity(passenger_entity).despawn(); // Use despawn_recursive if it has children
+
+    // Remove from passenger manager
+    passenger_manager.remove_passenger(passenger_entity);
 }
 
 // 移除失去耐心的乘客

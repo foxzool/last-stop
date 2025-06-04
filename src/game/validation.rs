@@ -339,7 +339,7 @@ pub fn validate_placement_system(
             }
         }
 
-        validation_events.send(PlacementValidationEvent {
+        validation_events.write(PlacementValidationEvent {
             position: event.position,
             segment_type: event.segment_type,
             direction: event.direction,
