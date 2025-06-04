@@ -414,6 +414,7 @@ fn spawn_passengers(
     mut spawn_timer: ResMut<PassengerSpawnTimer>,
     mut passenger_manager: ResMut<PassengerManager>,
     asset_server: Res<AssetServer>,
+    mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
 ) {
     // 更新计时器
     spawn_timer.timer.tick(time.delta());
@@ -442,6 +443,10 @@ fn spawn_passengers(
             {
                 info!("找到终点站: ({}, {})", end_pos.x, end_pos.y);
 
+                let texture = asset_server.load("textures/Small-8-Direction-Characters_by_AxulArt.png");
+                let layout = TextureAtlasLayout::from_grid(UVec2::new(16, 24), 8, 12, None, None);
+                let texture_atlas_layout = texture_atlas_layouts.add(layout);
+
                 // 创建乘客
                 let passenger = Passenger::new(start_pos, destination);
 
@@ -449,9 +454,13 @@ fn spawn_passengers(
                     .spawn((
                         passenger,
                         Sprite {
-                            image: asset_server.load("sprites/passenger.png"),
+                            image: texture,
+                            texture_atlas: Some(TextureAtlas {
+                                layout: texture_atlas_layout,
+                                index: 8,
+                            }),
                             color: destination.get_color(),
-                            custom_size: Some(Vec2::new(16.0, 16.0)),
+                            // custom_size: Some(Vec2::new(32.0, 38.0)),
                             ..default()
                         },
                         Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
