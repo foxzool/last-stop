@@ -1,5 +1,6 @@
 // 乘客系统实现
 use crate::game::{
+    grid::Direction, // Added import
     grid::{GridPosition, GridState},
     validation::can_segments_connect,
 };
@@ -11,6 +12,24 @@ use rand::Rng;
 use std::collections::VecDeque;
 
 // 乘客插件
+// Helper function to determine direction between two grid positions
+fn calculate_direction_internal(from: GridPosition, to: GridPosition) -> Option<Direction> {
+    let dx = to.x - from.x;
+    let dy = to.y - from.y;
+
+    if dx == 1 && dy == 0 {
+        Some(Direction::East)
+    } else if dx == -1 && dy == 0 {
+        Some(Direction::West)
+    } else if dx == 0 && dy == 1 {
+        Some(Direction::North) // y increases upwards as per grid.rs
+    } else if dx == 0 && dy == -1 {
+        Some(Direction::South) // y decreases downwards as per grid.rs
+    } else {
+        None // Not a cardinal direction or no movement
+    }
+}
+
 pub struct PassengerPlugin;
 
 impl Plugin for PassengerPlugin {
@@ -87,6 +106,7 @@ pub struct Passenger {
     pub progress: f32,                  // 移动进度 (0.0-1.0)
     pub speed: f32,                     // 移动速度
     pub arrived: bool,                  // 是否已到达目的地
+    pub current_movement_direction: Option<Direction>, // 当前移动方向
 }
 
 impl Passenger {
@@ -100,6 +120,7 @@ impl Passenger {
             progress: 0.0,
             speed: 0.5, // 每秒移动0.5个格子
             arrived: false,
+            current_movement_direction: None, // 初始无方向
         }
     }
 
@@ -107,15 +128,14 @@ impl Passenger {
     pub fn update_position(&mut self, delta_time: f32) -> bool {
         // 如果已到达目的地或没有路径，则不移动
         if self.arrived || self.path.is_empty() {
+            // Ensure direction is None if not moving or path is empty
+            if self.current_movement_direction.is_some() { // Safeguard
+                self.current_movement_direction = None;
+            }
             if self.path.is_empty() && !self.arrived {
-                // This case is interesting: path is empty, but not yet marked arrived.
-                // This might happen if set_path was called with an empty path, then arrived was somehow reset.
                 trace!(
                     "Passenger: update_position - path is empty and not arrived. Returning false."
                 );
-            }
-            if self.arrived {
-                // debug!("Passenger: update_position - already arrived. Returning false.");
             }
             return false;
         }
@@ -133,17 +153,21 @@ impl Passenger {
 
             if let Some(next_waypoint) = self.path.front() {
                 // 查看路径中的下一个点
-                self.target_position = *next_waypoint; // 设置为新的目标
+                let new_target = *next_waypoint;
+                self.target_position = new_target; // 设置为新的目标
+                self.current_movement_direction = calculate_direction_internal(self.current_position, new_target);
                 debug!(
-                    "Passenger: Reached {:?}, next target {:?}. Path segments remaining: {}",
+                    "Passenger: Reached {:?}, next target {:?}. Path segments remaining: {}. Direction: {:?}",
                     self.current_position,
                     self.target_position,
-                    self.path.len()
+                    self.path.len(),
+                    self.current_movement_direction
                 );
                 true // 仍然在移动
             } else {
                 // 路径已完成 (path is now empty after pop_front and front() is None)
                 self.arrived = true;
+                self.current_movement_direction = None;
                 debug!(
                     "Passenger: Reached final destination {:?}. Path completed.",
                     self.current_position
@@ -151,6 +175,7 @@ impl Passenger {
                 false // 停止移动
             }
         } else {
+            // Still moving towards target_position, direction should be already set
             true
         }
     }
@@ -182,14 +207,16 @@ impl Passenger {
         if !self.path.is_empty() {
             // 确保路径不为空
             // 从路径的第一个点开始
-            self.target_position = *self.path.front().unwrap(); // unwrap是安全的，因为我们检查了is_empty
+            let next_target = *self.path.front().unwrap(); // unwrap是安全的
+            self.target_position = next_target;
+            self.current_movement_direction = calculate_direction_internal(self.current_position, next_target);
             self.arrived = false;
             debug!("Passenger: Path set (non-empty). arrived set to false."); // 重置到达状态，准备开始新的路径
             self.progress = 0.0; // 重置移动进度
         } else {
             // 如果路径为空，标记为已到达 (或处理错误)
-            self.arrived = true;
-            self.arrived = true;
+            self.current_movement_direction = None;
+            self.arrived = true; // Corrected: remove duplicate self.arrived = true;
             warn!("Passenger: Attempted to set an empty path. arrived set to true.");
         }
     }
