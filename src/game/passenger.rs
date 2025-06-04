@@ -50,7 +50,7 @@ pub struct PathReplannigTimer {
 impl Default for PathReplannigTimer {
     fn default() -> Self {
         Self {
-            timer: Timer::from_seconds(1.0, TimerMode::Repeating),
+            timer: Timer::from_seconds(10.0, TimerMode::Repeating),
         }
     }
 }
@@ -118,6 +118,16 @@ impl Passenger {
     pub fn update_position(&mut self, delta_time: f32) -> bool {
         // 如果已到达目的地或没有路径，则不移动
         if self.arrived || self.path.is_empty() {
+            if self.path.is_empty() && !self.arrived {
+                // This case is interesting: path is empty, but not yet marked arrived.
+                // This might happen if set_path was called with an empty path, then arrived was somehow reset.
+                debug!(
+                    "Passenger: update_position - path is empty and not arrived. Returning false."
+                );
+            }
+            if self.arrived {
+                // debug!("Passenger: update_position - already arrived. Returning false.");
+            }
             return false;
         }
 
@@ -130,14 +140,17 @@ impl Passenger {
             self.current_position = self.target_position;
             self.progress = 0.0;
 
-            // 获取下一个目标位置
-            if let Some(next_pos) = self.path.pop_front() {
-                self.target_position = next_pos;
-                true
+            self.path.pop_front(); // 移除已到达的当前 target_position (路径点)
+
+            if let Some(next_waypoint) = self.path.front() { // 查看路径中的下一个点
+                self.target_position = *next_waypoint; // 设置为新的目标
+                debug!("Passenger: Reached {:?}, next target {:?}. Path segments remaining: {}", self.current_position, self.target_position, self.path.len());
+                true // 仍然在移动
             } else {
-                // 路径已完成
+                // 路径已完成 (path is now empty after pop_front and front() is None)
                 self.arrived = true;
-                false
+                debug!("Passenger: Reached final destination {:?}. Path completed.", self.current_position);
+                false // 停止移动
             }
         } else {
             true
@@ -148,6 +161,10 @@ impl Passenger {
     pub fn decrease_patience(&mut self, amount: f32) {
         self.patience -= amount;
         self.patience = self.patience.max(0.0);
+        trace!(
+            "Passenger: decrease_patience - patience decreased to: {:?}",
+            self.patience
+        );
     }
 
     // 检查是否失去耐心
@@ -157,17 +174,25 @@ impl Passenger {
 
     // 设置路径
     pub fn set_path(&mut self, path: VecDeque<GridPosition>) {
+        debug!(
+            "Passenger: set_path called with path length {}. Current arrived: {}",
+            path.len(),
+            self.arrived
+        );
         self.path = path;
-        if !self.path.is_empty() { // 确保路径不为空
+
+        if !self.path.is_empty() {
+            // 确保路径不为空
             // 从路径的第一个点开始
             self.target_position = *self.path.front().unwrap(); // unwrap是安全的，因为我们检查了is_empty
-            self.arrived = false; // 重置到达状态，准备开始新的路径
+            self.arrived = false;
+            debug!("Passenger: Path set (non-empty). arrived set to false."); // 重置到达状态，准备开始新的路径
             self.progress = 0.0; // 重置移动进度
         } else {
             // 如果路径为空，标记为已到达 (或处理错误)
             self.arrived = true;
-            // 可以考虑在这里打日志，因为通常不应该给乘客设置一个空路径
-            warn!("Attempted to set an empty path for a passenger.");
+            self.arrived = true;
+            warn!("Passenger: Attempted to set an empty path. arrived set to true.");
         }
     }
 
@@ -210,8 +235,6 @@ impl PassengerManager {
         if self.stations.is_empty() {
             return None;
         }
-       
-
 
         let index = rand::thread_rng().gen_range(0..self.stations.len());
         Some(self.stations[index].0)
@@ -293,13 +316,6 @@ impl PassengerManager {
                 .iter()
                 .min_by_key(|&&pos| f_score.get(&pos).unwrap_or(&i32::MAX))
                 .unwrap();
-
-            info!(
-                "当前节点: ({}, {}), 开放集大小: {}",
-                current.x,
-                current.y,
-                open_set.len()
-            );
 
             // 如果到达终点
             if current == end {
@@ -420,7 +436,9 @@ fn spawn_passengers(
 
             // 寻找对应目的地类型的终点站
             // Pass start_pos as the position to avoid for the initial destination
-            if let Some(end_pos) = passenger_manager.find_destination_station(destination, Some(start_pos)) {
+            if let Some(end_pos) =
+                passenger_manager.find_destination_station(destination, Some(start_pos))
+            {
                 info!("找到终点站: ({}, {})", end_pos.x, end_pos.y);
 
                 // 创建乘客
@@ -458,10 +476,10 @@ fn spawn_passengers(
 // 更新乘客位置和状态
 fn update_passengers(
     time: Res<Time>,
-    mut query: Query<(&mut Passenger, &mut Transform)>,
+    mut query: Query<(Entity, &mut Passenger, &mut Transform)>, // Added Entity
     grid_config: Res<crate::game::grid::GridConfig>,
 ) {
-    for (mut passenger, mut transform) in query.iter_mut() {
+    for (entity, mut passenger, mut transform) in query.iter_mut() {
         // 如果已到达目的地，不再更新
         if passenger.arrived {
             continue;
@@ -481,10 +499,31 @@ fn update_passengers(
             transform.translation.y = world_pos.y;
 
             // 移动时减少一点耐心值
-            passenger.decrease_patience(time.delta_secs() * 1.0);
+            let amount = time.delta_secs() * 1.0;
+            passenger.decrease_patience(amount);
+            // To get passenger's entity ID here, the query needs to include Entity:
+            // Query<(Entity, &mut Passenger, &mut Transform)>
+            // For now, we'll log without ID or assume a method on Passenger to get it.
+            trace!(
+                "Passenger {:?}: Moving. Patience decreased by {:.2}. New patience: {:.2}. Arrived: {}. Path empty: {}",
+                entity,
+                amount,
+                passenger.patience,
+                passenger.arrived,
+                passenger.path.is_empty()
+            );
         } else if !passenger.arrived {
             // 如果没有移动且未到达目的地，减少更多耐心值
-            passenger.decrease_patience(time.delta_secs() * 5.0);
+            let amount = time.delta_secs() * 5.0;
+            passenger.decrease_patience(amount);
+            trace!(
+                "Passenger {:?}: Not moving & not arrived. Patience decreased by {:.2}. New patience: {:.2}. Arrived: {}. Path empty: {}",
+                entity,
+                amount,
+                passenger.patience,
+                passenger.arrived,
+                passenger.path.is_empty()
+            );
         }
     }
 }
@@ -497,6 +536,10 @@ fn remove_impatient_passengers(
 ) {
     for (entity, passenger) in query.iter() {
         if passenger.is_impatient() {
+            info!(
+                "Passenger {:?}: Patience depleted (current patience: {:.2}, arrived: {}). Despawning.",
+                entity, passenger.patience, passenger.arrived
+            );
             // 从世界中移除乘客实体
             commands.entity(entity).despawn();
 
@@ -536,7 +579,9 @@ fn replan_passenger_paths(
 
             // 寻找对应目的地类型的终点站
             // Pass passenger's current_pos as the position to avoid
-            if let Some(end_pos) = passenger_manager.find_destination_station(destination_type, Some(current_pos)) {
+            if let Some(end_pos) =
+                passenger_manager.find_destination_station(destination_type, Some(current_pos))
+            {
                 replan_count += 1;
 
                 // 寻找从当前位置到终点的路径
