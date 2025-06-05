@@ -59,7 +59,7 @@ pub fn update_route_segments_system(
 }
 
 // 网格位置组件 - 表示逻辑网格坐标
-#[derive(Component, Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Component, Default, Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct GridPos {
     pub x: i32,
     pub y: i32,
@@ -174,14 +174,6 @@ pub enum TerrainType {
     Water,    // 河流
     Mountain, // 山地
     Park,     // 公园（装饰）
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-pub enum StationType {
-    Start,    // 起点站
-    End,      // 终点站
-    Transfer, // 换乘站
-    Regular,  // 普通站点
 }
 
 // 路线段的方向枚举

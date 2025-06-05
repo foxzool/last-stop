@@ -9,6 +9,7 @@ use crate::{
     screens::Screen,
 };
 use bevy::prelude::*;
+use serde::{Deserialize, Serialize};
 
 pub(super) fn plugin(app: &mut App) {
     app.init_resource::<WantLevel>();
@@ -78,4 +79,21 @@ pub fn spawn_initial_routes(
             Destination::Yellow,
         ],
     );
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub enum StationType {
+    Start,    // 起点站
+    End,      // 终点站
+    Transfer, // 换乘站
+    Regular,  // 普通站点
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StationConfig {
+    pub position: GridPos,
+    pub station_type: StationType,
+    pub passenger_color: Option<Color>, // 起点站的乘客颜色，终点站的目标颜色
+    pub name: String,
+    pub capacity: u32, // 站点容量
 }
