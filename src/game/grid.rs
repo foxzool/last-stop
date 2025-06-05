@@ -84,10 +84,6 @@ impl GridPos {
     pub fn distance_to(&self, other: &GridPos) -> i32 {
         (self.x - other.x).abs() + (self.y - other.y).abs()
     }
-
-    pub fn to_world_pos(&self, grid_size: f32) -> Vec3 {
-        Vec3::new(self.x as f32 * grid_size, self.y as f32 * grid_size, 0.0)
-    }
 }
 
 // 管理网格配置的资源

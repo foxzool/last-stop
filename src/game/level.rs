@@ -272,6 +272,19 @@ pub struct LevelData {
     pub scoring: ScoringConfig,
 }
 
+impl LevelData {
+    // 将网格位置转换为世界坐标
+    // 根据grid_size计算偏移值
+    pub fn grid_to_world(&self, grid_pos: GridPos) -> Vec2 {
+        let half_width = self.grid_size.0 as f32 / 2.0;
+        let half_height = self.grid_size.1 as f32 / 2.0;
+        Vec2::new(
+            (grid_pos.x - half_width as i32) as f32 * 64.0,
+            (grid_pos.y - half_height as i32) as f32 * 64.0, // fixme: tile size
+        )
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PresetRoute {
     pub segments: Vec<(GridPos, RouteSegmentType, u32)>, // 位置、类型、旋转角度
@@ -347,13 +360,6 @@ impl Default for LevelManager {
     }
 }
 
-fn setup_level_generation(mut commands: Commands) {
-    commands.insert_resource(LevelManager {
-        current_level: None,
-        tile_size: 64.0,
-    });
-}
-
 // 地图生成核心函数
 pub fn generate_level_map(
     commands: &mut Commands,
@@ -367,7 +373,7 @@ pub fn generate_level_map(
     for x in 0..width as i32 {
         for y in 0..height as i32 {
             let grid_pos = GridPos::new(x, y);
-            let world_pos = grid_pos.to_world_pos(tile_size);
+            let world_pos = level_data.grid_to_world(grid_pos);
 
             let terrain_type = level_data
                 .terrain
@@ -377,13 +383,9 @@ pub fn generate_level_map(
 
             let texture_path = get_terrain_texture(&terrain_type);
 
-            println!(
-                "GridPos: {:?}, WorldPos: {:?}, TerrainType: {:?}, TexturePath: {}",
-                grid_pos, world_pos, terrain_type, texture_path
-            );
             commands.spawn((
                 Sprite::from_image(asset_server.load(texture_path)),
-                Transform::from_translation(world_pos),
+                Transform::from_translation(world_pos.extend(0.0)),
                 GridTile {
                     grid_pos,
                     terrain_type,
@@ -394,12 +396,12 @@ pub fn generate_level_map(
 
     // 生成站点
     for station in &level_data.stations {
-        let world_pos = station.position.to_world_pos(tile_size);
+        let world_pos = level_data.grid_to_world(station.position);
         let texture_path = get_station_texture(&station.station_type);
 
         commands.spawn((
             Sprite::from_image(asset_server.load(texture_path)),
-            Transform::from_translation(world_pos + Vec3::Z * 1.0),
+            Transform::from_translation(world_pos.extend(1.0)),
             StationEntity {
                 station_data: station.clone(),
                 current_passengers: 0,
@@ -410,12 +412,12 @@ pub fn generate_level_map(
     // 生成预设路线
     for preset_route in &level_data.preset_routes {
         for (pos, segment_type, rotation) in &preset_route.segments {
-            let world_pos = pos.to_world_pos(tile_size);
+            let world_pos = level_data.grid_to_world(*pos);
             let texture_path = get_segment_texture(segment_type);
 
             commands.spawn((
                 Sprite::from_image(asset_server.load(texture_path)),
-                Transform::from_translation(world_pos + Vec3::Z * 0.5).with_rotation(
+                Transform::from_translation(world_pos.extend(0.5)).with_rotation(
                     Quat::from_rotation_z((*rotation as f32) * std::f32::consts::PI / 180.0),
                 ),
                 RouteSegment {
@@ -540,13 +542,11 @@ fn spawn_passenger(
     // 找到起点站的位置
     if let Some(level_data) = &level_manager.current_level {
         if let Some(origin_station) = level_data.stations.iter().find(|s| s.name == demand.origin) {
-            let world_pos = origin_station
-                .position
-                .to_world_pos(level_manager.tile_size);
+            let world_pos = level_data.grid_to_world(origin_station.position);
 
             commands.spawn((
                 Sprite::from_image(asset_server.load(texture_path)),
-                Transform::from_translation(world_pos + Vec3::Z * 2.0),
+                Transform::from_translation(world_pos.extend(2.0)),
                 PassengerEntity {
                     color: demand.color,
                     origin: demand.origin.clone(),
