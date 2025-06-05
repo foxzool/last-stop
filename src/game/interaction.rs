@@ -24,17 +24,18 @@ impl Plugin for MouseInteractionPlugin {
                 Update,
                 (
                     update_mouse_position_system,
-                    mouse_button_system,
-                    place_segment_system,
+                    mouse_button_system,  // Handles press/release, initiates drag
+                    drag_place_system,    // Handles continuous placement during drag
+                    place_segment_system, // Consumes PlaceSegmentEvent
                     select_entity_system,
                     rotate_segment_system,
                     preview_system,
                     tool_selection_system,
-                    remove_segment_system,
-                    clear_selection_system,
+                    remove_segment_system,  // Handles right-click
+                    clear_selection_system, // Handles left-click on empty to clear selection
                 )
                     .chain()
-                    .run_if(in_state(Screen::Gameplay)), // Ensure proper execution order
+                    .run_if(in_state(Screen::Gameplay)),
             );
     }
 }
@@ -47,6 +48,7 @@ pub struct MouseState {
     pub is_dragging: bool,
     pub drag_start_pos: Option<GridPosition>,
     pub selected_entity: Option<Entity>,
+    pub last_drag_grid_position: Option<GridPosition>, // Added for drag placement
 }
 
 // 当前选定工具/路段类型的资源
@@ -124,53 +126,113 @@ pub fn mouse_button_system(
     grid_state: Res<GridState>,
     selected_tool: Res<SelectedTool>,
     grid_config: Res<GridConfig>,
-    keys: Res<ButtonInput<KeyCode>>,
+    keys: Res<ButtonInput<KeyCode>>, // For Shift+Click
 ) {
     for event in mouse_button_events.read() {
-        if !event.state.is_pressed() {
-            continue;
-        }
-
         let grid_pos = mouse_state.grid_position;
 
-        // Check if position is valid
-        if !grid_config.is_valid_position(grid_pos) {
-            continue;
-        }
+        if event.button == MouseButton::Left {
+            if event.state.is_pressed() {
+                // Left Mouse Button PRESSED
+                if !grid_config.is_valid_position(grid_pos) {
+                    // Clicked outside valid grid area, do nothing.
+                    // clear_selection_system might handle clicks on truly empty (non-grid) areas.
+                    continue;
+                }
 
-        match event.button {
-            MouseButton::Left => {
-                // Check if holding Shift for rotation
                 if keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight) {
-                    if let Some(entity) = grid_state.get_entity(grid_pos) {
-                        rotate_segment_events.write(RotateSegmentEvent { entity });
+                    // Handle rotation if Shift is pressed and cell is occupied
+                    if grid_state.is_occupied(grid_pos) {
+                        if let Some(entity_to_rotate) = grid_state.get_entity(grid_pos) {
+                            rotate_segment_events.write(RotateSegmentEvent {
+                                entity: entity_to_rotate,
+                            });
+                        }
                     }
-                }
-                // Check if position is occupied for selection
-                else if let Some(entity) = grid_state.get_entity(grid_pos) {
-                    select_entity_events.write(SelectEntityEvent {
-                        entity,
-                        position: grid_pos,
-                    });
-                    mouse_state.selected_entity = Some(entity);
-                }
-                // Place new segment if position is empty
-                else {
+                    // If shift-clicking on empty, do nothing (don't start drag, don't select)
+                } else if grid_state.is_occupied(grid_pos) {
+                    // Handle selection if cell is occupied and not shift-clicking
+                    if let Some(entity_to_select) = grid_state.get_entity(grid_pos) {
+                        select_entity_events.write(SelectEntityEvent {
+                            entity: entity_to_select,
+                            position: grid_pos,
+                        });
+                        mouse_state.selected_entity = Some(entity_to_select);
+                    }
+                } else {
+                    // Cell is not occupied, and not shift-clicking: Start placing/dragging
+                    // This implies it's a valid, empty grid cell.
+
+                    // Clear conceptual selection state, as we are starting a new build action.
+                    if mouse_state.selected_entity.is_some() {
+                        mouse_state.selected_entity = None;
+                        // Note: This does not visually deselect the previously selected entity.
+                        // Visual deselection happens in clear_selection_system if clicking on an *already* empty cell,
+                        // or in select_entity_system when a new entity is selected.
+                    }
+
+                    mouse_state.is_dragging = true;
+                    mouse_state.drag_start_pos = Some(grid_pos);
+                    // Mark this cell as "placed" for the current drag session to avoid double placement by drag_place_system immediately.
+                    mouse_state.last_drag_grid_position = Some(grid_pos);
+
+                    // Place the first segment for the drag operation
                     place_segment_events.write(PlaceSegmentEvent {
                         position: grid_pos,
                         segment_type: selected_tool.segment_type,
                         direction: selected_tool.direction,
                     });
                 }
-            }
-            MouseButton::Right => {
-                // Right click to remove segment
-                if let Some(_entity) = grid_state.get_entity(grid_pos) {
-                    // Will be handled by remove_segment_system
+            } else {
+                // Left Mouse Button RELEASED
+                if mouse_state.is_dragging {
+                    // Only act if a drag was in progress
+                    mouse_state.is_dragging = false;
+                    mouse_state.drag_start_pos = None;
+                    // Reset last_drag_grid_position to ensure the next click/drag starts fresh.
+                    mouse_state.last_drag_grid_position = None;
                 }
             }
-            _ => {}
         }
+        // Right click for removal is handled by remove_segment_system.
+        // Middle click is not currently handled in this system.
+    }
+}
+
+// System to handle continuous segment placement during mouse drag
+pub fn drag_place_system(
+    mut mouse_state: ResMut<MouseState>,
+    mut place_segment_events: EventWriter<PlaceSegmentEvent>,
+    selected_tool: Res<SelectedTool>,
+    grid_config: Res<GridConfig>,
+    grid_state: Res<GridState>,
+    mouse_buttons: Res<ButtonInput<MouseButton>>, // To check if the button is *still* pressed
+) {
+    // Only run if dragging is active and the left mouse button is currently pressed.
+    if mouse_state.is_dragging && mouse_buttons.pressed(MouseButton::Left) {
+        let current_grid_pos = mouse_state.grid_position;
+
+        // Check if the current grid position is valid, not already occupied,
+        // and different from the last segment placed during this drag.
+        if grid_config.is_valid_position(current_grid_pos)
+            && !grid_state.is_occupied(current_grid_pos)
+            && mouse_state.last_drag_grid_position != Some(current_grid_pos)
+        {
+            place_segment_events.write(PlaceSegmentEvent {
+                position: current_grid_pos,
+                segment_type: selected_tool.segment_type,
+                direction: selected_tool.direction,
+            });
+            // Update the last placed position for this drag session.
+            mouse_state.last_drag_grid_position = Some(current_grid_pos);
+        }
+    } else if !mouse_buttons.pressed(MouseButton::Left) && mouse_state.is_dragging {
+        // Safety net: If the mouse button is released but is_dragging is somehow still true
+        // (e.g., release event was missed or not yet processed by mouse_button_system).
+        // This ensures the dragging state is reset.
+        mouse_state.is_dragging = false;
+        mouse_state.drag_start_pos = None;
+        mouse_state.last_drag_grid_position = None;
     }
 }
 
