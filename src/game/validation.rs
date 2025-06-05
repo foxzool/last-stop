@@ -1,6 +1,6 @@
 use crate::{
     game::{
-        grid::{Direction, GridPos, GridState, RouteSegment, RouteSegmentComponent},
+        grid::{Direction, GridPos, GridState, RouteSegmentType, RouteSegmentComponent},
         interaction::PlaceSegmentEvent,
     },
     screens::Screen,
@@ -72,21 +72,21 @@ impl ConnectionMap {
         segment: &RouteSegmentComponent,
     ) -> Vec<ConnectionPoint> {
         match segment.segment_type {
-            RouteSegment::Straight => {
+            RouteSegmentType::Straight => {
                 // 直线段在两个相反方向上连接
                 vec![
                     ConnectionPoint::new(position, segment.direction),
                     ConnectionPoint::new(position, segment.direction.opposite()),
                 ]
             }
-            RouteSegment::Corner => {
+            RouteSegmentType::Corner => {
                 // 转角段在两个垂直方向上连接
                 vec![
                     ConnectionPoint::new(position, segment.direction),
                     ConnectionPoint::new(position, segment.direction.rotate_cw()),
                 ]
             }
-            RouteSegment::TJunction => {
+            RouteSegmentType::TJunction => {
                 // T型路口在三个方向上连接
                 vec![
                     ConnectionPoint::new(position, segment.direction),
@@ -97,7 +97,7 @@ impl ConnectionMap {
                     ),
                 ]
             }
-            RouteSegment::Cross => {
+            RouteSegmentType::Cross => {
                 // 十字路口在所有四个方向上连接
                 vec![
                     ConnectionPoint::new(position, Direction::North),
@@ -106,7 +106,7 @@ impl ConnectionMap {
                     ConnectionPoint::new(position, Direction::West),
                 ]
             }
-            RouteSegment::Station(_) => {
+            RouteSegmentType::Station(_) => {
                 // 车站路口在所有四个方向上连接
                 vec![
                     ConnectionPoint::new(position, Direction::North),
@@ -115,7 +115,7 @@ impl ConnectionMap {
                     ConnectionPoint::new(position, Direction::West),
                 ]
             }
-            RouteSegment::Grass => {
+            RouteSegmentType::Grass => {
                 // Grass doesn't connect to anything
                 vec![]
             }
@@ -165,7 +165,7 @@ pub fn validate_connections_system(
                 // Check if target position has a route segment (not terrain)
                 if let Some(target_segment) = grid_state.get_route_segment(target.position) {
                     // Skip if target is grass (terrain element)
-                    if target_segment.segment_type == RouteSegment::Grass {
+                    if target_segment.segment_type == RouteSegmentType::Grass {
                         continue;
                     }
 
@@ -195,7 +195,7 @@ pub fn validate_connections_system(
                     // Check if there's a route segment (not grass) at target position but no valid connection
                     let target = point.get_target();
                     if let Some(target_segment) = grid_state.get_route_segment(target.position) {
-                        if target_segment.segment_type != RouteSegment::Grass {
+                        if target_segment.segment_type != RouteSegmentType::Grass {
                             has_invalid_connection = true;
                         }
                     }
@@ -227,7 +227,7 @@ pub fn connection_visual_feedback_system(
 ) {
     for (mut sprite, segment, invalid, valid) in query.iter_mut() {
         match segment.segment_type {
-            RouteSegment::Grass => {
+            RouteSegmentType::Grass => {
                 // Grass always stays green
                 sprite.color = Color::srgb(0.4, 0.8, 0.4);
             }
@@ -357,7 +357,7 @@ pub fn validate_placement_system(
 #[derive(Event)]
 pub struct PlacementValidationEvent {
     pub position: GridPos,
-    pub segment_type: RouteSegment,
+    pub segment_type: RouteSegmentType,
     pub direction: Direction,
     pub valid_connections: usize,
     pub invalid_connections: usize,

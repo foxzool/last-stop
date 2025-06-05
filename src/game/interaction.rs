@@ -5,7 +5,7 @@ use crate::{
             GridConfig,
             GridPos,
             GridState,
-            RouteSegment,
+            RouteSegmentType,
             RouteSegmentComponent,
             SpawnRouteSegmentEvent, // Correctly added here
         },
@@ -59,14 +59,14 @@ pub struct MouseState {
 // 当前选定工具/路段类型的资源
 #[derive(Resource)]
 pub struct SelectedTool {
-    pub segment_type: RouteSegment,
+    pub segment_type: RouteSegmentType,
     pub direction: Direction,
 }
 
 impl Default for SelectedTool {
     fn default() -> Self {
         Self {
-            segment_type: RouteSegment::Straight,
+            segment_type: RouteSegmentType::Straight,
             direction: Direction::North,
         }
     }
@@ -88,7 +88,7 @@ pub struct Preview;
 #[derive(Event)]
 pub struct PlaceSegmentEvent {
     pub position: GridPos,
-    pub segment_type: RouteSegment,
+    pub segment_type: RouteSegmentType,
     pub direction: Direction,
 }
 
@@ -379,19 +379,19 @@ pub fn tool_selection_system(
 ) {
     // Number keys to select segment type
     if keys.just_pressed(KeyCode::Digit1) {
-        selected_tool.segment_type = RouteSegment::Straight;
+        selected_tool.segment_type = RouteSegmentType::Straight;
         selected_tool.direction = selected_tool.direction.rotate_cw();
     }
     if keys.just_pressed(KeyCode::Digit2) {
-        selected_tool.segment_type = RouteSegment::Corner;
+        selected_tool.segment_type = RouteSegmentType::Corner;
         selected_tool.direction = selected_tool.direction.rotate_cw();
     }
     if keys.just_pressed(KeyCode::Digit3) {
-        selected_tool.segment_type = RouteSegment::TJunction;
+        selected_tool.segment_type = RouteSegmentType::TJunction;
         selected_tool.direction = selected_tool.direction.rotate_cw();
     }
     if keys.just_pressed(KeyCode::Digit4) {
-        selected_tool.segment_type = RouteSegment::Cross;
+        selected_tool.segment_type = RouteSegmentType::Cross;
     }
 
     // R key to rotate current tool direction

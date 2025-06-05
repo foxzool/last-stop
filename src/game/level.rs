@@ -2,7 +2,7 @@
 
 use crate::{
     game::{
-        grid::{Direction, GridConfig, GridPos, RouteSegment, SpawnRouteSegmentEvent},
+        grid::{Direction, GridConfig, GridPos, RouteSegmentType, SpawnRouteSegmentEvent},
         level,
         passenger::{Destination, PassengerManager},
     },
@@ -37,7 +37,7 @@ pub fn spawn_initial_routes(
     let red_station_pos = GridPos::new(1, 1);
     commands.trigger(SpawnRouteSegmentEvent {
         grid_pos: red_station_pos,
-        segment_type: RouteSegment::Station(Destination::Red),
+        segment_type: RouteSegmentType::Station(Destination::Red),
         direction: Direction::North,
     });
     passenger_manager.add_station(red_station_pos, vec![Destination::Red]);
@@ -46,7 +46,7 @@ pub fn spawn_initial_routes(
     let blue_station_pos = GridPos::new(grid_config.grid_width - 2, 1);
     commands.trigger(SpawnRouteSegmentEvent {
         grid_pos: blue_station_pos,
-        segment_type: RouteSegment::Station(Destination::Blue),
+        segment_type: RouteSegmentType::Station(Destination::Blue),
         direction: Direction::North,
     });
     passenger_manager.add_station(blue_station_pos, vec![Destination::Blue]);
@@ -55,7 +55,7 @@ pub fn spawn_initial_routes(
     let green_station_pos = GridPos::new(1, grid_config.grid_height - 2);
     commands.trigger(SpawnRouteSegmentEvent {
         grid_pos: green_station_pos,
-        segment_type: RouteSegment::Station(Destination::Green),
+        segment_type: RouteSegmentType::Station(Destination::Green),
         direction: Direction::North,
     });
     passenger_manager.add_station(green_station_pos, vec![Destination::Green]);
@@ -66,7 +66,7 @@ pub fn spawn_initial_routes(
         GridPos::new(grid_config.grid_width / 2, grid_config.grid_height / 2 + 4);
     commands.trigger(SpawnRouteSegmentEvent {
         grid_pos: yellow_station_pos,
-        segment_type: RouteSegment::Station(Destination::Yellow),
+        segment_type: RouteSegmentType::Station(Destination::Yellow),
         direction: Direction::North,
     });
     passenger_manager.add_station(yellow_station_pos, vec![Destination::Yellow]);
@@ -76,7 +76,7 @@ pub fn spawn_initial_routes(
         GridPos::new(grid_config.grid_width / 2, grid_config.grid_height / 2);
     commands.trigger(SpawnRouteSegmentEvent {
         grid_pos: central_station_pos,
-        segment_type: RouteSegment::Station(Destination::White),
+        segment_type: RouteSegmentType::Station(Destination::White),
         direction: Direction::North,
     });
     passenger_manager.add_station(

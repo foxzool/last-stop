@@ -36,7 +36,7 @@ impl Plugin for GridPlugin {
 #[derive(Event, Debug, Clone, Copy)]
 pub struct SpawnRouteSegmentEvent {
     pub grid_pos: GridPos,
-    pub segment_type: RouteSegment,
+    pub segment_type: RouteSegmentType,
     pub direction: Direction,
 }
 
@@ -143,7 +143,7 @@ pub struct GridSnap;
 
 // 路线段类型
 #[derive(Component, Debug, Clone, Copy, PartialEq)]
-pub enum RouteSegment {
+pub enum RouteSegmentType {
     Straight,             // ─ or │
     Corner,               // └ ┘ ┐ ┌
     TJunction,            // ┬ ┴ ├ ┤
@@ -152,19 +152,19 @@ pub enum RouteSegment {
     Grass,
 }
 
-impl RouteSegment {
+impl RouteSegmentType {
     pub fn is_station(&self) -> bool {
-        matches!(self, RouteSegment::Station(_))
+        matches!(self, RouteSegmentType::Station(_))
     }
 
     pub fn to_index(&self) -> Option<usize> {
         match self {
-            RouteSegment::Straight => Some(3),
-            RouteSegment::Corner => Some(11),
-            RouteSegment::TJunction => Some(15),
-            RouteSegment::Cross => Some(16),
-            RouteSegment::Station(_) => None,
-            RouteSegment::Grass => None,
+            RouteSegmentType::Straight => Some(3),
+            RouteSegmentType::Corner => Some(11),
+            RouteSegmentType::TJunction => Some(15),
+            RouteSegmentType::Cross => Some(16),
+            RouteSegmentType::Station(_) => None,
+            RouteSegmentType::Grass => None,
         }
     }
 }
@@ -213,7 +213,7 @@ impl Direction {
 // 带方向的路线段组件
 #[derive(Component, Debug, Clone, Copy, PartialEq)]
 pub struct RouteSegmentComponent {
-    pub segment_type: RouteSegment,
+    pub segment_type: RouteSegmentType,
     pub direction: Direction,
 }
 
@@ -326,7 +326,7 @@ pub fn spawn_route_segment_system(
     );
 
     let sprite = match segment_type {
-        RouteSegment::Station(_) => {
+        RouteSegmentType::Station(_) => {
             let texture = asset_server.load("textures/CP_V1.0.4.png");
             let layout = TextureAtlasLayout::from_grid(
                 UVec2::splat(100),
@@ -382,7 +382,7 @@ pub fn spawn_route_segment_system(
         ))
         .insert(Selectable)
         .with_children(|parent| {
-            if let RouteSegment::Station(destination) = segment_type {
+            if let RouteSegmentType::Station(destination) = segment_type {
                 parent.spawn((
                     Sprite::from_color(destination.get_color(), Vec2::splat(grid_config.tile_size)),
                     Transform::from_xyz(0.0, 0.0, -1.0),
@@ -406,10 +406,10 @@ pub fn spawn_route_segment_system(
     );
 }
 
-pub fn segment_type_rotation(segment_type: RouteSegment, direction: Direction) -> f32 {
+pub fn segment_type_rotation(segment_type: RouteSegmentType, direction: Direction) -> f32 {
     // Calculate rotation
     let current_direction_angle = direction as u8 as f32 * std::f32::consts::PI / 2.0;
-    let final_rotation_angle = if segment_type == RouteSegment::Corner {
+    let final_rotation_angle = if segment_type == RouteSegmentType::Corner {
         let corner_rotation_factor = match direction {
             Direction::North => 0.0,
             Direction::East => 3.0,
@@ -417,7 +417,7 @@ pub fn segment_type_rotation(segment_type: RouteSegment, direction: Direction) -
             Direction::West => 1.0,
         };
         corner_rotation_factor * std::f32::consts::PI / 2.0
-    } else if segment_type == RouteSegment::TJunction {
+    } else if segment_type == RouteSegmentType::TJunction {
         let corner_rotation_factor = match direction {
             Direction::North => 1.0,
             Direction::East => 0.0,
