@@ -13,9 +13,10 @@ use bevy::prelude::*;
 pub(super) fn plugin(app: &mut App) {
     // 可以在这里添加关卡相关的系统
     // app.add_systems(OnEnter(Screen::Gameplay), spawn_initial_routes);
-    app.add_systems(OnEnter(Screen::LevelSelect), spawn_level_menu);
+    // app.add_systems(OnEnter(Screen::LevelSelect), spawn_level_menu);
 }
 
+#[allow(dead_code)]
 pub fn spawn_level_menu(mut commands: Commands) {}
 
 // 生成初始路线和车站

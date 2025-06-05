@@ -1,6 +1,9 @@
-use crate::game::{
-    grid::{Direction, GridPosition, GridState, RouteSegment, RouteSegmentComponent},
-    interaction::PlaceSegmentEvent,
+use crate::{
+    game::{
+        grid::{Direction, GridPosition, GridState, RouteSegment, RouteSegmentComponent},
+        interaction::PlaceSegmentEvent,
+    },
+    screens::Screen,
 };
 use bevy::prelude::*;
 use std::collections::{HashMap, HashSet};
@@ -433,7 +436,8 @@ impl Plugin for ConnectionValidationPlugin {
                     validate_placement_system,
                     prevent_invalid_placement_system,
                 )
-                    .chain(),
+                    .chain()
+                    .run_if(in_state(Screen::Gameplay)),
             );
     }
 }

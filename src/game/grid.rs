@@ -4,12 +4,32 @@ use crate::{
     screens::Screen,
 };
 use bevy::{
-    ecs::system::entity_command::observe,
     prelude::*,
     window::{PrimaryWindow, WindowResized},
 };
 
 pub struct GridPlugin;
+
+impl Plugin for GridPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<GridConfig>()
+            .init_resource::<GridState>()
+            .init_resource::<ConnectionMap>() // Initialize ConnectionMap
+            .add_systems(OnEnter(Screen::Gameplay), setup_grid_from_window_size) // 注册新的事件
+            .add_systems(
+                Update,
+                (
+                    grid_snap_system,
+                    update_grid_state_system,
+                    update_route_segments_system,
+                    setup_grid_from_window_size
+                        .run_if(|ev: EventReader<WindowResized>| !ev.is_empty()),
+                )
+                    .run_if(in_state(Screen::Gameplay)),
+            )
+            .add_observer(spawn_route_segment_system);
+    }
+}
 
 // 事件：用于请求生成一个新的路线片段
 #[derive(Event, Debug, Clone, Copy)]
@@ -34,26 +54,6 @@ pub fn update_route_segments_system(
         grid_state
             .route_segments
             .insert(*grid_pos, *route_segment_comp); // RouteSegmentComponent is Copy
-    }
-}
-
-impl Plugin for GridPlugin {
-    fn build(&self, app: &mut App) {
-        app.init_resource::<GridConfig>()
-            .init_resource::<GridState>()
-            .init_resource::<ConnectionMap>() // Initialize ConnectionMap
-            .add_systems(OnEnter(Screen::Gameplay), setup_grid_from_window_size) // 注册新的事件
-            .add_systems(
-                Update,
-                (
-                    grid_snap_system,
-                    update_grid_state_system,
-                    update_route_segments_system,
-                    setup_grid_from_window_size
-                        .run_if(|ev: EventReader<WindowResized>| !ev.is_empty()),
-                ),
-            )
-            .add_observer(spawn_route_segment_system);
     }
 }
 

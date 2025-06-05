@@ -8,6 +8,7 @@ use bevy::{color::palettes::basic, prelude::*};
 
 #[derive(Event, Debug)]
 pub struct PassengerArrivedEvent;
+use crate::screens::Screen;
 use rand::Rng;
 use std::collections::VecDeque;
 
@@ -44,7 +45,8 @@ impl Plugin for PassengerPlugin {
                     spawn_passengers,
                     update_passengers,
                     remove_impatient_passengers,
-                ),
+                )
+                    .run_if(in_state(Screen::Gameplay)),
             )
             .add_observer(handle_path_replan_requests)
             .add_observer(handle_passenger_arrival_system);

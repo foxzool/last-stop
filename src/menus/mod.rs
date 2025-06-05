@@ -4,6 +4,7 @@ mod credits;
 mod main;
 mod pause;
 mod settings;
+mod level;
 
 use bevy::prelude::*;
 
@@ -27,4 +28,5 @@ pub enum Menu {
     Credits,
     Settings,
     Pause,
+    LevelSelect,
 }
