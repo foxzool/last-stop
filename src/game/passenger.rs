@@ -42,7 +42,7 @@ impl Plugin for PassengerPlugin {
             .add_systems(
                 Update,
                 (
-                    spawn_passengers,
+                    // spawn_passengers,
                     update_passengers,
                     remove_impatient_passengers,
                 )
@@ -105,11 +105,16 @@ impl Destination {
 // 乘客组件
 #[derive(Component, Debug)]
 pub struct Passenger {
-    pub destination: Destination,                      // 目的地类型
-    pub patience: f32,                                 // 耐心值 (0.0-100.0)
-    pub path: VecDeque<GridPos>,                  // 规划的路径
-    pub current_position: GridPos,                // 当前位置
-    pub target_position: GridPos,                 // 目标位置
+    pub start_station: Entity,
+    pub target_station: Entity,
+    pub current_station: Option<Entity>,
+    pub patience: f32, // 耐心值 (0.0-100.0)
+    pub max_patience: f32,
+    pub color: Color,
+    pub path: Vec<Entity>, // 规划的路径
+    pub current_path_index: usize,
+    pub current_position: Entity,                      // 当前位置
+    pub target_position: Entity,                       // 目标位置
     pub progress: f32,                                 // 移动进度 (0.0-1.0)
     pub speed: f32,                                    // 移动速度
     pub arrived: bool,                                 // 是否已到达目的地
@@ -119,79 +124,84 @@ pub struct Passenger {
 }
 
 impl Passenger {
-    pub fn new(start: GridPos, destination: Destination) -> Self {
+    pub fn new(start_station: Entity, target_station: Entity) -> Self {
         Self {
-            destination,
+            start_station,
+            target_station,
             patience: 100.0,
-            path: VecDeque::new(),
-            current_position: start,
-            target_position: start, // 初始目标位置与当前位置相同
+            max_patience: 0.0,
+            color: Default::default(),
+            path: Vec::new(),
             progress: 0.0,
             speed: 0.5, // 每秒移动0.5个格子
             arrived: false,
             current_movement_direction: None, // 初始无方向
             animation_index: 0,
             animation_timer: Timer::from_seconds(ANIMATION_FRAME_DURATION, TimerMode::Repeating),
+            current_station: None,
+            current_path_index: 0,
+            current_position: start_station,
+            target_position: target_station,
         }
     }
 
-    // 更新乘客位置
-    pub fn update_position(&mut self, delta_time: f32) -> bool {
-        // 如果已到达目的地或没有路径，则不移动
-        if self.arrived || self.path.is_empty() {
-            // Ensure direction is None if not moving or path is empty
-            if self.current_movement_direction.is_some() {
-                // Safeguard
-                self.current_movement_direction = None;
-            }
-            if self.path.is_empty() && !self.arrived {
-                trace!(
-                    "Passenger: update_position - path is empty and not arrived. Returning false."
-                );
-            }
-            return false;
-        }
-
-        // 更新移动进度
-        self.progress += self.speed * delta_time;
-
-        // 如果完成了当前格子的移动
-        if self.progress >= 1.0 {
-            // 移动到下一个格子
-            self.current_position = self.target_position;
-            self.progress = 0.0;
-
-            self.path.pop_front(); // 移除已到达的当前 target_position (路径点)
-
-            if let Some(next_waypoint) = self.path.front() {
-                // 查看路径中的下一个点
-                let new_target = *next_waypoint;
-                self.target_position = new_target; // 设置为新的目标
-                self.current_movement_direction =
-                    calculate_direction_internal(self.current_position, new_target);
-                debug!(
-                    "Passenger: Reached {:?}, next target {:?}. Path segments remaining: {}. Direction: {:?}",
-                    self.current_position,
-                    self.target_position,
-                    self.path.len(),
-                    self.current_movement_direction
-                );
-                true // 仍然在移动
-            } else {
-                // 路径已完成 (path is now empty after pop_front and front() is None)
-                self.arrived = true;
-                self.current_movement_direction = None;
-                debug!(
-                    "Passenger: Reached final destination {:?}. Path completed.",
-                    self.current_position
-                );
-                false // 停止移动
-            }
-        } else {
-            // Still moving towards target_position, direction should be already set
-            true
-        }
-    }
+    // // 更新乘客位置
+    // pub fn update_position(&mut self, delta_time: f32) -> bool {
+    //     // 如果已到达目的地或没有路径，则不移动
+    //     if self.arrived || self.path.is_empty() {
+    //         // Ensure direction is None if not moving or path is empty
+    //         if self.current_movement_direction.is_some() {
+    //             // Safeguard
+    //             self.current_movement_direction = None;
+    //         }
+    //         if self.path.is_empty() && !self.arrived {
+    //             trace!(
+    //                 "Passenger: update_position - path is empty and not arrived. Returning false."
+    //             );
+    //         }
+    //         return false;
+    //     }
+    //
+    //     // 更新移动进度
+    //     self.progress += self.speed * delta_time;
+    //
+    //     // 如果完成了当前格子的移动
+    //     if self.progress >= 1.0 {
+    //         // 移动到下一个格子
+    //         self.current_position = self.target_position;
+    //         self.progress = 0.0;
+    //
+    //         self.path.pop_front(); // 移除已到达的当前 target_position (路径点)
+    //
+    //         if let Some(next_waypoint) = self.path.front() {
+    //             // 查看路径中的下一个点
+    //             let new_target = *next_waypoint;
+    //             self.target_position = new_target; // 设置为新的目标
+    //             // self.current_movement_direction =
+    //             //     calculate_direction_internal(self.current_position, new_target); fixme
+    //             debug!(
+    //                 "Passenger: Reached {:?}, next target {:?}. Path segments remaining: {}. Direction: {:?}",
+    //                 self.current_position,
+    //                 self.target_position,
+    //                 self.path.len(),
+    //                 self.current_movement_direction
+    //             );
+    //             true // 仍然在移动
+    //         } else {
+    //             // 路径已完成 (path is now empty after pop_front and front() is None)
+    //             self.arrived = true;
+    //             self.current_movement_direction = None;
+    //             debug!(
+    //                 "Passenger: Reached final destination {:?}. Path completed.",
+    //                 self.current_position
+    //             );
+    //             false // 停止移动
+    //         }
+    //     } else {
+    //         // Still moving towards target_position, direction should be already set
+    //         true
+    //     }
+    // }
 
     // 减少耐心值
     pub fn decrease_patience(&mut self, amount: f32) {
@@ -209,366 +219,353 @@ impl Passenger {
     }
 
     // 设置路径
-    pub fn set_path(&mut self, new_path: VecDeque<GridPos>) {
-        debug!(
-            "Passenger: set_path called. Current pos: {:?}, target: {:?}, progress: {:.2}, arrived: {}, new path length: {}",
-            self.current_position,
-            self.target_position,
-            self.progress,
-            self.arrived,
-            new_path.len()
-        );
-
-        let was_moving = self.progress > 0.0 && !self.arrived;
-        let original_target_if_moving = if was_moving {
-            Some(self.target_position)
-        } else {
-            None
-        };
-
-        self.path = new_path;
-
-        if self.path.is_empty() {
-            // 如果新路径为空
-            self.current_movement_direction = None;
-            // If the passenger was moving and the new path is empty, they effectively arrived at their last target.
-            // If they were not moving and path is empty, they are considered arrived (or at a dead end).
-            if !was_moving {
-                // Only set to arrived if they weren't already in transit to an intermediate point
-                self.arrived = true;
-            }
-            self.progress = 0.0; // Reset progress as there's no further movement.
-            warn!(
-                "Passenger: Set an empty path. Arrived: {}. Progress reset.",
-                self.arrived
-            );
-            return;
-        }
-
-        // 新路径不为空
-        self.arrived = false; // Has a new path, so not arrived at the final destination yet.
-        let next_target_in_new_path = *self.path.front().unwrap(); // Safe due to !is_empty check
-
-        if was_moving && original_target_if_moving == Some(next_target_in_new_path) {
-            // 乘客正在移动，并且新路径的起点就是当前的目标格子
-            // 保留当前的移动状态 (progress, target_position, current_movement_direction)
-            // 路径已经被更新为 self.path，所以 update_position 会继续处理
-            debug!(
-                "Passenger: Continuing current movement towards {:?} as new path starts with it. Progress: {:.2}. Path len: {}",
-                self.target_position,
-                self.progress,
-                self.path.len()
-            );
-        } else {
-            // 乘客之前是静止的，或者新路径的起点与当前移动目标不一致
-            // 或者乘客已到达，现在给予新路径
-            self.target_position = next_target_in_new_path;
-            self.current_movement_direction =
-                calculate_direction_internal(self.current_position, self.target_position);
-            self.progress = 0.0; // 重置移动进度，从当前格子开始向新的 target_position 移动
-            debug!(
-                "Passenger: New path set. Resetting progress. New target: {:?}. Current pos: {:?}. Direction: {:?}. Path len: {}",
-                self.target_position,
-                self.current_position,
-                self.current_movement_direction,
-                self.path.len()
-            );
-        }
-    }
-
-    // 获取目的地位置
-    pub fn get_destination_position(&self) -> Option<GridPos> {
-        if !self.path.is_empty() {
-            return Some(*self.path.back().unwrap());
-        }
-        None
-    }
+    // pub fn set_path(&mut self, new_path: Vec<Entity>) { fixme
+    //     debug!(
+    //         "Passenger: set_path called. Current pos: {:?}, target: {:?}, progress: {:.2}, arrived: {}, new path length: {}",
+    //         self.current_position,
+    //         self.target_position,
+    //         self.progress,
+    //         self.arrived,
+    //         new_path.len()
+    //     );
+    //
+    //     let was_moving = self.progress > 0.0 && !self.arrived;
+    //     let original_target_if_moving = if was_moving {
+    //         Some(self.target_position)
+    //     } else {
+    //         None
+    //     };
+    //
+    //     self.path = new_path;
+    //
+    //     if self.path.is_empty() {
+    //         // 如果新路径为空
+    //         self.current_movement_direction = None;
+    //         // If the passenger was moving and the new path is empty, they effectively arrived at their last target.
+    //         // If they were not moving and path is empty, they are considered arrived (or at a dead end).
+    //         if !was_moving {
+    //             // Only set to arrived if they weren't already in transit to an intermediate point
+    //             self.arrived = true;
+    //         }
+    //         self.progress = 0.0; // Reset progress as there's no further movement.
+    //         warn!(
+    //             "Passenger: Set an empty path. Arrived: {}. Progress reset.",
+    //             self.arrived
+    //         );
+    //         return;
+    //     }
+    //
+    //     // 新路径不为空
+    //     self.arrived = false; // Has a new path, so not arrived at the final destination yet.
+    //     let next_target_in_new_path = *self.path.front().unwrap(); // Safe due to !is_empty check
+    //
+    //     if was_moving && original_target_if_moving == Some(next_target_in_new_path) {
+    //         // 乘客正在移动，并且新路径的起点就是当前的目标格子
+    //         // 保留当前的移动状态 (progress, target_position, current_movement_direction)
+    //         // 路径已经被更新为 self.path，所以 update_position 会继续处理
+    //         debug!(
+    //             "Passenger: Continuing current movement towards {:?} as new path starts with it. Progress: {:.2}. Path len: {}",
+    //             self.target_position,
+    //             self.progress,
+    //             self.path.len()
+    //         );
+    //     } else {
+    //         // 乘客之前是静止的，或者新路径的起点与当前移动目标不一致
+    //         // 或者乘客已到达，现在给予新路径
+    //         self.target_position = next_target_in_new_path;
+    //         self.current_movement_direction =
+    //             calculate_direction_internal(self.current_position, self.target_position);
+    //         self.progress = 0.0; // 重置移动进度，从当前格子开始向新的 target_position 移动
+    //         debug!(
+    //             "Passenger: New path set. Resetting progress. New target: {:?}. Current pos: {:?}. Direction: {:?}. Path len: {}",
+    //             self.target_position,
+    //             self.current_position,
+    //             self.current_movement_direction,
+    //             self.path.len()
+    //         );
+    //     }
+    // }
 }
 
 // 乘客管理器
 #[derive(Resource, Default)]
 pub struct PassengerManager {
     pub passengers: Vec<Entity>,
-    pub stations: Vec<(GridPos, Vec<Destination>)>, // 车站位置和可到达的目的地
+    pub stations: Vec<(Entity, Vec<Destination>)>, // 车站位置和可到达的目的地
 }
 
-impl PassengerManager {
-    // 添加乘客
-    pub fn add_passenger(&mut self, entity: Entity) {
-        self.passengers.push(entity);
-    }
-
-    // 移除乘客
-    pub fn remove_passenger(&mut self, entity: Entity) {
-        if let Some(index) = self.passengers.iter().position(|&p| p == entity) {
-            self.passengers.swap_remove(index);
-        }
-    }
-
-    // 添加车站
-    pub fn add_station(&mut self, position: GridPos, destinations: Vec<Destination>) {
-        self.stations.push((position, destinations));
-    }
-
-    // 获取随机起点站
-    pub fn get_random_start_station(&self) -> Option<GridPos> {
-        if self.stations.is_empty() {
-            return None;
-        }
-
-        let index = rand::thread_rng().gen_range(0..self.stations.len());
-        Some(self.stations[index].0)
-    }
-
-    // 为指定目的地找到合适的终点站
-    pub fn find_destination_station(
-        &self,
-        destination: Destination,
-        current_pos_to_avoid: Option<GridPos>,
-    ) -> Option<GridPos> {
-        let all_matching_stations: Vec<GridPos> = self
-            .stations
-            .iter()
-            .filter(|(_, dests)| dests.contains(&destination))
-            .map(|(pos, _)| *pos)
-            .collect();
-
-        if all_matching_stations.is_empty() {
-            return None; // No station serves this destination type
-        }
-
-        let final_candidate_list = if let Some(avoid_pos) = current_pos_to_avoid {
-            let preferred_options: Vec<GridPos> = all_matching_stations
-                .iter()
-                .filter(|&&p| p != avoid_pos)
-                .cloned()
-                .collect();
-            if !preferred_options.is_empty() {
-                preferred_options
-            } else {
-                all_matching_stations // Fallback: current pos is the only option, or no other options
-            }
-        } else {
-            all_matching_stations // No position to avoid specified
-        };
-
-        if final_candidate_list.is_empty() {
-            // This should ideally not happen if all_matching_stations was not empty.
-            // However, to be safe, one might return None or log an error.
-            return None;
-        }
-
-        let index = rand::thread_rng().gen_range(0..final_candidate_list.len());
-        Some(final_candidate_list[index])
-    }
-
-    // 寻找从起点到终点的最短路径
-    pub fn find_path(
-        &self,
-        start: GridPos,
-        end: GridPos,
-        grid_state: &GridState,
-    ) -> Option<VecDeque<GridPos>> {
-        info!(
-            "开始寻找路径: 从 ({}, {}) 到 ({}, {})",
-            start.x, start.y, end.x, end.y
-        );
-
-        // 记录网格状态
-        info!(
-            "当前网格中的路线段数量: {}",
-            grid_state.route_segments.len()
-        );
-
-        // 使用A*算法寻找最短路径
-        let mut open_set = Vec::new();
-        let mut came_from = std::collections::HashMap::new();
-        let mut g_score = std::collections::HashMap::new();
-        let mut f_score = std::collections::HashMap::new();
-
-        open_set.push(start);
-        g_score.insert(start, 0);
-        f_score.insert(start, start.distance_to(&end));
-
-        while !open_set.is_empty() {
-            // 找到f_score最小的节点
-            let current = *open_set
-                .iter()
-                .min_by_key(|&&pos| f_score.get(&pos).unwrap_or(&i32::MAX))
-                .unwrap();
-
-            // 如果到达终点
-            if current == end {
-                // 重建路径
-                let mut path = VecDeque::new();
-                let mut current = end;
-                while current != start {
-                    path.push_front(current);
-                    current = came_from[&current];
-                }
-                return Some(path);
-            }
-
-            // 从开放集中移除当前节点
-            open_set.retain(|&pos| pos != current);
-
-            // 检查相邻节点
-            for neighbor in current.adjacent().iter() {
-                // 检查是否有路线连接当前节点和邻居节点
-                if !self.is_connected(&current, neighbor, grid_state) {
-                    continue;
-                }
-
-                // 计算通过当前节点到达邻居节点的g_score
-                let tentative_g_score = g_score.get(&current).unwrap_or(&i32::MAX) + 1;
-
-                // 如果找到了更好的路径
-                if tentative_g_score < *g_score.get(neighbor).unwrap_or(&i32::MAX) {
-                    came_from.insert(*neighbor, current);
-                    g_score.insert(*neighbor, tentative_g_score);
-                    f_score.insert(*neighbor, tentative_g_score + neighbor.distance_to(&end));
-
-                    // 如果邻居节点不在开放集中，添加它
-                    if !open_set.contains(neighbor) {
-                        open_set.push(*neighbor);
-                    }
-                }
-            }
-        }
-
-        // 没有找到路径
-        None
-    }
-
-    // 检查两个相邻格子之间是否有路线连接
-    fn is_connected(
-        &self,
-        pos1: &GridPos,
-        pos2: &GridPos,
-        grid_state: &GridState,
-    ) -> bool {
-        // 获取两个位置的路线段
-        let segment1 = match grid_state.get_route_segment(*pos1) {
-            Some(s) => s,
-            None => {
-                trace!("is_connected: No segment at pos1: {:?}", pos1);
-                return false;
-            }
-        };
-
-        let segment2 = match grid_state.get_route_segment(*pos2) {
-            Some(s) => s,
-            None => {
-                trace!("is_connected: No segment at pos2: {:?}", pos2);
-                return false;
-            }
-        };
-
-        trace!(
-            "is_connected: Checking connection between {:?} ({:?}/{:?}) and {:?} ({:?}/{:?})",
-            pos1,
-            segment1.segment_type,
-            segment1.direction,
-            pos2,
-            segment2.segment_type,
-            segment2.direction
-        );
-
-        // 使用 validation 模块中的 can_segments_connect 方法检查连接
-        // 创建一个临时的 ConnectionMap，因为我们只需要检查连接性，不需要保存状态
-        let result = can_segments_connect(*pos1, segment1, *pos2, segment2, &Default::default());
-        trace!(
-            "is_connected: Result for {:?} and {:?} is {}",
-            pos1, pos2, result
-        );
-        result
-    }
-}
+// impl PassengerManager {
+//     // 添加乘客
+//     pub fn add_passenger(&mut self, entity: Entity) {
+//         self.passengers.push(entity);
+//     }
+//
+//     // 移除乘客
+//     pub fn remove_passenger(&mut self, entity: Entity) {
+//         if let Some(index) = self.passengers.iter().position(|&p| p == entity) {
+//             self.passengers.swap_remove(index);
+//         }
+//     }
+//
+//     // 添加车站
+//     pub fn add_station(&mut self, position: GridPos, destinations: Vec<Destination>) {
+//         self.stations.push((position, destinations));
+//     }
+//
+//     // 获取随机起点站
+//     pub fn get_random_start_station(&self) -> Option<Entity> {
+//         if self.stations.is_empty() {
+//             return None;
+//         }
+//
+//         let index = rand::thread_rng().gen_range(0..self.stations.len());
+//         Some(self.stations[index].0)
+//     }
+//
+//     // 为指定目的地找到合适的终点站
+//     pub fn find_destination_station(
+//         &self,
+//         destination: Destination,
+//         current_pos_to_avoid: Option<GridPos>,
+//     ) -> Option<GridPos> {
+//         let all_matching_stations: Vec<GridPos> = self
+//             .stations
+//             .iter()
+//             .filter(|(_, dests)| dests.contains(&destination))
+//             .map(|(pos, _)| *pos)
+//             .collect();
+//
+//         if all_matching_stations.is_empty() {
+//             return None; // No station serves this destination type
+//         }
+//
+//         let final_candidate_list = if let Some(avoid_pos) = current_pos_to_avoid {
+//             let preferred_options: Vec<GridPos> = all_matching_stations
+//                 .iter()
+//                 .filter(|&&p| p != avoid_pos)
+//                 .cloned()
+//                 .collect();
+//             if !preferred_options.is_empty() {
+//                 preferred_options
+//             } else {
+//                 all_matching_stations // Fallback: current pos is the only option, or no other options
+//             }
+//         } else {
+//             all_matching_stations // No position to avoid specified
+//         };
+//
+//         if final_candidate_list.is_empty() {
+//             // This should ideally not happen if all_matching_stations was not empty.
+//             // However, to be safe, one might return None or log an error.
+//             return None;
+//         }
+//
+//         let index = rand::thread_rng().gen_range(0..final_candidate_list.len());
+//         Some(final_candidate_list[index])
+//     }
+//
+//     // 寻找从起点到终点的最短路径
+//     pub fn find_path(
+//         &self,
+//         start: GridPos,
+//         end: GridPos,
+//         grid_state: &GridState,
+//     ) -> Option<VecDeque<GridPos>> {
+//         info!(
+//             "开始寻找路径: 从 ({}, {}) 到 ({}, {})",
+//             start.x, start.y, end.x, end.y
+//         );
+//
+//         // 记录网格状态
+//         info!(
+//             "当前网格中的路线段数量: {}",
+//             grid_state.route_segments.len()
+//         );
+//
+//         // 使用A*算法寻找最短路径
+//         let mut open_set = Vec::new();
+//         let mut came_from = std::collections::HashMap::new();
+//         let mut g_score = std::collections::HashMap::new();
+//         let mut f_score = std::collections::HashMap::new();
+//
+//         open_set.push(start);
+//         g_score.insert(start, 0);
+//         f_score.insert(start, start.distance_to(&end));
+//
+//         while !open_set.is_empty() {
+//             // 找到f_score最小的节点
+//             let current = *open_set
+//                 .iter()
+//                 .min_by_key(|&&pos| f_score.get(&pos).unwrap_or(&i32::MAX))
+//                 .unwrap();
+//
+//             // 如果到达终点
+//             if current == end {
+//                 // 重建路径
+//                 let mut path = VecDeque::new();
+//                 let mut current = end;
+//                 while current != start {
+//                     path.push_front(current);
+//                     current = came_from[&current];
+//                 }
+//                 return Some(path);
+//             }
+//
+//             // 从开放集中移除当前节点
+//             open_set.retain(|&pos| pos != current);
+//
+//             // 检查相邻节点
+//             for neighbor in current.adjacent().iter() {
+//                 // 检查是否有路线连接当前节点和邻居节点
+//                 if !self.is_connected(&current, neighbor, grid_state) {
+//                     continue;
+//                 }
+//
+//                 // 计算通过当前节点到达邻居节点的g_score
+//                 let tentative_g_score = g_score.get(&current).unwrap_or(&i32::MAX) + 1;
+//
+//                 // 如果找到了更好的路径
+//                 if tentative_g_score < *g_score.get(neighbor).unwrap_or(&i32::MAX) {
+//                     came_from.insert(*neighbor, current);
+//                     g_score.insert(*neighbor, tentative_g_score);
+//                     f_score.insert(*neighbor, tentative_g_score + neighbor.distance_to(&end));
+//
+//                     // 如果邻居节点不在开放集中，添加它
+//                     if !open_set.contains(neighbor) {
+//                         open_set.push(*neighbor);
+//                     }
+//                 }
+//             }
+//         }
+//
+//         // 没有找到路径
+//         None
+//     }
+//
+//     // 检查两个相邻格子之间是否有路线连接
+//     fn is_connected(&self, pos1: &GridPos, pos2: &GridPos, grid_state: &GridState) -> bool {
+//         // 获取两个位置的路线段
+//         let segment1 = match grid_state.get_route_segment(*pos1) {
+//             Some(s) => s,
+//             None => {
+//                 trace!("is_connected: No segment at pos1: {:?}", pos1);
+//                 return false;
+//             }
+//         };
+//
+//         let segment2 = match grid_state.get_route_segment(*pos2) {
+//             Some(s) => s,
+//             None => {
+//                 trace!("is_connected: No segment at pos2: {:?}", pos2);
+//                 return false;
+//             }
+//         };
+//
+//         trace!(
+//             "is_connected: Checking connection between {:?} ({:?}/{:?}) and {:?} ({:?}/{:?})",
+//             pos1,
+//             segment1.segment_type,
+//             segment1.direction,
+//             pos2,
+//             segment2.segment_type,
+//             segment2.direction
+//         );
+//
+//         // 使用 validation 模块中的 can_segments_connect 方法检查连接
+//         // 创建一个临时的 ConnectionMap，因为我们只需要检查连接性，不需要保存状态
+//         let result = can_segments_connect(*pos1, segment1, *pos2, segment2, &Default::default());
+//         trace!(
+//             "is_connected: Result for {:?} and {:?} is {}",
+//             pos1, pos2, result
+//         );
+//         result
+//     }
+// }
 
 // Event to request a path replan for a specific passenger
 #[derive(Event, Debug)]
 pub struct RequestPathReplanEvent;
 
 // 生成乘客系统
-fn spawn_passengers(
-    mut commands: Commands,
-    time: Res<Time>,
-    mut spawn_timer: ResMut<PassengerSpawnTimer>,
-    mut passenger_manager: ResMut<PassengerManager>,
-    asset_server: Res<AssetServer>,
-    mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
-) {
-    // 更新计时器
-    spawn_timer.timer.tick(time.delta());
-
-    // 如果计时器完成，生成新乘客
-    if spawn_timer.timer.just_finished() {
-        info!(
-            "尝试生成新乘客，当前已有乘客数量: {}",
-            passenger_manager.passengers.len()
-        );
-        info!("可用车站数量: {}", passenger_manager.stations.len());
-
-        // 获取随机起点站
-        if let Some(start_pos) = passenger_manager.get_random_start_station() {
-            info!("选择起点站: ({}, {})", start_pos.x, start_pos.y);
-
-            // 随机选择目的地类型
-            let destination = Destination::random();
-            // let destination = Destination::Yellow;
-            info!("随机选择目的地类型: {:?}", destination);
-
-            // 寻找对应目的地类型的终点站
-            // Pass start_pos as the position to avoid for the initial destination
-            if let Some(end_pos) =
-                passenger_manager.find_destination_station(destination, Some(start_pos))
-            {
-                info!("找到终点站: ({}, {})", end_pos.x, end_pos.y);
-
-                let texture =
-                    asset_server.load("textures/Small-8-Direction-Characters_by_AxulArt.png");
-                let layout = TextureAtlasLayout::from_grid(UVec2::new(16, 24), 8, 12, None, None);
-                let texture_atlas_layout = texture_atlas_layouts.add(layout);
-
-                // 创建乘客
-                let passenger = Passenger::new(start_pos, destination);
-
-                let passenger_entity = commands
-                    .spawn((
-                        passenger,
-                        Sprite {
-                            image: texture,
-                            texture_atlas: Some(TextureAtlas {
-                                layout: texture_atlas_layout,
-                                index: 12,
-                            }),
-                            color: destination.get_color(),
-                            // custom_size: Some(Vec2::new(32.0, 38.0)),
-                            ..default()
-                        },
-                        Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
-                        Name::new(format!("{:?} Passenger", destination)),
-                    ))
-                    .id();
-
-                // 将乘客添加到管理器
-                passenger_manager.add_passenger(passenger_entity);
-
-                // Request initial path plan for the new passenger
-                commands.trigger_targets(RequestPathReplanEvent, [passenger_entity]);
-
-                info!(
-                    "成功生成 {:?} 乘客，实体ID: {:?}",
-                    destination, passenger_entity
-                );
-            } else {
-                warn!("无法为目的地类型 {:?} 找到终点站", destination);
-            }
-        } else {
-            warn!("没有可用的起点站");
-        }
-    }
-}
+// fn spawn_passengers(
+//     mut commands: Commands,
+//     time: Res<Time>,
+//     mut spawn_timer: ResMut<PassengerSpawnTimer>,
+//     mut passenger_manager: ResMut<PassengerManager>,
+//     asset_server: Res<AssetServer>,
+//     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
+// ) {
+//     // 更新计时器
+//     spawn_timer.timer.tick(time.delta());
+//
+//     // 如果计时器完成，生成新乘客
+//     if spawn_timer.timer.just_finished() {
+//         info!(
+//             "尝试生成新乘客，当前已有乘客数量: {}",
+//             passenger_manager.passengers.len()
+//         );
+//         info!("可用车站数量: {}", passenger_manager.stations.len());
+//
+//         // 获取随机起点站
+//         if let Some(start_pos) = passenger_manager.get_random_start_station() {
+//             info!("选择起点站: ({}, {})", start_pos.x, start_pos.y);
+//
+//             // 随机选择目的地类型
+//             let destination = Destination::random();
+//             // let destination = Destination::Yellow;
+//             info!("随机选择目的地类型: {:?}", destination);
+//
+//             // 寻找对应目的地类型的终点站
+//             // Pass start_pos as the position to avoid for the initial destination
+//             if let Some(end_pos) =
+//                 passenger_manager.find_destination_station(destination, Some(start_pos))
+//             {
+//                 info!("找到终点站: ({}, {})", end_pos.x, end_pos.y);
+//
+//                 let texture =
+//                     asset_server.load("textures/Small-8-Direction-Characters_by_AxulArt.png");
+//                 let layout = TextureAtlasLayout::from_grid(UVec2::new(16, 24), 8, 12, None, None);
+//                 let texture_atlas_layout = texture_atlas_layouts.add(layout);
+//
+//                 // 创建乘客
+//                 let passenger = Passenger::new(start_pos, destination);
+//
+//                 let passenger_entity = commands
+//                     .spawn((
+//                         passenger,
+//                         Sprite {
+//                             image: texture,
+//                             texture_atlas: Some(TextureAtlas {
+//                                 layout: texture_atlas_layout,
+//                                 index: 12,
+//                             }),
+//                             color: destination.get_color(),
+//                             // custom_size: Some(Vec2::new(32.0, 38.0)),
+//                             ..default()
+//                         },
+//                         Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
+//                         Name::new(format!("{:?} Passenger", destination)),
+//                     ))
+//                     .id();
+//
+//                 // 将乘客添加到管理器
+//                 passenger_manager.add_passenger(passenger_entity);
+//
+//                 // Request initial path plan for the new passenger
+//                 commands.trigger_targets(RequestPathReplanEvent, [passenger_entity]);
+//
+//                 info!(
+//                     "成功生成 {:?} 乘客，实体ID: {:?}",
+//                     destination, passenger_entity
+//                 );
+//             } else {
+//                 warn!("无法为目的地类型 {:?} 找到终点站", destination);
+//             }
+//         } else {
+//             warn!("没有可用的起点站");
+//         }
+//     }
+// }
 
 // 更新乘客位置和状态
 fn update_passengers(
@@ -577,84 +574,84 @@ fn update_passengers(
     grid_config: Res<crate::game::grid::GridConfig>,
     mut commands: Commands,
 ) {
-    for (entity, mut passenger, mut transform, mut sprite) in passenger_query.iter_mut() {
-        // 如果已到达目的地，不再更新
-        if passenger.arrived {
-            continue;
-        }
-
-        // 更新乘客位置
-        let was_path_not_empty_before_update = !passenger.path.is_empty(); // Check before update_position potentially clears it
-        let is_still_moving = passenger.update_position(time.delta_secs());
-
-        // Update animation based on movement direction
-        if let Some(movement_direction) = passenger.current_movement_direction {
-            // Passenger is moving
-            passenger.animation_timer.tick(time.delta()); // time.delta() provides a Duration
-            if passenger.animation_timer.just_finished() {
-                passenger.animation_index = (passenger.animation_index + 1) % 3; // Cycle through 3 frames (0, 1, 2)
-            }
-            if let Some(atlas) = &mut sprite.texture_atlas {
-                let anima_index = match movement_direction {
-                    Direction::North => 8,
-                    Direction::East => 10,
-                    Direction::South => 12,
-                    Direction::West => 14,
-                };
-                atlas.index = anima_index + passenger.animation_index * 8;
-            }
-        } else {
-            passenger.animation_index = 0;
-        }
-
-        if !is_still_moving && passenger.arrived && was_path_not_empty_before_update {
-            // Passenger has just arrived in this frame
-            info!(
-                "Passenger {:?} has arrived. Sending PassengerArrivedEvent.",
-                entity
-            );
-            commands.trigger_targets(PassengerArrivedEvent, [entity]);
-        }
-
-        if is_still_moving {
-            // 如果乘客正在移动，更新其世界坐标
-            let current_world_pos = grid_config.grid_to_world(passenger.current_position);
-            let target_world_pos = grid_config.grid_to_world(passenger.target_position);
-
-            // 插值计算当前位置
-            let world_pos = current_world_pos.lerp(target_world_pos, passenger.progress);
-            transform.translation.x = world_pos.x;
-            transform.translation.y = world_pos.y;
-
-            // 移动时减少一点耐心值
-            let amount = time.delta_secs() * 1.0;
-            passenger.decrease_patience(amount);
-            // To get passenger's entity ID here, the query needs to include Entity:
-            // Query<(Entity, &mut Passenger, &mut Transform)>
-            // For now, we'll log without ID or assume a method on Passenger to get it.
-            trace!(
-                "Passenger {:?}: Moving. Patience decreased by {:.2}. New patience: {:.2}. Arrived: {}. Path empty: {}",
-                entity,
-                amount,
-                passenger.patience,
-                passenger.arrived,
-                passenger.path.is_empty()
-            );
-        } else if !passenger.arrived {
-            // ensure we don't apply negative patience if arrived this frame and event sent
-            // 如果没有移动且未到达目的地，减少更多耐心值
-            let amount = time.delta_secs() * 5.0;
-            passenger.decrease_patience(amount);
-            trace!(
-                "Passenger {:?}: Not moving & not arrived. Patience decreased by {:.2}. New patience: {:.2}. Arrived: {}. Path empty: {}",
-                entity,
-                amount,
-                passenger.patience,
-                passenger.arrived,
-                passenger.path.is_empty()
-            );
-        }
-    }
+    // for (entity, mut passenger, mut transform, mut sprite) in passenger_query.iter_mut() {
+    //     // 如果已到达目的地，不再更新
+    //     if passenger.arrived {
+    //         continue;
+    //     }
+    //
+    //     // 更新乘客位置
+    //     let was_path_not_empty_before_update = !passenger.path.is_empty(); // Check before update_position potentially clears it
+    //     let is_still_moving = passenger.update_position(time.delta_secs());
+    //
+    //     // Update animation based on movement direction
+    //     if let Some(movement_direction) = passenger.current_movement_direction {
+    //         // Passenger is moving
+    //         passenger.animation_timer.tick(time.delta()); // time.delta() provides a Duration
+    //         if passenger.animation_timer.just_finished() {
+    //             passenger.animation_index = (passenger.animation_index + 1) % 3; // Cycle through 3 frames (0, 1, 2)
+    //         }
+    //         if let Some(atlas) = &mut sprite.texture_atlas {
+    //             let anima_index = match movement_direction {
+    //                 Direction::North => 8,
+    //                 Direction::East => 10,
+    //                 Direction::South => 12,
+    //                 Direction::West => 14,
+    //             };
+    //             atlas.index = anima_index + passenger.animation_index * 8;
+    //         }
+    //     } else {
+    //         passenger.animation_index = 0;
+    //     }
+    //
+    //     if !is_still_moving && passenger.arrived && was_path_not_empty_before_update {
+    //         // Passenger has just arrived in this frame
+    //         info!(
+    //             "Passenger {:?} has arrived. Sending PassengerArrivedEvent.",
+    //             entity
+    //         );
+    //         commands.trigger_targets(PassengerArrivedEvent, [entity]);
+    //     }
+    //
+    //     if is_still_moving {
+    //         // 如果乘客正在移动，更新其世界坐标
+    //         let current_world_pos = grid_config.grid_to_world(passenger.current_position);
+    //         let target_world_pos = grid_config.grid_to_world(passenger.target_position);
+    //
+    //         // 插值计算当前位置
+    //         let world_pos = current_world_pos.lerp(target_world_pos, passenger.progress);
+    //         transform.translation.x = world_pos.x;
+    //         transform.translation.y = world_pos.y;
+    //
+    //         // 移动时减少一点耐心值
+    //         let amount = time.delta_secs() * 1.0;
+    //         passenger.decrease_patience(amount);
+    //         // To get passenger's entity ID here, the query needs to include Entity:
+    //         // Query<(Entity, &mut Passenger, &mut Transform)>
+    //         // For now, we'll log without ID or assume a method on Passenger to get it.
+    //         trace!(
+    //             "Passenger {:?}: Moving. Patience decreased by {:.2}. New patience: {:.2}. Arrived: {}. Path empty: {}",
+    //             entity,
+    //             amount,
+    //             passenger.patience,
+    //             passenger.arrived,
+    //             passenger.path.is_empty()
+    //         );
+    //     } else if !passenger.arrived {
+    //         // ensure we don't apply negative patience if arrived this frame and event sent
+    //         // 如果没有移动且未到达目的地，减少更多耐心值
+    //         let amount = time.delta_secs() * 5.0;
+    //         passenger.decrease_patience(amount);
+    //         trace!(
+    //             "Passenger {:?}: Not moving & not arrived. Patience decreased by {:.2}. New patience: {:.2}. Arrived: {}. Path empty: {}",
+    //             entity,
+    //             amount,
+    //             passenger.patience,
+    //             passenger.arrived,
+    //             passenger.path.is_empty()
+    //         );
+    //     }
+    // }
 }
 
 fn handle_passenger_arrival_system(
@@ -672,7 +669,7 @@ fn handle_passenger_arrival_system(
     commands.entity(passenger_entity).despawn(); // Use despawn_recursive if it has children
 
     // Remove from passenger manager
-    passenger_manager.remove_passenger(passenger_entity);
+    // passenger_manager.remove_passenger(passenger_entity);
 }
 
 // 移除失去耐心的乘客
@@ -681,19 +678,19 @@ fn remove_impatient_passengers(
     query: Query<(Entity, &Passenger)>,
     mut passenger_manager: ResMut<PassengerManager>,
 ) {
-    for (entity, passenger) in query.iter() {
-        if passenger.is_impatient() {
-            info!(
-                "Passenger {:?}: Patience depleted (current patience: {:.2}, arrived: {}). Despawning.",
-                entity, passenger.patience, passenger.arrived
-            );
-            // 从世界中移除乘客实体
-            commands.entity(entity).despawn();
-
-            // 从乘客管理器中移除
-            passenger_manager.remove_passenger(entity);
-        }
-    }
+    // for (entity, passenger) in query.iter() {
+    //     if passenger.is_impatient() {
+    //         info!(
+    //             "Passenger {:?}: Patience depleted (current patience: {:.2}, arrived: {}). Despawning.",
+    //             entity, passenger.patience, passenger.arrived
+    //         );
+    //         // 从世界中移除乘客实体
+    //         commands.entity(entity).despawn();
+    //
+    //         // 从乘客管理器中移除
+    //         passenger_manager.remove_passenger(entity);
+    //     }
+    // }
 }
 
 // System to handle path replan requests from events
@@ -703,81 +700,81 @@ fn handle_path_replan_requests(
     grid_state: Res<GridState>,
     mut query: Query<(Entity, &mut Passenger)>,
 ) {
-    let passenger_entity = trigger.target();
-    if let Ok((entity, mut passenger)) = query.get_mut(passenger_entity) {
-        // 跳过已经到达目的地的乘客
-        if passenger.arrived {
-            debug!("Passenger {:?} already arrived, skipping replan.", entity);
-            return;
-        }
-
-        // 获取乘客当前位置和目的地类型
-        // 如果乘客正在移动 (progress > 0)，则从 target_position 开始规划新路径
-        // 否则，从 current_position 开始规划
-        let planning_start_pos = if passenger.progress > 0.0 && !passenger.arrived {
-            passenger.target_position
-        } else {
-            passenger.current_position
-        };
-        let destination_type = passenger.destination;
-
-        debug!(
-            "Handling RequestPathReplanEvent for {:?} from effective planning_pos: {:?} (current_pos: {:?}, target_pos: {:?}, progress: {:.2}) to {:?}",
-            entity,
-            planning_start_pos,
-            passenger.current_position,
-            passenger.target_position,
-            passenger.progress,
-            destination_type
-        );
-
-        // 寻找对应目的地类型的终点站
-        if let Some(end_pos) =
-            passenger_manager.find_destination_station(destination_type, Some(planning_start_pos))
-        {
-            // 寻找从规划起点到终点的路径
-            let path_result = passenger_manager.find_path(planning_start_pos, end_pos, &grid_state);
-
-            if let Some(mut found_path) = path_result {
-                // found_path is VecDeque<GridPosition>
-                // 如果乘客正在移动 (progress > 0)，并且规划的起点 (planning_start_pos)
-                // 就是他们之前的目标 (passenger.target_position)，
-                // 那么将这个 planning_start_pos 加到找到的路径的最前面。
-                // 这是为了确保 set_path 能够识别出路径是连续的，从而平滑过渡。
-                if passenger.progress > 0.0
-                    && !passenger.arrived
-                    && planning_start_pos == passenger.target_position
-                {
-                    // Check if found_path is empty or if its first element is already planning_start_pos
-                    // to avoid duplicate prepending if find_path itself includes the start node.
-                    // Assuming find_path does NOT include planning_start_pos as the first element of the returned path segments.
-                    found_path.push_front(planning_start_pos);
-                }
-
-                info!(
-                    "Path found for {:?} from planning_pos: {:?} to {:?}. Effective path for set_path (len: {}). Setting path.",
-                    entity,
-                    planning_start_pos, // Original start for find_path
-                    end_pos,
-                    found_path.len()
-                );
-                passenger.set_path(found_path);
-            } else {
-                warn!(
-                    "Could not find path for {:?} from planning_pos: {:?} to {:?}.",
-                    entity, planning_start_pos, end_pos
-                );
-            }
-        } else {
-            warn!(
-                "Could not find destination station for {:?} (type: {:?}) from planning_pos: {:?}.",
-                entity, destination_type, planning_start_pos
-            );
-        }
-    } else {
-        warn!(
-            "Received RequestPathReplanEvent for non-existent or invalid passenger entity: {:?}",
-            passenger_entity
-        );
-    }
+    // let passenger_entity = trigger.target();
+    // if let Ok((entity, mut passenger)) = query.get_mut(passenger_entity) {
+    //     // 跳过已经到达目的地的乘客
+    //     if passenger.arrived {
+    //         debug!("Passenger {:?} already arrived, skipping replan.", entity);
+    //         return;
+    //     }
+    //
+    //     // 获取乘客当前位置和目的地类型
+    //     // 如果乘客正在移动 (progress > 0)，则从 target_position 开始规划新路径
+    //     // 否则，从 current_position 开始规划
+    //     let planning_start_pos = if passenger.progress > 0.0 && !passenger.arrived {
+    //         passenger.target_position
+    //     } else {
+    //         passenger.current_position
+    //     };
+    //     let destination_type = passenger.destination;
+    //
+    //     debug!(
+    //         "Handling RequestPathReplanEvent for {:?} from effective planning_pos: {:?} (current_pos: {:?}, target_pos: {:?}, progress: {:.2}) to {:?}",
+    //         entity,
+    //         planning_start_pos,
+    //         passenger.current_position,
+    //         passenger.target_position,
+    //         passenger.progress,
+    //         destination_type
+    //     );
+    //
+    //     // 寻找对应目的地类型的终点站
+    //     if let Some(end_pos) =
+    //         passenger_manager.find_destination_station(destination_type, Some(planning_start_pos))
+    //     {
+    //         // 寻找从规划起点到终点的路径
+    //         let path_result = passenger_manager.find_path(planning_start_pos, end_pos, &grid_state);
+    //
+    //         if let Some(mut found_path) = path_result {
+    //             // found_path is VecDeque<GridPosition>
+    //             // 如果乘客正在移动 (progress > 0)，并且规划的起点 (planning_start_pos)
+    //             // 就是他们之前的目标 (passenger.target_position)，
+    //             // 那么将这个 planning_start_pos 加到找到的路径的最前面。
+    //             // 这是为了确保 set_path 能够识别出路径是连续的，从而平滑过渡。
+    //             if passenger.progress > 0.0
+    //                 && !passenger.arrived
+    //                 && planning_start_pos == passenger.target_position
+    //             {
+    //                 // Check if found_path is empty or if its first element is already planning_start_pos
+    //                 // to avoid duplicate prepending if find_path itself includes the start node.
+    //                 // Assuming find_path does NOT include planning_start_pos as the first element of the returned path segments.
+    //                 found_path.push_front(planning_start_pos);
+    //             }
+    //
+    //             info!(
+    //                 "Path found for {:?} from planning_pos: {:?} to {:?}. Effective path for set_path (len: {}). Setting path.",
+    //                 entity,
+    //                 planning_start_pos, // Original start for find_path
+    //                 end_pos,
+    //                 found_path.len()
+    //             );
+    //             passenger.set_path(found_path);
+    //         } else {
+    //             warn!(
+    //                 "Could not find path for {:?} from planning_pos: {:?} to {:?}.",
+    //                 entity, planning_start_pos, end_pos
+    //             );
+    //         }
+    //     } else {
+    //         warn!(
+    //             "Could not find destination station for {:?} (type: {:?}) from planning_pos: {:?}.",
+    //             entity, destination_type, planning_start_pos
+    //         );
+    //     }
+    // } else {
+    //     warn!(
+    //         "Received RequestPathReplanEvent for non-existent or invalid passenger entity: {:?}",
+    //         passenger_entity
+    //     );
+    // }
 }

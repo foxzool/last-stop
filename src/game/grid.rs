@@ -142,7 +142,7 @@ impl GridConfig {
 pub struct GridSnap;
 
 // 路线段类型
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum RouteSegmentType {
     Straight, // 直线段
     Turn,     // L型转弯
