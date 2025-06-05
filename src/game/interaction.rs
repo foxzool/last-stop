@@ -413,18 +413,30 @@ pub fn remove_segment_system(
             let grid_pos = mouse_state.grid_position;
 
             if grid_config.is_valid_position(grid_pos) {
-                if let Some(entity) = grid_state.remove_entity(grid_pos) {
-                    commands.entity(entity).despawn();
-                    grid_state.route_segments.remove(&grid_pos);
+                // Peek at the segment type first from route_segments map
+                let mut is_station = false;
+                if let Some(segment_component) = grid_state.route_segments.get(&grid_pos) {
+                    if segment_component.segment_type == RouteSegment::Station {
+                        is_station = true;
+                    }
+                }
 
-                    // Trigger replan for all passengers
-                    info!(
-                        "Segment removed from {:?}. Triggering replan for all passengers.",
-                        grid_pos
-                    );
-                    let passengers = passenger_query.iter().collect::<Vec<_>>();
+                if is_station {
+                    info!("Attempted to remove a Station at {:?}. Operation denied.", grid_pos);
+                } else {
+                    // Original logic for removing non-station segments (or if not found in route_segments)
+                    if let Some(entity_to_despawn) = grid_state.remove_entity(grid_pos) { // Removes from occupied_cells
+                        commands.entity(entity_to_despawn).despawn();
+                        grid_state.route_segments.remove(&grid_pos); // Also remove from route_segments map
 
-                    commands.trigger_targets(RequestPathReplanEvent, passengers);
+                        // Trigger replan for all passengers
+                        info!(
+                            "Segment removed from {:?}. Triggering replan for all passengers.",
+                            grid_pos
+                        );
+                        let passengers = passenger_query.iter().collect::<Vec<_>>();
+                        commands.trigger_targets(RequestPathReplanEvent, passengers);
+                    }
                 }
             }
         }
