@@ -1,6 +1,6 @@
 // 注册所有网格相关系统的插件
 use crate::{
-    game::{interaction::Selectable, passenger::Destination, validation::ConnectionMap},
+    game::{interaction::Selectable, validation::ConnectionMap},
     screens::Screen,
 };
 use bevy::{
@@ -142,29 +142,27 @@ impl GridConfig {
 pub struct GridSnap;
 
 // 路线段类型
-#[derive(Component, Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum RouteSegmentType {
-    Straight,             // ─ or │
-    Corner,               // └ ┘ ┐ ┌
-    TJunction,            // ┬ ┴ ├ ┤
-    Cross,                // ┼
-    Station(Destination), // Bus station/stop
-    Grass,
+    Straight, // 直线段
+    Turn,     // L型转弯
+    TSplit,   // T型分岔
+    Cross,    // 十字路口
+    DeadEnd,  // 终端站专用
 }
 
 impl RouteSegmentType {
     pub fn is_station(&self) -> bool {
-        matches!(self, RouteSegmentType::Station(_))
+        matches!(self, RouteSegmentType::DeadEnd)
     }
 
     pub fn to_index(&self) -> Option<usize> {
         match self {
             RouteSegmentType::Straight => Some(3),
-            RouteSegmentType::Corner => Some(11),
-            RouteSegmentType::TJunction => Some(15),
+            RouteSegmentType::Turn => Some(11),
+            RouteSegmentType::TSplit => Some(15),
             RouteSegmentType::Cross => Some(16),
-            RouteSegmentType::Station(_) => None,
-            RouteSegmentType::Grass => None,
+            RouteSegmentType::DeadEnd => None,
         }
     }
 }
@@ -343,7 +341,7 @@ pub fn spawn_route_segment_system(
     );
 
     let sprite = match segment_type {
-        RouteSegmentType::Station(_) => {
+        RouteSegmentType::DeadEnd => {
             let texture = asset_server.load("textures/CP_V1.0.4.png");
             let layout = TextureAtlasLayout::from_grid(
                 UVec2::splat(100),
@@ -399,12 +397,12 @@ pub fn spawn_route_segment_system(
         ))
         .insert(Selectable)
         .with_children(|parent| {
-            if let RouteSegmentType::Station(destination) = segment_type {
-                parent.spawn((
-                    Sprite::from_color(destination.get_color(), Vec2::splat(grid_config.tile_size)),
-                    Transform::from_xyz(0.0, 0.0, -1.0),
-                ));
-            }
+            // if let RouteSegmentType::DeadEnd = segment_type {
+            //     parent.spawn((
+            //         Sprite::from_color(destination.get_color(), Vec2::splat(grid_config.tile_size)),
+            //         Transform::from_xyz(0.0, 0.0, -1.0),
+            //     ));
+            // } fixme
         })
         .id();
 
@@ -426,7 +424,7 @@ pub fn spawn_route_segment_system(
 pub fn segment_type_rotation(segment_type: RouteSegmentType, direction: Direction) -> f32 {
     // Calculate rotation
     let current_direction_angle = direction as u8 as f32 * std::f32::consts::PI / 2.0;
-    let final_rotation_angle = if segment_type == RouteSegmentType::Corner {
+    let final_rotation_angle = if segment_type == RouteSegmentType::Turn {
         let corner_rotation_factor = match direction {
             Direction::North => 0.0,
             Direction::East => 3.0,
@@ -434,7 +432,7 @@ pub fn segment_type_rotation(segment_type: RouteSegmentType, direction: Directio
             Direction::West => 1.0,
         };
         corner_rotation_factor * std::f32::consts::PI / 2.0
-    } else if segment_type == RouteSegmentType::TJunction {
+    } else if segment_type == RouteSegmentType::TSplit {
         let corner_rotation_factor = match direction {
             Direction::North => 1.0,
             Direction::East => 0.0,

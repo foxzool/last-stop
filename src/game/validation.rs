@@ -1,6 +1,6 @@
 use crate::{
     game::{
-        grid::{Direction, GridPos, GridState, RouteSegmentType, RouteSegmentComponent},
+        grid::{Direction, GridPos, GridState, RouteSegmentComponent, RouteSegmentType},
         interaction::PlaceSegmentEvent,
     },
     screens::Screen,
@@ -79,14 +79,14 @@ impl ConnectionMap {
                     ConnectionPoint::new(position, segment.direction.opposite()),
                 ]
             }
-            RouteSegmentType::Corner => {
+            RouteSegmentType::Turn => {
                 // 转角段在两个垂直方向上连接
                 vec![
                     ConnectionPoint::new(position, segment.direction),
                     ConnectionPoint::new(position, segment.direction.rotate_cw()),
                 ]
             }
-            RouteSegmentType::TJunction => {
+            RouteSegmentType::TSplit => {
                 // T型路口在三个方向上连接
                 vec![
                     ConnectionPoint::new(position, segment.direction),
@@ -106,7 +106,7 @@ impl ConnectionMap {
                     ConnectionPoint::new(position, Direction::West),
                 ]
             }
-            RouteSegmentType::Station(_) => {
+            RouteSegmentType::DeadEnd => {
                 // 车站路口在所有四个方向上连接
                 vec![
                     ConnectionPoint::new(position, Direction::North),
@@ -114,10 +114,6 @@ impl ConnectionMap {
                     ConnectionPoint::new(position, Direction::South),
                     ConnectionPoint::new(position, Direction::West),
                 ]
-            }
-            RouteSegmentType::Grass => {
-                // Grass doesn't connect to anything
-                vec![]
             }
         }
     }
@@ -164,10 +160,10 @@ pub fn validate_connections_system(
 
                 // Check if target position has a route segment (not terrain)
                 if let Some(target_segment) = grid_state.get_route_segment(target.position) {
-                    // Skip if target is grass (terrain element)
-                    if target_segment.segment_type == RouteSegmentType::Grass {
-                        continue;
-                    }
+                    // // Skip if target is grass (terrain element)
+                    // if target_segment.segment_type == RouteSegmentType::Grass {
+                    //     continue;
+                    // } fixme
 
                     let target_points =
                         connection_map.get_connection_points(target.position, target_segment);
@@ -195,9 +191,9 @@ pub fn validate_connections_system(
                     // Check if there's a route segment (not grass) at target position but no valid connection
                     let target = point.get_target();
                     if let Some(target_segment) = grid_state.get_route_segment(target.position) {
-                        if target_segment.segment_type != RouteSegmentType::Grass {
-                            has_invalid_connection = true;
-                        }
+                        // if target_segment.segment_type != RouteSegmentType::Grass {
+                        //     has_invalid_connection = true;
+                        // } fixme
                     }
                 }
             }
@@ -225,27 +221,27 @@ pub fn connection_visual_feedback_system(
         Option<&ValidConnection>,
     )>,
 ) {
-    for (mut sprite, segment, invalid, valid) in query.iter_mut() {
-        match segment.segment_type {
-            RouteSegmentType::Grass => {
-                // Grass always stays green
-                sprite.color = Color::srgb(0.4, 0.8, 0.4);
-            }
-            _ => {
-                // Route elements get validation colors
-                if invalid.is_some() {
-                    // Red tint for invalid connections
-                    sprite.color = Color::srgb(1.0, 0.3, 0.3);
-                } else if valid.is_some() {
-                    // Green tint for valid connections
-                    sprite.color = Color::srgb(0.3, 1.0, 0.3);
-                } else {
-                    // White for isolated segments (not connected to anything)
-                    sprite.color = Color::WHITE;
-                }
-            }
-        }
-    }
+    // for (mut sprite, segment, invalid, valid) in query.iter_mut() {
+    //     match segment.segment_type {
+    //         RouteSegmentType::Grass => {
+    //             // Grass always stays green
+    //             sprite.color = Color::srgb(0.4, 0.8, 0.4);
+    //         }
+    //         _ => {
+    //             // Route elements get validation colors
+    //             if invalid.is_some() {
+    //                 // Red tint for invalid connections
+    //                 sprite.color = Color::srgb(1.0, 0.3, 0.3);
+    //             } else if valid.is_some() {
+    //                 // Green tint for valid connections
+    //                 sprite.color = Color::srgb(0.3, 1.0, 0.3);
+    //             } else {
+    //                 // White for isolated segments (not connected to anything)
+    //                 sprite.color = Color::WHITE;
+    //             }
+    //         }
+    //     }
+    // }
 }
 
 // 查找连接的路线网络的系统

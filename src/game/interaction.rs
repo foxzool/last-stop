@@ -383,11 +383,11 @@ pub fn tool_selection_system(
         selected_tool.direction = selected_tool.direction.rotate_cw();
     }
     if keys.just_pressed(KeyCode::Digit2) {
-        selected_tool.segment_type = RouteSegmentType::Corner;
+        selected_tool.segment_type = RouteSegmentType::Turn;
         selected_tool.direction = selected_tool.direction.rotate_cw();
     }
     if keys.just_pressed(KeyCode::Digit3) {
-        selected_tool.segment_type = RouteSegmentType::TJunction;
+        selected_tool.segment_type = RouteSegmentType::TSplit;
         selected_tool.direction = selected_tool.direction.rotate_cw();
     }
     if keys.just_pressed(KeyCode::Digit4) {
