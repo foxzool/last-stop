@@ -10,6 +10,7 @@ use crate::{
 };
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
+use crate::game::grid::TerrainType;
 
 pub(super) fn plugin(app: &mut App) {
     app.init_resource::<WantLevel>();
@@ -96,4 +97,17 @@ pub struct StationConfig {
     pub passenger_color: Option<Color>, // 起点站的乘客颜色，终点站的目标颜色
     pub name: String,
     pub capacity: u32, // 站点容量
+}
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TerrainTile {
+    pub position: GridPos,
+    pub terrain_type: TerrainType,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PrebuiltRoute {
+    pub segments: Vec<(GridPos, RouteSegmentType, Direction)>,
+    pub is_locked: bool,  // 是否为预设路线（玩家不能修改）
 }

@@ -177,7 +177,7 @@ pub enum TerrainType {
 }
 
 // 路线段的方向枚举
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Direction {
     North = 0,
     East = 1,
