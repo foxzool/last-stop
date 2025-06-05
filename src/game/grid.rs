@@ -20,9 +20,9 @@ impl Plugin for GridPlugin {
             .add_systems(
                 Update,
                 (
-                    grid_snap_system,
-                    update_grid_state_system,
-                    update_route_segments_system,
+                    // grid_snap_system,
+                    // update_grid_state_system,
+                    // update_route_segments_system,
                     setup_grid_from_window_size
                         .run_if(|ev: EventReader<WindowResized>| !ev.is_empty()),
                 )

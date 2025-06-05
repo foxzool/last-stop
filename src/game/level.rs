@@ -1,18 +1,45 @@
 // 生成主要关卡
 
-use crate::game::{
-    grid::{Direction, GridConfig, GridPos, RouteSegmentType, SpawnRouteSegmentEvent, TerrainType},
-    passenger::{Destination, PassengerColor, PassengerDemand, PassengerManager},
+use crate::{
+    game::{
+        grid::{Direction, GridPos, RouteSegmentType, TerrainType},
+        passenger::{PassengerColor, PassengerDemand},
+    },
+    screens::Screen,
 };
 use bevy::{platform::collections::HashMap, prelude::*};
 use serde::{Deserialize, Serialize};
 
 pub(super) fn plugin(app: &mut App) {
-    app.init_resource::<WantLevel>();
+    app.init_resource::<WantLevel>()
+        .init_resource::<LevelManager>();
+    app.add_systems(OnEnter(Screen::Gameplay), spawn_level);
+
+    app.add_systems(
+        Update,
+        (update_passenger_spawning, handle_dynamic_events).run_if(in_state(Screen::Gameplay)),
+    );
 }
 
 #[derive(Resource, Default)]
 pub struct WantLevel(pub u8);
+
+fn spawn_level(
+    want_level: Res<WantLevel>,
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut level_manager: ResMut<LevelManager>,
+) {
+    let level = if want_level.0 == 1 {
+        create_tutorial_level()
+    } else {
+        create_tutorial_level()
+    };
+
+    // 在Bevy系统中生成地图
+    generate_level_map(&mut commands, &asset_server, &level, 64.0);
+    level_manager.current_level = Some(level);
+}
 
 // // 生成初始路线和车站
 // #[allow(dead_code)]
@@ -305,28 +332,19 @@ pub struct PassengerEntity {
     pub path: Vec<GridPos>,
 }
 
-// ============ 地图生成系统 ============
-
-pub struct LevelGenerationPlugin;
-
-impl Plugin for LevelGenerationPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_systems(Startup, setup_level_generation)
-            .add_systems(
-                Update,
-                (
-                    handle_level_load,
-                    update_passenger_spawning,
-                    handle_dynamic_events,
-                ),
-            );
-    }
-}
-
 #[derive(Resource)]
 pub struct LevelManager {
     pub current_level: Option<LevelData>,
     pub tile_size: f32,
+}
+
+impl Default for LevelManager {
+    fn default() -> Self {
+        Self {
+            current_level: None,
+            tile_size: 64.0,
+        }
+    }
 }
 
 fn setup_level_generation(mut commands: Commands) {
@@ -359,6 +377,10 @@ pub fn generate_level_map(
 
             let texture_path = get_terrain_texture(&terrain_type);
 
+            println!(
+                "GridPos: {:?}, WorldPos: {:?}, TerrainType: {:?}, TexturePath: {}",
+                grid_pos, world_pos, terrain_type, texture_path
+            );
             commands.spawn((
                 Sprite::from_image(asset_server.load(texture_path)),
                 Transform::from_translation(world_pos),
@@ -435,20 +457,6 @@ fn get_segment_texture(segment_type: &RouteSegmentType) -> &'static str {
         RouteSegmentType::Bridge => "textures/routes/bridge.png",
         RouteSegmentType::Tunnel => "textures/routes/tunnel.png",
     }
-}
-
-// 系统函数
-fn handle_level_load(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    mut level_manager: ResMut<LevelManager>,
-    // 这里可以添加加载关卡的触发条件
-) {
-    // 示例：加载关卡数据的逻辑
-    // if let Some(level_data) = load_level_from_file("level_01.json") {
-    //     generate_level_map(&mut commands, &asset_server, &level_data, level_manager.tile_size);
-    //     level_manager.current_level = Some(level_data);
-    // }
 }
 
 fn update_passenger_spawning(

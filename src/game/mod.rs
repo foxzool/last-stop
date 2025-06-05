@@ -9,9 +9,9 @@ mod validation;
 pub(super) fn plugin(app: &mut App) {
     app.add_plugins((
         level::plugin,
-        grid::GridPlugin,
-        interaction::MouseInteractionPlugin,
-        validation::ConnectionValidationPlugin,
-        passenger::PassengerPlugin,
+        // grid::GridPlugin,
+        // interaction::MouseInteractionPlugin,
+        // validation::ConnectionValidationPlugin,
+        // passenger::PassengerPlugin,
     ));
 }

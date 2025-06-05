@@ -25,7 +25,6 @@ fn spawn_level_menu(mut commands: Commands) {
         StateScoped(Menu::LevelSelect),
         children![
             widget::header("Level Select"),
-            widget::button("Tutorial", spawn_level_tutorial),
             widget::button("Level 1", spawn_level_1),
             widget::button("Level 2", spawn_level_2),
             widget::button("Level 3", spawn_level_3),
@@ -34,15 +33,6 @@ fn spawn_level_menu(mut commands: Commands) {
             widget::button("Back", go_back_on_click),
         ],
     ));
-}
-
-fn spawn_level_tutorial(
-    _: Trigger<Pointer<Click>>,
-    mut next_screen: ResMut<NextState<Screen>>,
-    mut commands: Commands,
-) {
-    next_screen.set(Screen::Gameplay);
-    commands.insert_resource(WantLevel(0));
 }
 
 fn spawn_level_1(
