@@ -321,7 +321,7 @@ pub fn spawn_route_segment_system(
     );
 
     let sprite = match segment_type {
-        RouteSegment::Station(destination) => {
+        RouteSegment::Station(_) => {
             let texture = asset_server.load("textures/CP_V1.0.4.png");
             let layout = TextureAtlasLayout::from_grid(
                 UVec2::splat(100),
@@ -332,13 +332,15 @@ pub fn spawn_route_segment_system(
             );
             let texture_atlas_layout = texture_atlas_layouts.add(layout);
 
-            Sprite::from_atlas_image(
+            let mut sprite = Sprite::from_atlas_image(
                 texture,
                 TextureAtlas {
                     layout: texture_atlas_layout,
                     index: 0,
                 },
-            )
+            );
+            sprite.custom_size = Some(Vec2::splat(grid_config.tile_size));
+            sprite
         }
         _ => {
             let texture = asset_server.load("textures/roads2W.png");
@@ -373,8 +375,16 @@ pub fn spawn_route_segment_system(
                 direction,
             },
         ))
-        .insert(Selectable) // Add Selectable component
-        .id(); // Get the entity ID
+        .insert(Selectable)
+        .with_children(|parent| {
+            if let RouteSegment::Station(destination) = segment_type {
+                parent.spawn((
+                    Sprite::from_color(destination.get_color(), Vec2::splat(grid_config.tile_size)),
+                    Transform::from_xyz(0.0, 0.0, -1.0),
+                ));
+            }
+        })
+        .id();
 
     // Update GridState
     grid_state.place_entity(grid_pos, entity_id);

@@ -89,11 +89,12 @@ impl Destination {
 
     // 随机生成目的地
     pub fn random() -> Self {
-        let random = rand::random::<usize>() % 4;
+        let random = rand::random::<usize>() % 5;
         match random {
             0 => Destination::Red,
             1 => Destination::Blue,
             2 => Destination::Green,
+            3 => Destination::Yellow,
             _ => Destination::Yellow,
         }
     }
@@ -511,8 +512,8 @@ fn spawn_passengers(
             info!("选择起点站: ({}, {})", start_pos.x, start_pos.y);
 
             // 随机选择目的地类型
-            // let destination = Destination::random();
-            let destination = Destination::Yellow;
+            let destination = Destination::random();
+            // let destination = Destination::Yellow;
             info!("随机选择目的地类型: {:?}", destination);
 
             // 寻找对应目的地类型的终点站
