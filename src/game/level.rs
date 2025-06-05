@@ -39,6 +39,7 @@ fn spawn_level(
     // 在Bevy系统中生成地图
     generate_level_map(&mut commands, &asset_server, &level, 64.0);
     level_manager.current_level = Some(level);
+    commands.insert_resource(ClearColor(Color::Srgba(Srgba::hex("3BBF8E").unwrap())));
 }
 
 // // 生成初始路线和车站
