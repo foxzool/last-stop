@@ -2,7 +2,7 @@
 
 use crate::{
     game::{
-        grid::{Direction, GridConfig, GridPosition, RouteSegment, SpawnRouteSegmentEvent},
+        grid::{Direction, GridConfig, GridPos, RouteSegment, SpawnRouteSegmentEvent},
         level,
         passenger::{Destination, PassengerManager},
     },
@@ -34,7 +34,7 @@ pub fn spawn_initial_routes(
     mut passenger_manager: ResMut<PassengerManager>,
 ) {
     // 生成红色线路车站
-    let red_station_pos = GridPosition::new(1, 1);
+    let red_station_pos = GridPos::new(1, 1);
     commands.trigger(SpawnRouteSegmentEvent {
         grid_pos: red_station_pos,
         segment_type: RouteSegment::Station(Destination::Red),
@@ -43,7 +43,7 @@ pub fn spawn_initial_routes(
     passenger_manager.add_station(red_station_pos, vec![Destination::Red]);
 
     // 生成蓝色线路车站
-    let blue_station_pos = GridPosition::new(grid_config.grid_width - 2, 1);
+    let blue_station_pos = GridPos::new(grid_config.grid_width - 2, 1);
     commands.trigger(SpawnRouteSegmentEvent {
         grid_pos: blue_station_pos,
         segment_type: RouteSegment::Station(Destination::Blue),
@@ -52,7 +52,7 @@ pub fn spawn_initial_routes(
     passenger_manager.add_station(blue_station_pos, vec![Destination::Blue]);
 
     // 生成绿色线路车站
-    let green_station_pos = GridPosition::new(1, grid_config.grid_height - 2);
+    let green_station_pos = GridPos::new(1, grid_config.grid_height - 2);
     commands.trigger(SpawnRouteSegmentEvent {
         grid_pos: green_station_pos,
         segment_type: RouteSegment::Station(Destination::Green),
@@ -63,7 +63,7 @@ pub fn spawn_initial_routes(
     // 生成黄色线路车站
     let yellow_station_pos =
         // GridPosition::new(grid_config.grid_width - 2, grid_config.grid_height - 2);
-        GridPosition::new(grid_config.grid_width / 2 , grid_config.grid_height / 2 + 4);
+        GridPos::new(grid_config.grid_width / 2, grid_config.grid_height / 2 + 4);
     commands.trigger(SpawnRouteSegmentEvent {
         grid_pos: yellow_station_pos,
         segment_type: RouteSegment::Station(Destination::Yellow),
@@ -73,7 +73,7 @@ pub fn spawn_initial_routes(
 
     // 生成中央换乘站
     let central_station_pos =
-        GridPosition::new(grid_config.grid_width / 2, grid_config.grid_height / 2);
+        GridPos::new(grid_config.grid_width / 2, grid_config.grid_height / 2);
     commands.trigger(SpawnRouteSegmentEvent {
         grid_pos: central_station_pos,
         segment_type: RouteSegment::Station(Destination::White),

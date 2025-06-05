@@ -1,6 +1,6 @@
 use crate::{
     game::{
-        grid::{Direction, GridPosition, GridState, RouteSegment, RouteSegmentComponent},
+        grid::{Direction, GridPos, GridState, RouteSegment, RouteSegmentComponent},
         interaction::PlaceSegmentEvent,
     },
     screens::Screen,
@@ -11,12 +11,12 @@ use std::collections::{HashMap, HashSet};
 // 连接点表示路线可以连接的位置
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ConnectionPoint {
-    pub position: GridPosition,
+    pub position: GridPos,
     pub direction: Direction,
 }
 
 impl ConnectionPoint {
-    pub fn new(position: GridPosition, direction: Direction) -> Self {
+    pub fn new(position: GridPos, direction: Direction) -> Self {
         Self {
             position,
             direction,
@@ -26,7 +26,7 @@ impl ConnectionPoint {
     // 获取此连接点应该连接到的目标连接点
     pub fn get_target(&self) -> ConnectionPoint {
         let (dx, dy) = self.direction.to_offset();
-        let target_pos = GridPosition::new(self.position.x + dx, self.position.y + dy);
+        let target_pos = GridPos::new(self.position.x + dx, self.position.y + dy);
         ConnectionPoint::new(target_pos, self.direction.opposite())
     }
 }
@@ -43,8 +43,8 @@ pub struct ValidConnection;
 #[derive(Resource, Default)]
 pub struct ConnectionMap {
     pub connections: HashMap<ConnectionPoint, ConnectionPoint>,
-    pub invalid_segments: HashSet<GridPosition>,
-    pub isolated_segments: HashSet<GridPosition>,
+    pub invalid_segments: HashSet<GridPos>,
+    pub isolated_segments: HashSet<GridPos>,
 }
 
 impl ConnectionMap {
@@ -55,7 +55,7 @@ impl ConnectionMap {
     }
 
     // 移除涉及特定位置的所有连接
-    pub fn remove_connections_at(&mut self, position: GridPosition) {
+    pub fn remove_connections_at(&mut self, position: GridPos) {
         self.connections
             .retain(|point, _| point.position != position);
     }
@@ -68,7 +68,7 @@ impl ConnectionMap {
     // 从网格位置获取所有连接点
     pub fn get_connection_points(
         &self,
-        position: GridPosition,
+        position: GridPos,
         segment: &RouteSegmentComponent,
     ) -> Vec<ConnectionPoint> {
         match segment.segment_type {
@@ -141,7 +141,7 @@ pub fn validate_connections_system(
     mut connection_map: ResMut<ConnectionMap>,
     mut commands: Commands,
     grid_state: Res<GridState>,
-    query: Query<(Entity, &GridPosition), With<RouteSegmentComponent>>,
+    query: Query<(Entity, &GridPos), With<RouteSegmentComponent>>,
 ) {
     // Clear previous validation state
     connection_map.connections.clear();
@@ -307,7 +307,7 @@ pub fn find_route_networks_system(
 #[derive(Event)]
 pub struct RouteNetworkEvent {
     pub network_id: usize,
-    pub positions: HashSet<GridPosition>,
+    pub positions: HashSet<GridPos>,
 }
 
 // 检查放置是否会创建有效连接的系统
@@ -356,7 +356,7 @@ pub fn validate_placement_system(
 // 放置验证结果的事件
 #[derive(Event)]
 pub struct PlacementValidationEvent {
-    pub position: GridPosition,
+    pub position: GridPos,
     pub segment_type: RouteSegment,
     pub direction: Direction,
     pub valid_connections: usize,
@@ -383,9 +383,9 @@ pub fn prevent_invalid_placement_system(
 
 // 检查两个路段是否可以连接的辅助函数
 pub fn can_segments_connect(
-    pos1: GridPosition,
+    pos1: GridPos,
     segment1: &RouteSegmentComponent,
-    pos2: GridPosition,
+    pos2: GridPos,
     segment2: &RouteSegmentComponent,
     connection_map: &ConnectionMap, /* This parameter's state is not directly used by get_connection_points */
 ) -> bool {

@@ -35,7 +35,7 @@ impl Plugin for GridPlugin {
 // 事件：用于请求生成一个新的路线片段
 #[derive(Event, Debug, Clone, Copy)]
 pub struct SpawnRouteSegmentEvent {
-    pub grid_pos: GridPosition,
+    pub grid_pos: GridPos,
     pub segment_type: RouteSegment,
     pub direction: Direction,
 }
@@ -43,7 +43,7 @@ pub struct SpawnRouteSegmentEvent {
 // System to update the GridState.route_segments HashMap
 pub fn update_route_segments_system(
     mut grid_state: ResMut<GridState>,
-    query: Query<(&GridPosition, &RouteSegmentComponent)>, /* Query for all entities with these components */
+    query: Query<(&GridPos, &RouteSegmentComponent)>, /* Query for all entities with these components */
 ) {
     // Clear the existing route segments. This is a simple approach.
     // For more complex scenarios (e.g., dynamically adding/removing segments frequently),
@@ -60,29 +60,33 @@ pub fn update_route_segments_system(
 
 // 网格位置组件 - 表示逻辑网格坐标
 #[derive(Component, Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct GridPosition {
+pub struct GridPos {
     pub x: i32,
     pub y: i32,
 }
 
-impl GridPosition {
+impl GridPos {
     pub fn new(x: i32, y: i32) -> Self {
         Self { x, y }
     }
 
     // 获取相邻位置（上、下、左、右）
-    pub fn adjacent(&self) -> [GridPosition; 4] {
+    pub fn adjacent(&self) -> [GridPos; 4] {
         [
-            GridPosition::new(self.x, self.y + 1), // 上
-            GridPosition::new(self.x, self.y - 1), // 下
-            GridPosition::new(self.x - 1, self.y), // 左
-            GridPosition::new(self.x + 1, self.y), // 右
+            GridPos::new(self.x, self.y + 1), // 上
+            GridPos::new(self.x, self.y - 1), // 下
+            GridPos::new(self.x - 1, self.y), // 左
+            GridPos::new(self.x + 1, self.y), // 右
         ]
     }
 
     // 计算到另一个网格位置的曼哈顿距离
-    pub fn distance_to(&self, other: &GridPosition) -> i32 {
+    pub fn distance_to(&self, other: &GridPos) -> i32 {
         (self.x - other.x).abs() + (self.y - other.y).abs()
+    }
+
+    pub fn to_world_pos(&self, grid_size: f32) -> Vec3 {
+        Vec3::new(self.x as f32 * grid_size, self.y as f32 * grid_size, 0.0)
     }
 }
 
@@ -108,7 +112,7 @@ impl Default for GridConfig {
 
 impl GridConfig {
     // 将网格位置转换为世界坐标
-    pub fn grid_to_world(&self, grid_pos: GridPosition) -> Vec2 {
+    pub fn grid_to_world(&self, grid_pos: GridPos) -> Vec2 {
         Vec2::new(
             grid_pos.x as f32 * self.tile_size + self.origin_offset.x,
             grid_pos.y as f32 * self.tile_size + self.origin_offset.y,
@@ -116,16 +120,16 @@ impl GridConfig {
     }
 
     // 将世界坐标转换为网格位置
-    pub fn world_to_grid(&self, world_pos: Vec2) -> GridPosition {
+    pub fn world_to_grid(&self, world_pos: Vec2) -> GridPos {
         let adjusted_pos = world_pos - self.origin_offset;
-        GridPosition::new(
+        GridPos::new(
             (adjusted_pos.x / self.tile_size).round() as i32,
             (adjusted_pos.y / self.tile_size).round() as i32,
         )
     }
 
     // 检查网格位置是否在边界内
-    pub fn is_valid_position(&self, grid_pos: GridPosition) -> bool {
+    pub fn is_valid_position(&self, grid_pos: GridPos) -> bool {
         grid_pos.x >= 0
             && grid_pos.x < self.grid_width
             && grid_pos.y >= 0
@@ -224,38 +228,38 @@ pub struct RouteElement;
 // 网格状态资源，用于跟踪各处放置的内容
 #[derive(Resource, Default)]
 pub struct GridState {
-    pub occupied: std::collections::HashMap<GridPosition, Entity>,
-    pub route_segments: std::collections::HashMap<GridPosition, RouteSegmentComponent>,
+    pub occupied: std::collections::HashMap<GridPos, Entity>,
+    pub route_segments: std::collections::HashMap<GridPos, RouteSegmentComponent>,
 }
 
 impl GridState {
     // Check if a grid position is occupied
-    pub fn is_occupied(&self, pos: GridPosition) -> bool {
+    pub fn is_occupied(&self, pos: GridPos) -> bool {
         self.occupied.contains_key(&pos)
     }
 
     // Place an entity at a grid position
-    pub fn place_entity(&mut self, pos: GridPosition, entity: Entity) {
+    pub fn place_entity(&mut self, pos: GridPos, entity: Entity) {
         self.occupied.insert(pos, entity);
     }
 
     // Remove entity from grid position
-    pub fn remove_entity(&mut self, pos: GridPosition) -> Option<Entity> {
+    pub fn remove_entity(&mut self, pos: GridPos) -> Option<Entity> {
         self.occupied.remove(&pos)
     }
 
     // Get entity at grid position
-    pub fn get_entity(&self, pos: GridPosition) -> Option<Entity> {
+    pub fn get_entity(&self, pos: GridPos) -> Option<Entity> {
         self.occupied.get(&pos).copied()
     }
 
     // Place a route segment
-    pub fn place_route_segment(&mut self, pos: GridPosition, segment: RouteSegmentComponent) {
+    pub fn place_route_segment(&mut self, pos: GridPos, segment: RouteSegmentComponent) {
         self.route_segments.insert(pos, segment);
     }
 
     // Get route segment at position
-    pub fn get_route_segment(&self, pos: GridPosition) -> Option<&RouteSegmentComponent> {
+    pub fn get_route_segment(&self, pos: GridPos) -> Option<&RouteSegmentComponent> {
         self.route_segments.get(&pos)
     }
 }
@@ -280,7 +284,7 @@ fn setup_grid_from_window_size(
 
 // 将带有GridSnap组件的实体对齐到网格位置的系统
 pub fn grid_snap_system(
-    mut query: Query<(&mut Transform, &GridPosition), (With<GridSnap>, Changed<GridPosition>)>,
+    mut query: Query<(&mut Transform, &GridPos), (With<GridSnap>, Changed<GridPos>)>,
     grid_config: Res<GridConfig>,
 ) {
     for (mut transform, grid_pos) in query.iter_mut() {
@@ -293,7 +297,7 @@ pub fn grid_snap_system(
 // 当带有GridPosition的实体移动时更新网格状态的系统
 pub fn update_grid_state_system(
     mut grid_state: ResMut<GridState>,
-    query: Query<(Entity, &GridPosition), Changed<GridPosition>>,
+    query: Query<(Entity, &GridPos), Changed<GridPos>>,
 ) {
     for (entity, grid_pos) in query.iter() {
         // 从旧位置移除

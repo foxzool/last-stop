@@ -3,7 +3,7 @@ use crate::{
         grid::{
             Direction,
             GridConfig,
-            GridPosition,
+            GridPos,
             GridState,
             RouteSegment,
             RouteSegmentComponent,
@@ -49,11 +49,11 @@ impl Plugin for MouseInteractionPlugin {
 #[derive(Resource, Default)]
 pub struct MouseState {
     pub world_position: Vec2,
-    pub grid_position: GridPosition,
+    pub grid_position: GridPos,
     pub is_dragging: bool,
-    pub drag_start_pos: Option<GridPosition>,
+    pub drag_start_pos: Option<GridPos>,
     pub selected_entity: Option<Entity>,
-    pub last_drag_grid_position: Option<GridPosition>, // Added for drag placement
+    pub last_drag_grid_position: Option<GridPos>, // Added for drag placement
 }
 
 // 当前选定工具/路段类型的资源
@@ -87,7 +87,7 @@ pub struct Preview;
 // 鼠标交互事件
 #[derive(Event)]
 pub struct PlaceSegmentEvent {
-    pub position: GridPosition,
+    pub position: GridPos,
     pub segment_type: RouteSegment,
     pub direction: Direction,
 }
@@ -95,7 +95,7 @@ pub struct PlaceSegmentEvent {
 #[derive(Event)]
 pub struct SelectEntityEvent {
     pub entity: Entity,
-    pub position: GridPosition,
+    pub position: GridPos,
 }
 
 #[derive(Event)]
@@ -293,7 +293,7 @@ pub fn rotate_segment_system(
     mut rotate_segment_events: EventReader<RotateSegmentEvent>,
     mut query: Query<(&mut Transform, &mut RouteSegmentComponent)>,
     mut grid_state: ResMut<GridState>,
-    grid_positions: Query<&GridPosition, With<RouteSegmentComponent>>, /* Query GridPosition of RouteSegments */
+    grid_positions: Query<&GridPos, With<RouteSegmentComponent>>, /* Query GridPosition of RouteSegments */
     passenger_query: Query<Entity, With<Passenger>>, // Query for passenger entities
 ) {
     for event in rotate_segment_events.read() {

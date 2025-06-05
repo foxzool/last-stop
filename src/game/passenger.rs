@@ -1,7 +1,7 @@
 // 乘客系统实现
 use crate::game::{
     grid::Direction, // Added import
-    grid::{GridPosition, GridState},
+    grid::{GridPos, GridState},
     validation::can_segments_connect,
 };
 use bevy::{color::palettes::basic, prelude::*};
@@ -16,7 +16,7 @@ const ANIMATION_FRAME_DURATION: f32 = 1.0 / 6.0; // Each direction has 3 frames,
 
 // 乘客插件
 // Helper function to determine direction between two grid positions
-fn calculate_direction_internal(from: GridPosition, to: GridPosition) -> Option<Direction> {
+fn calculate_direction_internal(from: GridPos, to: GridPos) -> Option<Direction> {
     let dx = to.x - from.x;
     let dy = to.y - from.y;
 
@@ -107,9 +107,9 @@ impl Destination {
 pub struct Passenger {
     pub destination: Destination,                      // 目的地类型
     pub patience: f32,                                 // 耐心值 (0.0-100.0)
-    pub path: VecDeque<GridPosition>,                  // 规划的路径
-    pub current_position: GridPosition,                // 当前位置
-    pub target_position: GridPosition,                 // 目标位置
+    pub path: VecDeque<GridPos>,                  // 规划的路径
+    pub current_position: GridPos,                // 当前位置
+    pub target_position: GridPos,                 // 目标位置
     pub progress: f32,                                 // 移动进度 (0.0-1.0)
     pub speed: f32,                                    // 移动速度
     pub arrived: bool,                                 // 是否已到达目的地
@@ -119,7 +119,7 @@ pub struct Passenger {
 }
 
 impl Passenger {
-    pub fn new(start: GridPosition, destination: Destination) -> Self {
+    pub fn new(start: GridPos, destination: Destination) -> Self {
         Self {
             destination,
             patience: 100.0,
@@ -209,7 +209,7 @@ impl Passenger {
     }
 
     // 设置路径
-    pub fn set_path(&mut self, new_path: VecDeque<GridPosition>) {
+    pub fn set_path(&mut self, new_path: VecDeque<GridPos>) {
         debug!(
             "Passenger: set_path called. Current pos: {:?}, target: {:?}, progress: {:.2}, arrived: {}, new path length: {}",
             self.current_position,
@@ -277,7 +277,7 @@ impl Passenger {
     }
 
     // 获取目的地位置
-    pub fn get_destination_position(&self) -> Option<GridPosition> {
+    pub fn get_destination_position(&self) -> Option<GridPos> {
         if !self.path.is_empty() {
             return Some(*self.path.back().unwrap());
         }
@@ -289,7 +289,7 @@ impl Passenger {
 #[derive(Resource, Default)]
 pub struct PassengerManager {
     pub passengers: Vec<Entity>,
-    pub stations: Vec<(GridPosition, Vec<Destination>)>, // 车站位置和可到达的目的地
+    pub stations: Vec<(GridPos, Vec<Destination>)>, // 车站位置和可到达的目的地
 }
 
 impl PassengerManager {
@@ -306,12 +306,12 @@ impl PassengerManager {
     }
 
     // 添加车站
-    pub fn add_station(&mut self, position: GridPosition, destinations: Vec<Destination>) {
+    pub fn add_station(&mut self, position: GridPos, destinations: Vec<Destination>) {
         self.stations.push((position, destinations));
     }
 
     // 获取随机起点站
-    pub fn get_random_start_station(&self) -> Option<GridPosition> {
+    pub fn get_random_start_station(&self) -> Option<GridPos> {
         if self.stations.is_empty() {
             return None;
         }
@@ -324,9 +324,9 @@ impl PassengerManager {
     pub fn find_destination_station(
         &self,
         destination: Destination,
-        current_pos_to_avoid: Option<GridPosition>,
-    ) -> Option<GridPosition> {
-        let all_matching_stations: Vec<GridPosition> = self
+        current_pos_to_avoid: Option<GridPos>,
+    ) -> Option<GridPos> {
+        let all_matching_stations: Vec<GridPos> = self
             .stations
             .iter()
             .filter(|(_, dests)| dests.contains(&destination))
@@ -338,7 +338,7 @@ impl PassengerManager {
         }
 
         let final_candidate_list = if let Some(avoid_pos) = current_pos_to_avoid {
-            let preferred_options: Vec<GridPosition> = all_matching_stations
+            let preferred_options: Vec<GridPos> = all_matching_stations
                 .iter()
                 .filter(|&&p| p != avoid_pos)
                 .cloned()
@@ -365,10 +365,10 @@ impl PassengerManager {
     // 寻找从起点到终点的最短路径
     pub fn find_path(
         &self,
-        start: GridPosition,
-        end: GridPosition,
+        start: GridPos,
+        end: GridPos,
         grid_state: &GridState,
-    ) -> Option<VecDeque<GridPosition>> {
+    ) -> Option<VecDeque<GridPos>> {
         info!(
             "开始寻找路径: 从 ({}, {}) 到 ({}, {})",
             start.x, start.y, end.x, end.y
@@ -443,8 +443,8 @@ impl PassengerManager {
     // 检查两个相邻格子之间是否有路线连接
     fn is_connected(
         &self,
-        pos1: &GridPosition,
-        pos2: &GridPosition,
+        pos1: &GridPos,
+        pos2: &GridPos,
         grid_state: &GridState,
     ) -> bool {
         // 获取两个位置的路线段
