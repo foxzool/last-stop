@@ -7,6 +7,7 @@ use bevy::{
     prelude::*,
     window::{PrimaryWindow, WindowResized},
 };
+use serde::{Deserialize, Serialize};
 
 pub struct GridPlugin;
 
@@ -401,69 +402,6 @@ pub fn spawn_route_segment_system(
     );
 }
 
-// 旧的 spawn_route_segment 函数，现在被 spawn_route_segment_system 替代
-// pub fn spawn_route_segment(
-// commands: &mut Commands,
-// grid_pos: GridPosition,
-// segment_type: RouteSegment,
-// direction: Direction,
-// asset_server: &Res<AssetServer>,
-// grid_config: &Res<GridConfig>, // 添加GridConfig资源
-// texture_atlas_layouts: &mut ResMut<Assets<TextureAtlasLayout>>,
-// ) -> Entity {
-// info!(
-// "Spawning route segment: pos={:?}, type={:?}, dir={:?}",
-// grid_pos, segment_type, direction
-// );
-//
-// let sprite = if segment_type == RouteSegment::Station {
-// let texture = asset_server.load("textures/CP_V1.0.4.png");
-// let layout =
-// TextureAtlasLayout::from_grid(UVec2::splat(100), 4, 2, None, Some(UVec2::new(0, 150)));
-// let texture_atlas_layout = texture_atlas_layouts.add(layout);
-//
-// Sprite::from_atlas_image(
-// texture,
-// TextureAtlas {
-// layout: texture_atlas_layout,
-// index: 0,
-// },
-// )
-// } else {
-// let texture = asset_server.load("textures/roads2W.png");
-// let layout = TextureAtlasLayout::from_grid(UVec2::splat(64), 8, 3, None, None);
-// let texture_atlas_layout = texture_atlas_layouts.add(layout);
-// let texture_index = segment_type as usize;
-//
-// Sprite::from_atlas_image(
-// texture,
-// TextureAtlas {
-// layout: texture_atlas_layout,
-// index: texture_index,
-// },
-// )
-// };
-//
-// let final_rotation_angle = segment_type_rotation(segment_type, direction);
-//
-// commands
-// .spawn((
-// sprite,
-// Transform {
-// translation: grid_config.grid_to_world(grid_pos).extend(0.0), // 设置初始世界位置
-// rotation: Quat::from_rotation_z(final_rotation_angle),
-// ..default()
-// },
-// grid_pos, // 保留GridPosition用于状态跟踪和其他系统
-// GridSnap,
-// RouteSegmentComponent {
-// segment_type,
-// direction,
-// },
-// ))
-// .id() // No longer returning Entity ID directly from this function as it's part of a system now.
-// }
-
 pub fn segment_type_rotation(segment_type: RouteSegment, direction: Direction) -> f32 {
     // Calculate rotation
     let current_direction_angle = direction as u8 as f32 * std::f32::consts::PI / 2.0;
@@ -487,4 +425,12 @@ pub fn segment_type_rotation(segment_type: RouteSegment, direction: Direction) -
         current_direction_angle
     };
     final_rotation_angle
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub enum StationType {
+    Start,    // 起点站
+    End,      // 终点站
+    Transfer, // 换乘站
+    Regular,  // 普通站点
 }
