@@ -338,7 +338,12 @@ pub fn preview_system(
         let texture = asset_server.load("textures/roads2W.png");
         let layout = TextureAtlasLayout::from_grid(UVec2::splat(64), 8, 3, None, None);
         let texture_atlas_layout = texture_atlas_layouts.add(layout);
-        let texture_index = selected_tool.segment_type as usize;
+        let texture_index = match selected_tool.segment_type.to_index() {
+            Some(index) => index,
+            None => {
+                return;
+            }
+        };
 
         let final_rotation_angle = crate::game::grid::segment_type_rotation(
             selected_tool.segment_type,
@@ -412,9 +417,7 @@ pub fn remove_segment_system(
                 // Peek at the segment type first from route_segments map
                 let mut is_station = false;
                 if let Some(segment_component) = grid_state.route_segments.get(&grid_pos) {
-                    if segment_component.segment_type == RouteSegment::Station {
-                        is_station = true;
-                    }
+                    is_station = segment_component.segment_type.is_station();
                 }
 
                 if is_station {

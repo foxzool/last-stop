@@ -103,7 +103,7 @@ impl ConnectionMap {
                     ConnectionPoint::new(position, Direction::West),
                 ]
             }
-            RouteSegment::Station => {
+            RouteSegment::Station(_) => {
                 // 车站路口在所有四个方向上连接
                 vec![
                     ConnectionPoint::new(position, Direction::North),
@@ -152,7 +152,7 @@ pub fn validate_connections_system(
     }
 
     // Build connection map (only for route elements, not terrain)
-    for (entity, grid_pos) in query.iter() {
+    for (_entity, grid_pos) in query.iter() {
         if let Some(segment) = grid_state.get_route_segment(*grid_pos) {
             let connection_points = connection_map.get_connection_points(*grid_pos, segment);
 
@@ -384,7 +384,7 @@ pub fn can_segments_connect(
     segment1: &RouteSegmentComponent,
     pos2: GridPosition,
     segment2: &RouteSegmentComponent,
-    connection_map: &ConnectionMap, // This parameter's state is not directly used by get_connection_points
+    connection_map: &ConnectionMap, /* This parameter's state is not directly used by get_connection_points */
 ) -> bool {
     // get_connection_points could be a static/helper method or a method on RouteSegmentComponent
     // as it doesn't rely on the internal state of 'connection_map' instance here.

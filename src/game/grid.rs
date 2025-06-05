@@ -1,6 +1,6 @@
 // 注册所有网格相关系统的插件
 use crate::{
-    game::{interaction::Selectable, validation::ConnectionMap},
+    game::{interaction::Selectable, passenger::Destination, validation::ConnectionMap},
     screens::Screen,
 };
 use bevy::{
@@ -139,12 +139,29 @@ pub struct GridSnap;
 // 路线段类型
 #[derive(Component, Debug, Clone, Copy, PartialEq)]
 pub enum RouteSegment {
-    Straight = 3,   // ─ or │
-    Corner = 11,    // └ ┘ ┐ ┌
-    TJunction = 15, // ┬ ┴ ├ ┤
-    Cross = 16,     // ┼
-    Station = 17,   // Bus station/stop
-    Grass = 5,
+    Straight,             // ─ or │
+    Corner,               // └ ┘ ┐ ┌
+    TJunction,            // ┬ ┴ ├ ┤
+    Cross,                // ┼
+    Station(Destination), // Bus station/stop
+    Grass,
+}
+
+impl RouteSegment {
+    pub fn is_station(&self) -> bool {
+        matches!(self, RouteSegment::Station(_))
+    }
+
+    pub fn to_index(&self) -> Option<usize> {
+        match self {
+            RouteSegment::Straight => Some(3),
+            RouteSegment::Corner => Some(11),
+            RouteSegment::TJunction => Some(15),
+            RouteSegment::Cross => Some(16),
+            RouteSegment::Station(_) => None,
+            RouteSegment::Grass => None,
+        }
+    }
 }
 
 // 路线段的方向枚举
@@ -303,32 +320,40 @@ pub fn spawn_route_segment_system(
         grid_pos, segment_type, direction
     );
 
-    let sprite = if segment_type == RouteSegment::Station {
-        let texture = asset_server.load("textures/CP_V1.0.4.png");
-        let layout =
-            TextureAtlasLayout::from_grid(UVec2::splat(100), 4, 2, None, Some(UVec2::new(0, 150)));
-        let texture_atlas_layout = texture_atlas_layouts.add(layout);
+    let sprite = match segment_type {
+        RouteSegment::Station(destination) => {
+            let texture = asset_server.load("textures/CP_V1.0.4.png");
+            let layout = TextureAtlasLayout::from_grid(
+                UVec2::splat(100),
+                4,
+                2,
+                None,
+                Some(UVec2::new(0, 150)),
+            );
+            let texture_atlas_layout = texture_atlas_layouts.add(layout);
 
-        Sprite::from_atlas_image(
-            texture,
-            TextureAtlas {
-                layout: texture_atlas_layout,
-                index: 0,
-            },
-        )
-    } else {
-        let texture = asset_server.load("textures/roads2W.png");
-        let layout = TextureAtlasLayout::from_grid(UVec2::splat(64), 8, 3, None, None);
-        let texture_atlas_layout = texture_atlas_layouts.add(layout);
-        let texture_index = segment_type as usize;
+            Sprite::from_atlas_image(
+                texture,
+                TextureAtlas {
+                    layout: texture_atlas_layout,
+                    index: 0,
+                },
+            )
+        }
+        _ => {
+            let texture = asset_server.load("textures/roads2W.png");
+            let layout = TextureAtlasLayout::from_grid(UVec2::splat(64), 8, 3, None, None);
+            let texture_atlas_layout = texture_atlas_layouts.add(layout);
+            let texture_index = segment_type.to_index().unwrap();
 
-        Sprite::from_atlas_image(
-            texture,
-            TextureAtlas {
-                layout: texture_atlas_layout,
-                index: texture_index,
-            },
-        )
+            Sprite::from_atlas_image(
+                texture,
+                TextureAtlas {
+                    layout: texture_atlas_layout,
+                    index: texture_index,
+                },
+            )
+        }
     };
 
     let final_rotation_angle = segment_type_rotation(segment_type, direction);

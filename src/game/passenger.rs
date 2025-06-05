@@ -68,6 +68,7 @@ impl Default for PassengerSpawnTimer {
 // 乘客目的地类型
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Destination {
+    White,
     Red,
     Blue,
     Green,
@@ -82,6 +83,7 @@ impl Destination {
             Destination::Blue => Color::from(basic::BLUE),
             Destination::Green => Color::from(basic::GREEN),
             Destination::Yellow => Color::from(basic::YELLOW),
+            Destination::White => Color::from(basic::WHITE),
         }
     }
 
@@ -207,11 +209,19 @@ impl Passenger {
     pub fn set_path(&mut self, new_path: VecDeque<GridPosition>) {
         debug!(
             "Passenger: set_path called. Current pos: {:?}, target: {:?}, progress: {:.2}, arrived: {}, new path length: {}",
-            self.current_position, self.target_position, self.progress, self.arrived, new_path.len()
+            self.current_position,
+            self.target_position,
+            self.progress,
+            self.arrived,
+            new_path.len()
         );
 
         let was_moving = self.progress > 0.0 && !self.arrived;
-        let original_target_if_moving = if was_moving { Some(self.target_position) } else { None };
+        let original_target_if_moving = if was_moving {
+            Some(self.target_position)
+        } else {
+            None
+        };
 
         self.path = new_path;
 
@@ -220,11 +230,15 @@ impl Passenger {
             self.current_movement_direction = None;
             // If the passenger was moving and the new path is empty, they effectively arrived at their last target.
             // If they were not moving and path is empty, they are considered arrived (or at a dead end).
-            if !was_moving { // Only set to arrived if they weren't already in transit to an intermediate point
+            if !was_moving {
+                // Only set to arrived if they weren't already in transit to an intermediate point
                 self.arrived = true;
             }
             self.progress = 0.0; // Reset progress as there's no further movement.
-            warn!("Passenger: Set an empty path. Arrived: {}. Progress reset.", self.arrived);
+            warn!(
+                "Passenger: Set an empty path. Arrived: {}. Progress reset.",
+                self.arrived
+            );
             return;
         }
 
@@ -238,7 +252,9 @@ impl Passenger {
             // 路径已经被更新为 self.path，所以 update_position 会继续处理
             debug!(
                 "Passenger: Continuing current movement towards {:?} as new path starts with it. Progress: {:.2}. Path len: {}",
-                self.target_position, self.progress, self.path.len()
+                self.target_position,
+                self.progress,
+                self.path.len()
             );
         } else {
             // 乘客之前是静止的，或者新路径的起点与当前移动目标不一致
@@ -249,7 +265,10 @@ impl Passenger {
             self.progress = 0.0; // 重置移动进度，从当前格子开始向新的 target_position 移动
             debug!(
                 "Passenger: New path set. Resetting progress. New target: {:?}. Current pos: {:?}. Direction: {:?}. Path len: {}",
-                self.target_position, self.current_position, self.current_movement_direction, self.path.len()
+                self.target_position,
+                self.current_position,
+                self.current_movement_direction,
+                self.path.len()
             );
         }
     }
@@ -701,7 +720,12 @@ fn handle_path_replan_requests(
 
         debug!(
             "Handling RequestPathReplanEvent for {:?} from effective planning_pos: {:?} (current_pos: {:?}, target_pos: {:?}, progress: {:.2}) to {:?}",
-            entity, planning_start_pos, passenger.current_position, passenger.target_position, passenger.progress, destination_type
+            entity,
+            planning_start_pos,
+            passenger.current_position,
+            passenger.target_position,
+            passenger.progress,
+            destination_type
         );
 
         // 寻找对应目的地类型的终点站
@@ -711,12 +735,16 @@ fn handle_path_replan_requests(
             // 寻找从规划起点到终点的路径
             let path_result = passenger_manager.find_path(planning_start_pos, end_pos, &grid_state);
 
-            if let Some(mut found_path) = path_result { // found_path is VecDeque<GridPosition>
+            if let Some(mut found_path) = path_result {
+                // found_path is VecDeque<GridPosition>
                 // 如果乘客正在移动 (progress > 0)，并且规划的起点 (planning_start_pos)
                 // 就是他们之前的目标 (passenger.target_position)，
                 // 那么将这个 planning_start_pos 加到找到的路径的最前面。
                 // 这是为了确保 set_path 能够识别出路径是连续的，从而平滑过渡。
-                if passenger.progress > 0.0 && !passenger.arrived && planning_start_pos == passenger.target_position {
+                if passenger.progress > 0.0
+                    && !passenger.arrived
+                    && planning_start_pos == passenger.target_position
+                {
                     // Check if found_path is empty or if its first element is already planning_start_pos
                     // to avoid duplicate prepending if find_path itself includes the start node.
                     // Assuming find_path does NOT include planning_start_pos as the first element of the returned path segments.
