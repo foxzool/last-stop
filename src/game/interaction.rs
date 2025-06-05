@@ -1,11 +1,14 @@
 use crate::{
-    game::grid::{
-        Direction, GridConfig, GridPosition, GridState, RouteSegment, RouteSegmentComponent,
-        spawn_route_segment,
+    game::{
+        grid::{
+            Direction, GridConfig, GridPosition, GridState, RouteSegment, RouteSegmentComponent,
+            spawn_route_segment,
+        },
+        passenger::{Passenger, RequestPathReplanEvent},
     },
     screens::Screen,
 };
-use bevy::{input::mouse::MouseButtonInput, prelude::*, window::PrimaryWindow};
+use bevy::{input::mouse::MouseButtonInput, prelude::*, window::PrimaryWindow}; // Added for passenger replanning
 
 // 注册所有鼠标交互系统的插件
 pub struct MouseInteractionPlugin;
@@ -177,8 +180,9 @@ pub fn place_segment_system(
     mut place_segment_events: EventReader<PlaceSegmentEvent>,
     mut grid_state: ResMut<GridState>,
     asset_server: Res<AssetServer>,
-    grid_config: Res<GridConfig>, // Added GridConfig resource
+    grid_config: Res<GridConfig>,
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
+    passenger_query: Query<Entity, With<Passenger>>, // Query for passenger entities
 ) {
     for event in place_segment_events.read() {
         let entity = spawn_route_segment(
@@ -201,6 +205,9 @@ pub fn place_segment_system(
             },
         );
 
+        let passengers = passenger_query.iter().collect::<Vec<_>>();
+        commands.trigger_targets(RequestPathReplanEvent, passengers);
+
         // Add selectable component
         commands.entity(entity).insert(Selectable);
     }
@@ -221,10 +228,12 @@ pub fn select_entity_system(
 
 // 处理路段旋转的系统
 pub fn rotate_segment_system(
+    mut commands: Commands,
     mut rotate_segment_events: EventReader<RotateSegmentEvent>,
     mut query: Query<(&mut Transform, &mut RouteSegmentComponent)>,
     mut grid_state: ResMut<GridState>,
-    grid_positions: Query<&GridPosition>,
+    grid_positions: Query<&GridPosition, With<RouteSegmentComponent>>, /* Query GridPosition of RouteSegments */
+    passenger_query: Query<Entity, With<Passenger>>, // Query for passenger entities
 ) {
     for event in rotate_segment_events.read() {
         if let Ok((mut transform, mut route_segment)) = query.get_mut(event.entity) {
@@ -238,6 +247,8 @@ pub fn rotate_segment_system(
             // Update grid state
             if let Ok(grid_pos) = grid_positions.get(event.entity) {
                 grid_state.place_route_segment(*grid_pos, route_segment.clone());
+                let passengers = passenger_query.iter().collect::<Vec<_>>();
+                commands.trigger_targets(RequestPathReplanEvent, passengers);
             }
         }
     }
@@ -333,6 +344,7 @@ pub fn remove_segment_system(
     mouse_state: ResMut<MouseState>,
     mut grid_state: ResMut<GridState>,
     grid_config: Res<GridConfig>,
+    passenger_query: Query<Entity, With<Passenger>>, // Query for passenger entities
 ) {
     for event in mouse_button_events.read() {
         if event.button == MouseButton::Right && event.state.is_pressed() {
@@ -342,6 +354,15 @@ pub fn remove_segment_system(
                 if let Some(entity) = grid_state.remove_entity(grid_pos) {
                     commands.entity(entity).despawn();
                     grid_state.route_segments.remove(&grid_pos);
+
+                    // Trigger replan for all passengers
+                    info!(
+                        "Segment removed from {:?}. Triggering replan for all passengers.",
+                        grid_pos
+                    );
+                    let passengers = passenger_query.iter().collect::<Vec<_>>();
+
+                    commands.trigger_targets(RequestPathReplanEvent, passengers);
                 }
             }
         }
