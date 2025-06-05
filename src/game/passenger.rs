@@ -204,29 +204,53 @@ impl Passenger {
     }
 
     // 设置路径
-    pub fn set_path(&mut self, path: VecDeque<GridPosition>) {
+    pub fn set_path(&mut self, new_path: VecDeque<GridPosition>) {
         debug!(
-            "Passenger: set_path called with path length {}. Current arrived: {}",
-            path.len(),
-            self.arrived
+            "Passenger: set_path called. Current pos: {:?}, target: {:?}, progress: {:.2}, arrived: {}, new path length: {}",
+            self.current_position, self.target_position, self.progress, self.arrived, new_path.len()
         );
-        self.path = path;
 
-        if !self.path.is_empty() {
-            // 确保路径不为空
-            // 从路径的第一个点开始
-            let next_target = *self.path.front().unwrap(); // unwrap是安全的
-            self.target_position = next_target;
-            self.current_movement_direction =
-                calculate_direction_internal(self.current_position, next_target);
-            self.arrived = false;
-            debug!("Passenger: Path set (non-empty). arrived set to false."); // 重置到达状态，准备开始新的路径
-            self.progress = 0.0; // 重置移动进度
-        } else {
-            // 如果路径为空，标记为已到达 (或处理错误)
+        let was_moving = self.progress > 0.0 && !self.arrived;
+        let original_target_if_moving = if was_moving { Some(self.target_position) } else { None };
+
+        self.path = new_path;
+
+        if self.path.is_empty() {
+            // 如果新路径为空
             self.current_movement_direction = None;
-            self.arrived = true; // Corrected: remove duplicate self.arrived = true;
-            warn!("Passenger: Attempted to set an empty path. arrived set to true.");
+            // If the passenger was moving and the new path is empty, they effectively arrived at their last target.
+            // If they were not moving and path is empty, they are considered arrived (or at a dead end).
+            if !was_moving { // Only set to arrived if they weren't already in transit to an intermediate point
+                self.arrived = true;
+            }
+            self.progress = 0.0; // Reset progress as there's no further movement.
+            warn!("Passenger: Set an empty path. Arrived: {}. Progress reset.", self.arrived);
+            return;
+        }
+
+        // 新路径不为空
+        self.arrived = false; // Has a new path, so not arrived at the final destination yet.
+        let next_target_in_new_path = *self.path.front().unwrap(); // Safe due to !is_empty check
+
+        if was_moving && original_target_if_moving == Some(next_target_in_new_path) {
+            // 乘客正在移动，并且新路径的起点就是当前的目标格子
+            // 保留当前的移动状态 (progress, target_position, current_movement_direction)
+            // 路径已经被更新为 self.path，所以 update_position 会继续处理
+            debug!(
+                "Passenger: Continuing current movement towards {:?} as new path starts with it. Progress: {:.2}. Path len: {}",
+                self.target_position, self.progress, self.path.len()
+            );
+        } else {
+            // 乘客之前是静止的，或者新路径的起点与当前移动目标不一致
+            // 或者乘客已到达，现在给予新路径
+            self.target_position = next_target_in_new_path;
+            self.current_movement_direction =
+                calculate_direction_internal(self.current_position, self.target_position);
+            self.progress = 0.0; // 重置移动进度，从当前格子开始向新的 target_position 移动
+            debug!(
+                "Passenger: New path set. Resetting progress. New target: {:?}. Current pos: {:?}. Direction: {:?}. Path len: {}",
+                self.target_position, self.current_position, self.current_movement_direction, self.path.len()
+            );
         }
     }
 
@@ -468,8 +492,8 @@ fn spawn_passengers(
             info!("选择起点站: ({}, {})", start_pos.x, start_pos.y);
 
             // 随机选择目的地类型
-            // let destination = Destination::random();
-            let destination = Destination::Yellow;
+            let destination = Destination::random();
+            // let destination = Destination::Yellow;
             info!("随机选择目的地类型: {:?}", destination);
 
             // 寻找对应目的地类型的终点站
@@ -666,42 +690,57 @@ fn handle_path_replan_requests(
         }
 
         // 获取乘客当前位置和目的地类型
-        let current_pos = passenger.current_position;
+        // 如果乘客正在移动 (progress > 0)，则从 target_position 开始规划新路径
+        // 否则，从 current_position 开始规划
+        let planning_start_pos = if passenger.progress > 0.0 && !passenger.arrived {
+            passenger.target_position
+        } else {
+            passenger.current_position
+        };
         let destination_type = passenger.destination;
 
         debug!(
-            "Handling RequestPathReplanEvent for {:?} from ({}, {}) to {:?}",
-            entity, current_pos.x, current_pos.y, destination_type
+            "Handling RequestPathReplanEvent for {:?} from effective planning_pos: {:?} (current_pos: {:?}, target_pos: {:?}, progress: {:.2}) to {:?}",
+            entity, planning_start_pos, passenger.current_position, passenger.target_position, passenger.progress, destination_type
         );
 
         // 寻找对应目的地类型的终点站
         if let Some(end_pos) =
-            passenger_manager.find_destination_station(destination_type, Some(current_pos))
+            passenger_manager.find_destination_station(destination_type, Some(planning_start_pos))
         {
-            // 寻找从当前位置到终点的路径
-            let path_result = passenger_manager.find_path(current_pos, end_pos, &grid_state);
+            // 寻找从规划起点到终点的路径
+            let path_result = passenger_manager.find_path(planning_start_pos, end_pos, &grid_state);
 
-            if let Some(path) = path_result {
+            if let Some(mut found_path) = path_result { // found_path is VecDeque<GridPosition>
+                // 如果乘客正在移动 (progress > 0)，并且规划的起点 (planning_start_pos)
+                // 就是他们之前的目标 (passenger.target_position)，
+                // 那么将这个 planning_start_pos 加到找到的路径的最前面。
+                // 这是为了确保 set_path 能够识别出路径是连续的，从而平滑过渡。
+                if passenger.progress > 0.0 && !passenger.arrived && planning_start_pos == passenger.target_position {
+                    // Check if found_path is empty or if its first element is already planning_start_pos
+                    // to avoid duplicate prepending if find_path itself includes the start node.
+                    // Assuming find_path does NOT include planning_start_pos as the first element of the returned path segments.
+                    found_path.push_front(planning_start_pos);
+                }
+
                 info!(
-                    "Path found for {:?} from ({}, {}) to ({}, {}). Length: {}. Setting path.",
+                    "Path found for {:?} from planning_pos: {:?} to {:?}. Effective path for set_path (len: {}). Setting path.",
                     entity,
-                    current_pos.x,
-                    current_pos.y,
-                    end_pos.x,
-                    end_pos.y,
-                    path.len()
+                    planning_start_pos, // Original start for find_path
+                    end_pos,
+                    found_path.len()
                 );
-                passenger.set_path(path);
+                passenger.set_path(found_path);
             } else {
                 warn!(
-                    "Could not find path for {:?} from ({}, {}) to ({}, {}).",
-                    entity, current_pos.x, current_pos.y, end_pos.x, end_pos.y
+                    "Could not find path for {:?} from planning_pos: {:?} to {:?}.",
+                    entity, planning_start_pos, end_pos
                 );
             }
         } else {
             warn!(
-                "Could not find destination station for {:?} (type: {:?}) from ({}, {}).",
-                entity, destination_type, current_pos.x, current_pos.y
+                "Could not find destination station for {:?} (type: {:?}) from planning_pos: {:?}.",
+                entity, destination_type, planning_start_pos
             );
         }
     } else {
