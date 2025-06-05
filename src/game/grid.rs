@@ -1,17 +1,16 @@
 // 注册所有网格相关系统的插件
-use crate::screens::Screen;
+use crate::{game::validation::ConnectionMap, screens::Screen};
 use bevy::{
     prelude::*,
     window::{PrimaryWindow, WindowResized},
 };
-use crate::game::validation::ConnectionMap;
 
 pub struct GridPlugin;
 
 // System to update the GridState.route_segments HashMap
 pub fn update_route_segments_system(
     mut grid_state: ResMut<GridState>,
-    query: Query<(&GridPosition, &RouteSegmentComponent)>, // Query for all entities with these components
+    query: Query<(&GridPosition, &RouteSegmentComponent)>, /* Query for all entities with these components */
 ) {
     // Clear the existing route segments. This is a simple approach.
     // For more complex scenarios (e.g., dynamically adding/removing segments frequently),
@@ -37,7 +36,7 @@ impl Plugin for GridPlugin {
                 (
                     grid_snap_system,
                     update_grid_state_system,
-                update_route_segments_system,
+                    update_route_segments_system,
                     setup_grid_from_window_size
                         .run_if(|ev: EventReader<WindowResized>| !ev.is_empty()),
                 ),
@@ -287,22 +286,40 @@ pub fn spawn_route_segment(
         "Spawning route segment: pos={:?}, type={:?}, dir={:?}",
         grid_pos, segment_type, direction
     );
-    let texture = asset_server.load("textures/roads2W.png");
-    let layout = TextureAtlasLayout::from_grid(UVec2::splat(64), 8, 3, None, None);
-    let texture_atlas_layout = texture_atlas_layouts.add(layout);
-    let texture_index = segment_type as usize;
+
+    let sprite = if segment_type == RouteSegment::Station {
+        let texture = asset_server.load("textures/CP_V1.0.4.png");
+        let layout =
+            TextureAtlasLayout::from_grid(UVec2::splat(100), 4, 2, None, Some(UVec2::new(0, 150)));
+        let texture_atlas_layout = texture_atlas_layouts.add(layout);
+
+        Sprite::from_atlas_image(
+            texture,
+            TextureAtlas {
+                layout: texture_atlas_layout,
+                index: 0,
+            },
+        )
+    } else {
+        let texture = asset_server.load("textures/roads2W.png");
+        let layout = TextureAtlasLayout::from_grid(UVec2::splat(64), 8, 3, None, None);
+        let texture_atlas_layout = texture_atlas_layouts.add(layout);
+        let texture_index = segment_type as usize;
+
+        Sprite::from_atlas_image(
+            texture,
+            TextureAtlas {
+                layout: texture_atlas_layout,
+                index: texture_index,
+            },
+        )
+    };
 
     let final_rotation_angle = segment_type_rotation(segment_type, direction);
 
     commands
         .spawn((
-            Sprite::from_atlas_image(
-                texture,
-                TextureAtlas {
-                    layout: texture_atlas_layout,
-                    index: texture_index,
-                },
-            ),
+            sprite,
             Transform {
                 translation: grid_config.grid_to_world(grid_pos).extend(0.0), // 设置初始世界位置
                 rotation: Quat::from_rotation_z(final_rotation_angle),
