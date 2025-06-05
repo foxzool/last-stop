@@ -2,7 +2,9 @@
 
 use crate::{
     game::{
-        grid::{Direction, GridConfig, GridPos, RouteSegmentType, SpawnRouteSegmentEvent},
+        grid::{
+            Direction, GridConfig, GridPos, RouteSegmentType, SpawnRouteSegmentEvent, TerrainType,
+        },
         level,
         passenger::{Destination, PassengerManager},
     },
@@ -10,7 +12,6 @@ use crate::{
 };
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
-use crate::game::grid::TerrainType;
 
 pub(super) fn plugin(app: &mut App) {
     app.init_resource::<WantLevel>();
@@ -99,7 +100,6 @@ pub struct StationConfig {
     pub capacity: u32, // 站点容量
 }
 
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TerrainTile {
     pub position: GridPos,
@@ -109,5 +109,46 @@ pub struct TerrainTile {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PrebuiltRoute {
     pub segments: Vec<(GridPos, RouteSegmentType, Direction)>,
-    pub is_locked: bool,  // 是否为预设路线（玩家不能修改）
+    pub is_locked: bool, // 是否为预设路线（玩家不能修改）
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PassengerSpawnRule {
+    pub start_station: String,           // 起点站名称
+    pub end_station: String,             // 终点站名称
+    pub spawn_interval: f32,             // 生成间隔（秒）
+    pub max_patience: f32,               // 最大耐心值
+    pub priority: u8,                    // 优先级 (1-5)
+    pub time_window: Option<(f32, f32)>, // 可选的时间窗口
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DynamicEvent {
+    pub trigger_time: f32, // 触发时间
+    pub event_type: EventType,
+    pub duration: Option<f32>, // 持续时间（None表示永久）
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum EventType {
+    BlockTerrain { position: GridPos },              // 阻塞地形
+    UnblockTerrain { position: GridPos },            // 解除阻塞
+    SpawnBurst { station: String, count: u32 },      // 乘客爆发
+    RouteDisruption { positions: Vec<GridPos> },     // 路线中断
+    NewPassengerDemand { rule: PassengerSpawnRule }, // 新需求
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WinCondition {
+    pub condition_type: WinConditionType,
+    pub target_value: f32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum WinConditionType {
+    ServeAllPassengers,                      // 服务所有乘客
+    AverageWaitTime { max_time: f32 },       // 平均等待时间低于目标
+    RouteEfficiency { max_segments: u32 },   // 使用路段数少于目标
+    PassengerSatisfaction { min_rate: f32 }, // 乘客满意度高于目标
+    SurviveTime { duration: f32 },           // 存活指定时间
 }
