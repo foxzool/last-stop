@@ -169,6 +169,23 @@ impl RouteSegmentType {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub enum TerrainType {
+    Empty,    // 可建设
+    Blocked,  // 建筑物阻挡
+    Water,    // 河流
+    Mountain, // 山地
+    Park,     // 公园（装饰）
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub enum StationType {
+    Start,    // 起点站
+    End,      // 终点站
+    Transfer, // 换乘站
+    Regular,  // 普通站点
+}
+
 // 路线段的方向枚举
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Direction {
@@ -429,12 +446,4 @@ pub fn segment_type_rotation(segment_type: RouteSegmentType, direction: Directio
         current_direction_angle
     };
     final_rotation_angle
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-pub enum StationType {
-    Start,    // 起点站
-    End,      // 终点站
-    Transfer, // 换乘站
-    Regular,  // 普通站点
 }

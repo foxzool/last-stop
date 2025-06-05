@@ -14,17 +14,8 @@ pub(super) fn plugin(app: &mut App) {
     app.init_resource::<WantLevel>();
 }
 
-#[derive(Resource)]
+#[derive(Resource, Default)]
 pub struct WantLevel(pub u8);
-
-impl Default for WantLevel {
-    fn default() -> Self {
-        Self(1)
-    }
-}
-
-#[allow(dead_code)]
-pub fn spawn_level_menu(mut commands: Commands) {}
 
 // 生成初始路线和车站
 #[allow(dead_code)]
@@ -72,8 +63,7 @@ pub fn spawn_initial_routes(
     passenger_manager.add_station(yellow_station_pos, vec![Destination::Yellow]);
 
     // 生成中央换乘站
-    let central_station_pos =
-        GridPos::new(grid_config.grid_width / 2, grid_config.grid_height / 2);
+    let central_station_pos = GridPos::new(grid_config.grid_width / 2, grid_config.grid_height / 2);
     commands.trigger(SpawnRouteSegmentEvent {
         grid_pos: central_station_pos,
         segment_type: RouteSegmentType::Station(Destination::White),
