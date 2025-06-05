@@ -376,21 +376,18 @@ pub fn tool_selection_system(
     // Number keys to select segment type
     if keys.just_pressed(KeyCode::Digit1) {
         selected_tool.segment_type = RouteSegment::Straight;
+        selected_tool.direction = selected_tool.direction.rotate_cw();
     }
     if keys.just_pressed(KeyCode::Digit2) {
         selected_tool.segment_type = RouteSegment::Corner;
+        selected_tool.direction = selected_tool.direction.rotate_cw();
     }
     if keys.just_pressed(KeyCode::Digit3) {
         selected_tool.segment_type = RouteSegment::TJunction;
+        selected_tool.direction = selected_tool.direction.rotate_cw();
     }
     if keys.just_pressed(KeyCode::Digit4) {
         selected_tool.segment_type = RouteSegment::Cross;
-    }
-    if keys.just_pressed(KeyCode::Digit5) {
-        selected_tool.segment_type = RouteSegment::Station;
-    }
-    if keys.just_pressed(KeyCode::Digit6) {
-        selected_tool.segment_type = RouteSegment::Grass;
     }
 
     // R key to rotate current tool direction
