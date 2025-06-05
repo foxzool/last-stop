@@ -27,4 +27,5 @@ pub enum Screen {
     Title,
     Loading,
     Gameplay,
+    LevelSelect,
 }

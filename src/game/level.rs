@@ -1,26 +1,27 @@
 // 生成主要关卡
 
-use crate::game::{
-    grid::{Direction, GridConfig, GridPosition, RouteSegment, SpawnRouteSegmentEvent},
-    passenger::{Destination, PassengerManager},
+use crate::{
+    game::{
+        grid::{Direction, GridConfig, GridPosition, RouteSegment, SpawnRouteSegmentEvent},
+        level,
+        passenger::{Destination, PassengerManager},
+    },
+    screens::Screen,
 };
 use bevy::prelude::*;
 
 pub(super) fn plugin(app: &mut App) {
     // 可以在这里添加关卡相关的系统
+    // app.add_systems(OnEnter(Screen::Gameplay), spawn_initial_routes);
+    app.add_systems(OnEnter(Screen::LevelSelect), spawn_level_menu);
 }
 
-// 生成游戏关卡
-pub fn spawn_level(
-    mut commands: Commands, // Kept for now, in case it's used for other things in spawn_level
-    grid_config: Res<GridConfig>,
-    mut passenger_manager: ResMut<PassengerManager>,
-) {
-}
+pub fn spawn_level_menu(mut commands: Commands) {}
 
 // 生成初始路线和车站
+#[allow(dead_code)]
 pub fn spawn_initial_routes(
-    mut commands: Commands, // Kept for now, in case it's used for other things in spawn_level
+    mut commands: Commands,
     grid_config: Res<GridConfig>,
     mut passenger_manager: ResMut<PassengerManager>,
 ) {
