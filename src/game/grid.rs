@@ -1,11 +1,23 @@
 // 注册所有网格相关系统的插件
-use crate::{game::validation::ConnectionMap, screens::Screen};
+use crate::{
+    game::{interaction::Selectable, validation::ConnectionMap},
+    screens::Screen,
+};
 use bevy::{
+    ecs::system::entity_command::observe,
     prelude::*,
     window::{PrimaryWindow, WindowResized},
 };
 
 pub struct GridPlugin;
+
+// 事件：用于请求生成一个新的路线片段
+#[derive(Event, Debug, Clone, Copy)]
+pub struct SpawnRouteSegmentEvent {
+    pub grid_pos: GridPosition,
+    pub segment_type: RouteSegment,
+    pub direction: Direction,
+}
 
 // System to update the GridState.route_segments HashMap
 pub fn update_route_segments_system(
@@ -30,7 +42,7 @@ impl Plugin for GridPlugin {
         app.init_resource::<GridConfig>()
             .init_resource::<GridState>()
             .init_resource::<ConnectionMap>() // Initialize ConnectionMap
-            .add_systems(OnEnter(Screen::Gameplay), setup_grid_from_window_size)
+            .add_systems(OnEnter(Screen::Gameplay), setup_grid_from_window_size) // 注册新的事件
             .add_systems(
                 Update,
                 (
@@ -40,7 +52,8 @@ impl Plugin for GridPlugin {
                     setup_grid_from_window_size
                         .run_if(|ev: EventReader<WindowResized>| !ev.is_empty()),
                 ),
-            );
+            )
+            .add_observer(spawn_route_segment_system);
     }
 }
 
@@ -272,18 +285,21 @@ pub fn update_grid_state_system(
     }
 }
 
-// 在网格位置生成路线段的辅助函数
-pub fn spawn_route_segment(
-    commands: &mut Commands,
-    grid_pos: GridPosition,
-    segment_type: RouteSegment,
-    direction: Direction,
-    asset_server: &Res<AssetServer>,
-    grid_config: &Res<GridConfig>, // 添加GridConfig资源
-    texture_atlas_layouts: &mut ResMut<Assets<TextureAtlasLayout>>,
-) -> Entity {
+// System to spawn route segments based on SpawnRouteSegmentEvent
+pub fn spawn_route_segment_system(
+    event: Trigger<SpawnRouteSegmentEvent>,
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    grid_config: Res<GridConfig>,
+    mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
+    mut grid_state: ResMut<GridState>, // Added to update grid state
+) {
+    let grid_pos = event.grid_pos;
+    let segment_type = event.segment_type;
+    let direction = event.direction;
+
     info!(
-        "Spawning route segment: pos={:?}, type={:?}, dir={:?}",
+        "Spawning route segment via event: pos={:?}, type={:?}, dir={:?}",
         grid_pos, segment_type, direction
     );
 
@@ -317,23 +333,101 @@ pub fn spawn_route_segment(
 
     let final_rotation_angle = segment_type_rotation(segment_type, direction);
 
-    commands
+    let entity_id = commands
         .spawn((
             sprite,
             Transform {
-                translation: grid_config.grid_to_world(grid_pos).extend(0.0), // 设置初始世界位置
+                translation: grid_config.grid_to_world(grid_pos).extend(0.0),
                 rotation: Quat::from_rotation_z(final_rotation_angle),
                 ..default()
             },
-            grid_pos, // 保留GridPosition用于状态跟踪和其他系统
+            grid_pos,
             GridSnap,
             RouteSegmentComponent {
                 segment_type,
                 direction,
             },
         ))
-        .id()
+        .insert(Selectable) // Add Selectable component
+        .id(); // Get the entity ID
+
+    // Update GridState
+    grid_state.place_entity(grid_pos, entity_id);
+    grid_state.place_route_segment(
+        grid_pos,
+        RouteSegmentComponent {
+            segment_type,
+            direction,
+        },
+    );
+    info!(
+        "Entity {:?} spawned and GridState updated at {:?}",
+        entity_id, grid_pos
+    );
 }
+
+// 旧的 spawn_route_segment 函数，现在被 spawn_route_segment_system 替代
+// pub fn spawn_route_segment(
+// commands: &mut Commands,
+// grid_pos: GridPosition,
+// segment_type: RouteSegment,
+// direction: Direction,
+// asset_server: &Res<AssetServer>,
+// grid_config: &Res<GridConfig>, // 添加GridConfig资源
+// texture_atlas_layouts: &mut ResMut<Assets<TextureAtlasLayout>>,
+// ) -> Entity {
+// info!(
+// "Spawning route segment: pos={:?}, type={:?}, dir={:?}",
+// grid_pos, segment_type, direction
+// );
+//
+// let sprite = if segment_type == RouteSegment::Station {
+// let texture = asset_server.load("textures/CP_V1.0.4.png");
+// let layout =
+// TextureAtlasLayout::from_grid(UVec2::splat(100), 4, 2, None, Some(UVec2::new(0, 150)));
+// let texture_atlas_layout = texture_atlas_layouts.add(layout);
+//
+// Sprite::from_atlas_image(
+// texture,
+// TextureAtlas {
+// layout: texture_atlas_layout,
+// index: 0,
+// },
+// )
+// } else {
+// let texture = asset_server.load("textures/roads2W.png");
+// let layout = TextureAtlasLayout::from_grid(UVec2::splat(64), 8, 3, None, None);
+// let texture_atlas_layout = texture_atlas_layouts.add(layout);
+// let texture_index = segment_type as usize;
+//
+// Sprite::from_atlas_image(
+// texture,
+// TextureAtlas {
+// layout: texture_atlas_layout,
+// index: texture_index,
+// },
+// )
+// };
+//
+// let final_rotation_angle = segment_type_rotation(segment_type, direction);
+//
+// commands
+// .spawn((
+// sprite,
+// Transform {
+// translation: grid_config.grid_to_world(grid_pos).extend(0.0), // 设置初始世界位置
+// rotation: Quat::from_rotation_z(final_rotation_angle),
+// ..default()
+// },
+// grid_pos, // 保留GridPosition用于状态跟踪和其他系统
+// GridSnap,
+// RouteSegmentComponent {
+// segment_type,
+// direction,
+// },
+// ))
+// .id() // No longer returning Entity ID directly from this function as it's part of a system now.
+// }
 
 pub fn segment_type_rotation(segment_type: RouteSegment, direction: Direction) -> f32 {
     // Calculate rotation

@@ -1,8 +1,13 @@
 use crate::{
     game::{
         grid::{
-            Direction, GridConfig, GridPosition, GridState, RouteSegment, RouteSegmentComponent,
-            spawn_route_segment,
+            Direction,
+            GridConfig,
+            GridPosition,
+            GridState,
+            RouteSegment,
+            RouteSegmentComponent,
+            SpawnRouteSegmentEvent, // Correctly added here
         },
         passenger::{Passenger, RequestPathReplanEvent},
     },
@@ -238,40 +243,34 @@ pub fn drag_place_system(
 
 // 处理路段放置的系统
 pub fn place_segment_system(
-    mut commands: Commands,
+    mut commands: Commands, // Still needed for trigger_targets
     mut place_segment_events: EventReader<PlaceSegmentEvent>,
-    mut grid_state: ResMut<GridState>,
-    asset_server: Res<AssetServer>,
-    grid_config: Res<GridConfig>,
-    mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
+    grid_state: Res<GridState>,   // Changed to Res, only for checking
+    grid_config: Res<GridConfig>, // Needed for is_valid_position check
     passenger_query: Query<Entity, With<Passenger>>, // Query for passenger entities
 ) {
     for event in place_segment_events.read() {
-        let entity = spawn_route_segment(
-            &mut commands,
-            event.position,
-            event.segment_type,
-            event.direction,
-            &asset_server,
-            &grid_config, // Pass GridConfig
-            &mut texture_atlas_layouts,
-        );
+        let grid_pos = event.position;
+        let segment_type = event.segment_type;
+        let direction = event.direction;
 
-        // Add to grid state
-        grid_state.place_entity(event.position, entity);
-        grid_state.place_route_segment(
-            event.position,
-            RouteSegmentComponent {
-                segment_type: event.segment_type,
-                direction: event.direction,
-            },
-        );
+        // Check validity and occupation BEFORE sending the event
+        if grid_config.is_valid_position(grid_pos) && !grid_state.is_occupied(grid_pos) {
+            commands.trigger(SpawnRouteSegmentEvent {
+                grid_pos,
+                segment_type,
+                direction,
+            });
 
-        let passengers = passenger_query.iter().collect::<Vec<_>>();
-        commands.trigger_targets(RequestPathReplanEvent, passengers);
-
-        // Add selectable component
-        commands.entity(entity).insert(Selectable);
+            // Trigger replan for all passengers.
+            // Consider if this should be moved or triggered by a "SegmentSpawnedSuccessfullyEvent"
+            info!(
+                "Segment placement requested for {:?}. Triggering replan for all passengers.",
+                grid_pos
+            );
+            let passengers = passenger_query.iter().collect::<Vec<_>>();
+            commands.trigger_targets(RequestPathReplanEvent, passengers);
+        }
     }
 }
 
@@ -419,10 +418,14 @@ pub fn remove_segment_system(
                 }
 
                 if is_station {
-                    info!("Attempted to remove a Station at {:?}. Operation denied.", grid_pos);
+                    info!(
+                        "Attempted to remove a Station at {:?}. Operation denied.",
+                        grid_pos
+                    );
                 } else {
                     // Original logic for removing non-station segments (or if not found in route_segments)
-                    if let Some(entity_to_despawn) = grid_state.remove_entity(grid_pos) { // Removes from occupied_cells
+                    if let Some(entity_to_despawn) = grid_state.remove_entity(grid_pos) {
+                        // Removes from occupied_cells
                         commands.entity(entity_to_despawn).despawn();
                         grid_state.route_segments.remove(&grid_pos); // Also remove from route_segments map
 

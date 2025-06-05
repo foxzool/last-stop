@@ -1,4 +1,4 @@
-use crate::{game::level::spawn_level, screens::Screen};
+use crate::screens::Screen;
 use bevy::prelude::*;
 
 mod grid;
@@ -15,5 +15,5 @@ pub(super) fn plugin(app: &mut App) {
         validation::ConnectionValidationPlugin,
         passenger::PassengerPlugin,
     ));
-    app.add_systems(OnEnter(Screen::Gameplay), spawn_level);
+    app.add_systems(OnEnter(Screen::Gameplay), level::spawn_initial_routes);
 }
