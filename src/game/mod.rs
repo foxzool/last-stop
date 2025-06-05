@@ -1,4 +1,3 @@
-use crate::screens::Screen;
 use bevy::prelude::*;
 
 mod grid;
@@ -15,5 +14,4 @@ pub(super) fn plugin(app: &mut App) {
         validation::ConnectionValidationPlugin,
         passenger::PassengerPlugin,
     ));
- 
 }

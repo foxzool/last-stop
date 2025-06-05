@@ -1,10 +1,10 @@
 //! 游戏的主要屏幕状态及其之间的转换。
 
 mod gameplay;
+mod level;
 mod loading;
 mod splash;
 mod title;
-mod level;
 
 use bevy::prelude::*;
 

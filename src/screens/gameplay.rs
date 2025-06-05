@@ -5,14 +5,12 @@ use bevy::{input::common_conditions::input_just_pressed, prelude::*, ui::Val::*}
 use crate::{Pause, menus::Menu, screens::Screen};
 
 pub(super) fn plugin(app: &mut App) {
-  
-
     // 按键切换暂停状态。
     app.add_systems(
         Update,
         (
             (pause, spawn_pause_overlay, open_pause_menu).run_if(
-                in_state(Screen::Gameplay)
+                in_state(Screen::LevelSelect)
                     .and(in_state(Menu::None))
                     .and(input_just_pressed(KeyCode::KeyP).or(input_just_pressed(KeyCode::Escape))),
             ),
@@ -23,7 +21,7 @@ pub(super) fn plugin(app: &mut App) {
             ),
         ),
     );
-    app.add_systems(OnExit(Screen::Gameplay), (close_menu, unpause));
+    app.add_systems(OnExit(Screen::LevelSelect), (close_menu, unpause));
     app.add_systems(
         OnEnter(Menu::None),
         unpause.run_if(in_state(Screen::Gameplay)),

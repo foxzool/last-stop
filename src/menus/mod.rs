@@ -5,6 +5,7 @@ mod main;
 mod pause;
 mod settings;
 mod level;
+mod common;
 
 use bevy::prelude::*;
 
@@ -16,6 +17,7 @@ pub(super) fn plugin(app: &mut App) {
         main::plugin,
         settings::plugin,
         pause::plugin,
+        level::plugin,
     ));
 }
 
@@ -30,3 +32,5 @@ pub enum Menu {
     Pause,
     LevelSelect,
 }
+
+

@@ -11,9 +11,16 @@ use crate::{
 use bevy::prelude::*;
 
 pub(super) fn plugin(app: &mut App) {
-    // 可以在这里添加关卡相关的系统
-    // app.add_systems(OnEnter(Screen::Gameplay), spawn_initial_routes);
-    // app.add_systems(OnEnter(Screen::LevelSelect), spawn_level_menu);
+    app.init_resource::<WantLevel>();
+}
+
+#[derive(Resource)]
+pub struct WantLevel(pub u8);
+
+impl Default for WantLevel {
+    fn default() -> Self {
+        Self(1)
+    }
 }
 
 #[allow(dead_code)]
