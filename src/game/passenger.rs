@@ -11,6 +11,8 @@ pub struct PassengerArrivedEvent;
 use rand::Rng;
 use std::collections::VecDeque;
 
+const ANIMATION_FRAME_DURATION: f32 = 1.0 / 6.0; // Each direction has 3 frames, looping twice per second (6 FPS total for animation cycle)
+
 // 乘客插件
 // Helper function to determine direction between two grid positions
 fn calculate_direction_internal(from: GridPosition, to: GridPosition) -> Option<Direction> {
@@ -98,15 +100,17 @@ impl Destination {
 // 乘客组件
 #[derive(Component, Debug)]
 pub struct Passenger {
-    pub destination: Destination,       // 目的地类型
-    pub patience: f32,                  // 耐心值 (0.0-100.0)
-    pub path: VecDeque<GridPosition>,   // 规划的路径
-    pub current_position: GridPosition, // 当前位置
-    pub target_position: GridPosition,  // 目标位置
-    pub progress: f32,                  // 移动进度 (0.0-1.0)
-    pub speed: f32,                     // 移动速度
-    pub arrived: bool,                  // 是否已到达目的地
+    pub destination: Destination,                      // 目的地类型
+    pub patience: f32,                                 // 耐心值 (0.0-100.0)
+    pub path: VecDeque<GridPosition>,                  // 规划的路径
+    pub current_position: GridPosition,                // 当前位置
+    pub target_position: GridPosition,                 // 目标位置
+    pub progress: f32,                                 // 移动进度 (0.0-1.0)
+    pub speed: f32,                                    // 移动速度
+    pub arrived: bool,                                 // 是否已到达目的地
     pub current_movement_direction: Option<Direction>, // 当前移动方向
+    pub animation_index: usize,                        // 当前动画帧索引
+    animation_timer: Timer,                            // 动画计时器
 }
 
 impl Passenger {
@@ -121,6 +125,8 @@ impl Passenger {
             speed: 0.5, // 每秒移动0.5个格子
             arrived: false,
             current_movement_direction: None, // 初始无方向
+            animation_index: 0,
+            animation_timer: Timer::from_seconds(ANIMATION_FRAME_DURATION, TimerMode::Repeating),
         }
     }
 
@@ -129,7 +135,8 @@ impl Passenger {
         // 如果已到达目的地或没有路径，则不移动
         if self.arrived || self.path.is_empty() {
             // Ensure direction is None if not moving or path is empty
-            if self.current_movement_direction.is_some() { // Safeguard
+            if self.current_movement_direction.is_some() {
+                // Safeguard
                 self.current_movement_direction = None;
             }
             if self.path.is_empty() && !self.arrived {
@@ -155,7 +162,8 @@ impl Passenger {
                 // 查看路径中的下一个点
                 let new_target = *next_waypoint;
                 self.target_position = new_target; // 设置为新的目标
-                self.current_movement_direction = calculate_direction_internal(self.current_position, new_target);
+                self.current_movement_direction =
+                    calculate_direction_internal(self.current_position, new_target);
                 debug!(
                     "Passenger: Reached {:?}, next target {:?}. Path segments remaining: {}. Direction: {:?}",
                     self.current_position,
@@ -209,7 +217,8 @@ impl Passenger {
             // 从路径的第一个点开始
             let next_target = *self.path.front().unwrap(); // unwrap是安全的
             self.target_position = next_target;
-            self.current_movement_direction = calculate_direction_internal(self.current_position, next_target);
+            self.current_movement_direction =
+                calculate_direction_internal(self.current_position, next_target);
             self.arrived = false;
             debug!("Passenger: Path set (non-empty). arrived set to false."); // 重置到达状态，准备开始新的路径
             self.progress = 0.0; // 重置移动进度
@@ -470,7 +479,8 @@ fn spawn_passengers(
             {
                 info!("找到终点站: ({}, {})", end_pos.x, end_pos.y);
 
-                let texture = asset_server.load("textures/Small-8-Direction-Characters_by_AxulArt.png");
+                let texture =
+                    asset_server.load("textures/Small-8-Direction-Characters_by_AxulArt.png");
                 let layout = TextureAtlasLayout::from_grid(UVec2::new(16, 24), 8, 12, None, None);
                 let texture_atlas_layout = texture_atlas_layouts.add(layout);
 
@@ -484,7 +494,7 @@ fn spawn_passengers(
                             image: texture,
                             texture_atlas: Some(TextureAtlas {
                                 layout: texture_atlas_layout,
-                                index: 8,
+                                index: 12,
                             }),
                             color: destination.get_color(),
                             // custom_size: Some(Vec2::new(32.0, 38.0)),
@@ -517,11 +527,11 @@ fn spawn_passengers(
 // 更新乘客位置和状态
 fn update_passengers(
     time: Res<Time>,
-    mut passenger_query: Query<(Entity, &mut Passenger, &mut Transform)>,
+    mut passenger_query: Query<(Entity, &mut Passenger, &mut Transform, &mut Sprite)>,
     grid_config: Res<crate::game::grid::GridConfig>,
     mut commands: Commands,
 ) {
-    for (entity, mut passenger, mut transform) in passenger_query.iter_mut() {
+    for (entity, mut passenger, mut transform, mut sprite) in passenger_query.iter_mut() {
         // 如果已到达目的地，不再更新
         if passenger.arrived {
             continue;
@@ -530,6 +540,26 @@ fn update_passengers(
         // 更新乘客位置
         let was_path_not_empty_before_update = !passenger.path.is_empty(); // Check before update_position potentially clears it
         let is_still_moving = passenger.update_position(time.delta_secs());
+
+        // Update animation based on movement direction
+        if let Some(movement_direction) = passenger.current_movement_direction {
+            // Passenger is moving
+            passenger.animation_timer.tick(time.delta()); // time.delta() provides a Duration
+            if passenger.animation_timer.just_finished() {
+                passenger.animation_index = (passenger.animation_index + 1) % 3; // Cycle through 3 frames (0, 1, 2)
+            }
+            if let Some(atlas) = &mut sprite.texture_atlas {
+                let anima_index = match movement_direction {
+                    Direction::North => 8,
+                    Direction::East => 10,
+                    Direction::South => 12,
+                    Direction::West => 14,
+                };
+                atlas.index = anima_index + passenger.animation_index * 8;
+            }
+        } else {
+            passenger.animation_index = 0;
+        }
 
         if !is_still_moving && passenger.arrived && was_path_not_empty_before_update {
             // Passenger has just arrived in this frame
