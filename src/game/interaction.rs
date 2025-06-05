@@ -5,8 +5,8 @@ use crate::{
             GridConfig,
             GridPos,
             GridState,
-            RouteSegmentType,
             RouteSegmentComponent,
+            RouteSegmentType,
             SpawnRouteSegmentEvent, // Correctly added here
         },
         passenger::{Passenger, RequestPathReplanEvent},
@@ -294,7 +294,7 @@ pub fn rotate_segment_system(
     mut query: Query<(&mut Transform, &mut RouteSegmentComponent)>,
     mut grid_state: ResMut<GridState>,
     grid_positions: Query<&GridPos, With<RouteSegmentComponent>>, /* Query GridPosition of RouteSegments */
-    passenger_query: Query<Entity, With<Passenger>>, // Query for passenger entities
+    passenger_query: Query<Entity, With<Passenger>>,              // Query for passenger entities
 ) {
     for event in rotate_segment_events.read() {
         if let Ok((mut transform, mut route_segment)) = query.get_mut(event.entity) {
@@ -338,17 +338,20 @@ pub fn preview_system(
         let texture = asset_server.load("textures/roads2W.png");
         let layout = TextureAtlasLayout::from_grid(UVec2::splat(64), 8, 3, None, None);
         let texture_atlas_layout = texture_atlas_layouts.add(layout);
-        let texture_index = match selected_tool.segment_type.to_index() {
-            Some(index) => index,
-            None => {
-                return;
-            }
-        };
+        // let texture_index = match selected_tool.segment_type.to_index() {
+        //     Some(index) => index,
+        //     None => {
+        //         return;
+        //     }
+        // };
+        let texture_index = 0;
 
-        let final_rotation_angle = crate::game::grid::segment_type_rotation(
-            selected_tool.segment_type,
-            selected_tool.direction,
-        );
+        // let final_rotation_angle = crate::game::grid::segment_type_rotation(
+        //     selected_tool.segment_type,
+        //     selected_tool.direction,
+        // );
+
+        let final_rotation_angle = 0.0;
 
         let world_pos = grid_config.grid_to_world(grid_pos);
 
@@ -383,7 +386,7 @@ pub fn tool_selection_system(
         selected_tool.direction = selected_tool.direction.rotate_cw();
     }
     if keys.just_pressed(KeyCode::Digit2) {
-        selected_tool.segment_type = RouteSegmentType::Turn;
+        selected_tool.segment_type = RouteSegmentType::Curve;
         selected_tool.direction = selected_tool.direction.rotate_cw();
     }
     if keys.just_pressed(KeyCode::Digit3) {
@@ -416,9 +419,9 @@ pub fn remove_segment_system(
             if grid_config.is_valid_position(grid_pos) {
                 // Peek at the segment type first from route_segments map
                 let mut is_station = false;
-                if let Some(segment_component) = grid_state.route_segments.get(&grid_pos) {
-                    is_station = segment_component.segment_type.is_station();
-                }
+                // if let Some(segment_component) = grid_state.route_segments.get(&grid_pos) {
+                //     is_station = segment_component.segment_type.is_station();
+                // } fixme
 
                 if is_station {
                     info!(

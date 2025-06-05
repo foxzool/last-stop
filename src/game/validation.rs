@@ -79,7 +79,7 @@ impl ConnectionMap {
                     ConnectionPoint::new(position, segment.direction.opposite()),
                 ]
             }
-            RouteSegmentType::Turn => {
+            RouteSegmentType::Curve => {
                 // 转角段在两个垂直方向上连接
                 vec![
                     ConnectionPoint::new(position, segment.direction),
@@ -106,7 +106,7 @@ impl ConnectionMap {
                     ConnectionPoint::new(position, Direction::West),
                 ]
             }
-            RouteSegmentType::DeadEnd => {
+            _ => {
                 // 车站路口在所有四个方向上连接
                 vec![
                     ConnectionPoint::new(position, Direction::North),

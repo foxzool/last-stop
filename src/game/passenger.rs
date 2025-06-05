@@ -10,6 +10,7 @@ use bevy::{color::palettes::basic, prelude::*};
 pub struct PassengerArrivedEvent;
 use crate::screens::Screen;
 use rand::Rng;
+use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 
 const ANIMATION_FRAME_DURATION: f32 = 1.0 / 6.0; // Each direction has 3 frames, looping twice per second (6 FPS total for animation cycle)
@@ -285,6 +286,26 @@ impl Passenger {
     //         );
     //     }
     // }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum PassengerColor {
+    Red,
+    Blue,
+    Green,
+    Yellow,
+    Purple,
+    Orange,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PassengerDemand {
+    pub color: PassengerColor,
+    pub origin: String,                       // 起点站名称
+    pub destination: String,                  // 终点站名称
+    pub spawn_rate: f32,                      // 每秒生成数量
+    pub patience: f32,                        // 耐心值（秒）
+    pub spawn_time_range: Option<(f32, f32)>, // 生成时间窗口
 }
 
 // 乘客管理器

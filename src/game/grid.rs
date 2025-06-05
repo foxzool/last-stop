@@ -27,8 +27,8 @@ impl Plugin for GridPlugin {
                         .run_if(|ev: EventReader<WindowResized>| !ev.is_empty()),
                 )
                     .run_if(in_state(Screen::Gameplay)),
-            )
-            .add_observer(spawn_route_segment_system);
+            );
+        // .add_observer(spawn_route_segment_system);
     }
 }
 
@@ -145,35 +145,20 @@ pub struct GridSnap;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum RouteSegmentType {
     Straight, // 直线段
-    Turn,     // L型转弯
+    Curve,    // 弯道
     TSplit,   // T型分岔
     Cross,    // 十字路口
-    DeadEnd,  // 终端站专用
-}
-
-impl RouteSegmentType {
-    pub fn is_station(&self) -> bool {
-        matches!(self, RouteSegmentType::DeadEnd)
-    }
-
-    pub fn to_index(&self) -> Option<usize> {
-        match self {
-            RouteSegmentType::Straight => Some(3),
-            RouteSegmentType::Turn => Some(11),
-            RouteSegmentType::TSplit => Some(15),
-            RouteSegmentType::Cross => Some(16),
-            RouteSegmentType::DeadEnd => None,
-        }
-    }
+    Bridge,   // 桥梁（可跨越水域）
+    Tunnel,   // 隧道（可穿越山丘）
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum TerrainType {
-    Empty,    // 可建设
-    Blocked,  // 建筑物阻挡
-    Water,    // 河流
-    Mountain, // 山地
-    Park,     // 公园（装饰）
+    Empty,    // 可放置路线的空地
+    Building, // 建筑物障碍
+    Water,    // 河流/湖泊
+    Park,     // 公园绿地
+    Mountain, // 山丘地形
 }
 
 // 路线段的方向枚举
@@ -315,125 +300,125 @@ pub fn update_grid_state_system(
 }
 
 // System to spawn route segments based on SpawnRouteSegmentEvent
-pub fn spawn_route_segment_system(
-    event: Trigger<SpawnRouteSegmentEvent>,
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    grid_config: Res<GridConfig>,
-    mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
-    mut grid_state: ResMut<GridState>, // Added to update grid state
-) {
-    let grid_pos = event.grid_pos;
-    let segment_type = event.segment_type;
-    let direction = event.direction;
+// pub fn spawn_route_segment_system(
+//     event: Trigger<SpawnRouteSegmentEvent>,
+//     mut commands: Commands,
+//     asset_server: Res<AssetServer>,
+//     grid_config: Res<GridConfig>,
+//     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
+//     mut grid_state: ResMut<GridState>, // Added to update grid state
+// ) {
+//     let grid_pos = event.grid_pos;
+//     let segment_type = event.segment_type;
+//     let direction = event.direction;
+//
+//     info!(
+//         "Spawning route segment via event: pos={:?}, type={:?}, dir={:?}",
+//         grid_pos, segment_type, direction
+//     );
+//
+//     let sprite = match segment_type {
+//         RouteSegmentType::DeadEnd => {
+//             let texture = asset_server.load("textures/CP_V1.0.4.png");
+//             let layout = TextureAtlasLayout::from_grid(
+//                 UVec2::splat(100),
+//                 4,
+//                 2,
+//                 None,
+//                 Some(UVec2::new(0, 150)),
+//             );
+//             let texture_atlas_layout = texture_atlas_layouts.add(layout);
+//
+//             let mut sprite = Sprite::from_atlas_image(
+//                 texture,
+//                 TextureAtlas {
+//                     layout: texture_atlas_layout,
+//                     index: 0,
+//                 },
+//             );
+//             sprite.custom_size = Some(Vec2::splat(grid_config.tile_size));
+//             sprite
+//         }
+//         _ => {
+//             let texture = asset_server.load("textures/roads2W.png");
+//             let layout = TextureAtlasLayout::from_grid(UVec2::splat(64), 8, 3, None, None);
+//             let texture_atlas_layout = texture_atlas_layouts.add(layout);
+//             let texture_index = segment_type.to_index().unwrap();
+//
+//             Sprite::from_atlas_image(
+//                 texture,
+//                 TextureAtlas {
+//                     layout: texture_atlas_layout,
+//                     index: texture_index,
+//                 },
+//             )
+//         }
+//     };
+//
+//     let final_rotation_angle = segment_type_rotation(segment_type, direction);
+//
+//     let entity_id = commands
+//         .spawn((
+//             sprite,
+//             Transform {
+//                 translation: grid_config.grid_to_world(grid_pos).extend(0.0),
+//                 rotation: Quat::from_rotation_z(final_rotation_angle),
+//                 ..default()
+//             },
+//             grid_pos,
+//             GridSnap,
+//             RouteSegmentComponent {
+//                 segment_type,
+//                 direction,
+//             },
+//         ))
+//         .insert(Selectable)
+//         .with_children(|parent| {
+//             // if let RouteSegmentType::DeadEnd = segment_type {
+//             //     parent.spawn((
+//             //         Sprite::from_color(destination.get_color(), Vec2::splat(grid_config.tile_size)),
+//             //         Transform::from_xyz(0.0, 0.0, -1.0),
+//             //     ));
+//             // } fixme
+//         })
+//         .id();
+//
+//     // Update GridState
+//     grid_state.place_entity(grid_pos, entity_id);
+//     grid_state.place_route_segment(
+//         grid_pos,
+//         RouteSegmentComponent {
+//             segment_type,
+//             direction,
+//         },
+//     );
+//     info!(
+//         "Entity {:?} spawned and GridState updated at {:?}",
+//         entity_id, grid_pos
+//     );
+// }
 
-    info!(
-        "Spawning route segment via event: pos={:?}, type={:?}, dir={:?}",
-        grid_pos, segment_type, direction
-    );
-
-    let sprite = match segment_type {
-        RouteSegmentType::DeadEnd => {
-            let texture = asset_server.load("textures/CP_V1.0.4.png");
-            let layout = TextureAtlasLayout::from_grid(
-                UVec2::splat(100),
-                4,
-                2,
-                None,
-                Some(UVec2::new(0, 150)),
-            );
-            let texture_atlas_layout = texture_atlas_layouts.add(layout);
-
-            let mut sprite = Sprite::from_atlas_image(
-                texture,
-                TextureAtlas {
-                    layout: texture_atlas_layout,
-                    index: 0,
-                },
-            );
-            sprite.custom_size = Some(Vec2::splat(grid_config.tile_size));
-            sprite
-        }
-        _ => {
-            let texture = asset_server.load("textures/roads2W.png");
-            let layout = TextureAtlasLayout::from_grid(UVec2::splat(64), 8, 3, None, None);
-            let texture_atlas_layout = texture_atlas_layouts.add(layout);
-            let texture_index = segment_type.to_index().unwrap();
-
-            Sprite::from_atlas_image(
-                texture,
-                TextureAtlas {
-                    layout: texture_atlas_layout,
-                    index: texture_index,
-                },
-            )
-        }
-    };
-
-    let final_rotation_angle = segment_type_rotation(segment_type, direction);
-
-    let entity_id = commands
-        .spawn((
-            sprite,
-            Transform {
-                translation: grid_config.grid_to_world(grid_pos).extend(0.0),
-                rotation: Quat::from_rotation_z(final_rotation_angle),
-                ..default()
-            },
-            grid_pos,
-            GridSnap,
-            RouteSegmentComponent {
-                segment_type,
-                direction,
-            },
-        ))
-        .insert(Selectable)
-        .with_children(|parent| {
-            // if let RouteSegmentType::DeadEnd = segment_type {
-            //     parent.spawn((
-            //         Sprite::from_color(destination.get_color(), Vec2::splat(grid_config.tile_size)),
-            //         Transform::from_xyz(0.0, 0.0, -1.0),
-            //     ));
-            // } fixme
-        })
-        .id();
-
-    // Update GridState
-    grid_state.place_entity(grid_pos, entity_id);
-    grid_state.place_route_segment(
-        grid_pos,
-        RouteSegmentComponent {
-            segment_type,
-            direction,
-        },
-    );
-    info!(
-        "Entity {:?} spawned and GridState updated at {:?}",
-        entity_id, grid_pos
-    );
-}
-
-pub fn segment_type_rotation(segment_type: RouteSegmentType, direction: Direction) -> f32 {
-    // Calculate rotation
-    let current_direction_angle = direction as u8 as f32 * std::f32::consts::PI / 2.0;
-    let final_rotation_angle = if segment_type == RouteSegmentType::Turn {
-        let corner_rotation_factor = match direction {
-            Direction::North => 0.0,
-            Direction::East => 3.0,
-            Direction::South => 2.0,
-            Direction::West => 1.0,
-        };
-        corner_rotation_factor * std::f32::consts::PI / 2.0
-    } else if segment_type == RouteSegmentType::TSplit {
-        let corner_rotation_factor = match direction {
-            Direction::North => 1.0,
-            Direction::East => 0.0,
-            Direction::South => 3.0,
-            Direction::West => 2.0,
-        };
-        corner_rotation_factor * std::f32::consts::PI / 2.0
-    } else {
-        current_direction_angle
-    };
-    final_rotation_angle
-}
+// pub fn segment_type_rotation(segment_type: RouteSegmentType, direction: Direction) -> f32 {
+//     // Calculate rotation
+//     let current_direction_angle = direction as u8 as f32 * std::f32::consts::PI / 2.0;
+//     let final_rotation_angle = if segment_type == RouteSegmentType::Turn {
+//         let corner_rotation_factor = match direction {
+//             Direction::North => 0.0,
+//             Direction::East => 3.0,
+//             Direction::South => 2.0,
+//             Direction::West => 1.0,
+//         };
+//         corner_rotation_factor * std::f32::consts::PI / 2.0
+//     } else if segment_type == RouteSegmentType::TSplit {
+//         let corner_rotation_factor = match direction {
+//             Direction::North => 1.0,
+//             Direction::East => 0.0,
+//             Direction::South => 3.0,
+//             Direction::West => 2.0,
+//         };
+//         corner_rotation_factor * std::f32::consts::PI / 2.0
+//     } else {
+//         current_direction_angle
+//     };
+//     final_rotation_angle
+// }
