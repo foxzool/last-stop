@@ -43,7 +43,7 @@ pub enum TerrainType {
 }
 
 // 路线段类型
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum RouteSegmentType {
     Straight,
     Curve,

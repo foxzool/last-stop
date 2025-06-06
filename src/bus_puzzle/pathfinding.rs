@@ -1,14 +1,16 @@
 // src/bus_puzzle/pathfinding.rs
 
 use bevy::prelude::*;
-use std::collections::{HashMap, VecDeque, BinaryHeap, HashSet};
-use std::cmp::Ordering;
 use serde::{Deserialize, Serialize};
+use std::{
+    cmp::Ordering,
+    collections::{BinaryHeap, HashMap, HashSet, VecDeque},
+};
 
 // 使用相对路径引用同模块下的其他文件
 use super::{
-    GridPos, RouteSegmentType, PassengerColor, StationType, TerrainType,
-    LevelManager, RouteSegment, StationEntity
+    GridPos, LevelManager, PassengerColor, RouteSegment, RouteSegmentType, StationEntity,
+    StationType, TerrainType,
 };
 
 // ============ 寻路相关组件 ============
@@ -112,7 +114,13 @@ struct AStarNode {
 }
 
 impl AStarNode {
-    fn new(position: GridPos, g_cost: f32, h_cost: f32, parent: Option<GridPos>, route_changes: u32) -> Self {
+    fn new(
+        position: GridPos,
+        g_cost: f32,
+        h_cost: f32,
+        parent: Option<GridPos>,
+        route_changes: u32,
+    ) -> Self {
         Self {
             position,
             g_cost,
@@ -149,13 +157,17 @@ pub struct PathfindingPlugin;
 impl Plugin for PathfindingPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(PathfindingGraph::default())
-            .add_systems(Update, (
-                update_pathfinding_graph,
-                find_paths_for_new_passengers,
-                update_passenger_movement,
-                handle_passenger_transfers,
-                cleanup_finished_passengers,
-            ).chain());
+            .add_systems(
+                Update,
+                (
+                    update_pathfinding_graph,
+                    find_paths_for_new_passengers,
+                    update_passenger_movement,
+                    handle_passenger_transfers,
+                    cleanup_finished_passengers,
+                )
+                    .chain(),
+            );
     }
 }
 
@@ -186,14 +198,19 @@ fn update_pathfinding_graph(
         let station = &station_entity.station_data;
         let pos = station.position;
 
-        pathfinding_graph.nodes.insert(pos, GraphNode {
-            position: pos,
-            node_type: GraphNodeType::Station,
-            station_name: Some(station.name.clone()),
-            is_accessible: true,
-        });
+        pathfinding_graph.nodes.insert(
+            pos,
+            GraphNode {
+                position: pos,
+                node_type: GraphNodeType::Station,
+                station_name: Some(station.name.clone()),
+                is_accessible: true,
+            },
+        );
 
-        pathfinding_graph.station_lookup.insert(station.name.clone(), pos);
+        pathfinding_graph
+            .station_lookup
+            .insert(station.name.clone(), pos);
     }
 
     // 添加路线段节点并建立连接
@@ -203,15 +220,20 @@ fn update_pathfinding_graph(
             let pos = segment.grid_pos;
             route_segments_by_pos.insert(pos, segment);
 
-            pathfinding_graph.nodes.insert(pos, GraphNode {
-                position: pos,
-                node_type: match segment.segment_type {
-                    RouteSegmentType::Cross | RouteSegmentType::TSplit => GraphNodeType::Intersection,
-                    _ => GraphNodeType::RouteSegment,
+            pathfinding_graph.nodes.insert(
+                pos,
+                GraphNode {
+                    position: pos,
+                    node_type: match segment.segment_type {
+                        RouteSegmentType::Cross | RouteSegmentType::TSplit => {
+                            GraphNodeType::Intersection
+                        }
+                        _ => GraphNodeType::RouteSegment,
+                    },
+                    station_name: None,
+                    is_accessible: true,
                 },
-                station_name: None,
-                is_accessible: true,
-            });
+            );
         }
     }
 
@@ -220,10 +242,15 @@ fn update_pathfinding_graph(
         let connections = get_segment_connections(*pos, &segment.segment_type, segment.rotation);
 
         for connection_pos in connections {
-            if route_segments_by_pos.contains_key(&connection_pos) ||
-                pathfinding_graph.station_lookup.values().any(|&station_pos| station_pos == connection_pos) {
-
-                pathfinding_graph.connections.entry(*pos)
+            if route_segments_by_pos.contains_key(&connection_pos)
+                || pathfinding_graph
+                    .station_lookup
+                    .values()
+                    .any(|&station_pos| station_pos == connection_pos)
+            {
+                pathfinding_graph
+                    .connections
+                    .entry(*pos)
                     .or_insert_with(Vec::new)
                     .push(Connection {
                         to: connection_pos,
@@ -236,116 +263,34 @@ fn update_pathfinding_graph(
     }
 
     // 建立站点与相邻路线段的连接
-    for (station_name, &station_pos) in &pathfinding_graph.station_lookup {use bevy::prelude::*;
-        use std::collections::{HashMap, VecDeque, BinaryHeap, HashSet};
-        use std::cmp::Ordering;
+    for (station_name, &station_pos) in &pathfinding_graph.station_lookup {
+        use bevy::prelude::*;
         use serde::{Deserialize, Serialize};
-
-        // 引入之前定义的数据结构
-        use crate::{GridPos, RouteSegmentType, PassengerColor, StationType, TerrainType};
-
-        // ============ 寻路相关组件 ============
-
-        #[derive(Component)]
-        pub struct PathfindingAgent {
-            pub color: PassengerColor,
-            pub origin: String,
-            pub destination: String,
-            pub current_path: Vec<PathNode>,
-            pub current_step: usize,
-            pub state: AgentState,
-            pub patience: f32,
-            pub max_patience: f32,
-            pub waiting_time: f32,
-        }
-
-        #[derive(Debug, Clone, PartialEq)]
-        pub enum AgentState {
-            WaitingAtStation,    // 在站点等车
-            Traveling,           // 在路线上移动
-            Transferring,        // 在换乘站等待换乘
-            Arrived,            // 已到达目的地
-            GaveUp,             // 耐心耗尽，放弃
-        }
-
-        #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-        pub struct PathNode {
-            pub position: GridPos,
-            pub node_type: PathNodeType,
-            pub estimated_wait_time: f32,
-            pub route_id: Option<String>,  // 所属路线ID
-        }
-
-        #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-        pub enum PathNodeType {
-            Station(String),      // 站点名称
-            RouteSegment,        // 路线段
-            TransferPoint,       // 换乘点
-        }
-
-        // ============ 寻路资源 ============
-
-        #[derive(Resource)]
-        pub struct PathfindingGraph {
-            pub nodes: HashMap<GridPos, GraphNode>,
-            pub connections: HashMap<GridPos, Vec<Connection>>,
-            pub station_lookup: HashMap<String, GridPos>,
-            pub route_network: HashMap<String, RouteInfo>,
-        }
-
-        #[derive(Debug, Clone)]
-        pub struct GraphNode {
-            pub position: GridPos,
-            pub node_type: GraphNodeType,
-            pub station_name: Option<String>,
-            pub is_accessible: bool,
-        }
-
-        #[derive(Debug, Clone, PartialEq)]
-        pub enum GraphNodeType {
-            Station,
-            RouteSegment,
-            Intersection,
-        }
-
-        #[derive(Debug, Clone)]
-        pub struct Connection {
-            pub to: GridPos,
-            pub cost: f32,
-            pub route_id: Option<String>,
-            pub connection_type: ConnectionType,
-        }
-
-        #[derive(Debug, Clone, PartialEq)]
-        pub enum ConnectionType {
-            Walk,           // 步行连接
-            BusRoute,       // 公交路线连接
-            Transfer,       // 换乘连接
-        }
-
-        #[derive(Debug, Clone)]
-        pub struct RouteInfo {
-            pub id: String,
-            pub segments: Vec<GridPos>,
-            pub frequency: f32,     // 班次频率（每分钟）
-            pub capacity: u32,      // 车辆容量
-            pub is_active: bool,    // 路线是否激活
-        }
+        use std::{
+            cmp::Ordering,
+            collections::{BinaryHeap, HashMap, HashSet, VecDeque},
+        };
 
         // ============ A* 寻路算法节点 ============
 
         #[derive(Debug, Clone, PartialEq)]
         struct AStarNode {
             position: GridPos,
-            g_cost: f32,      // 从起点到当前节点的实际成本
-            h_cost: f32,      // 从当前节点到终点的启发式成本
-            f_cost: f32,      // g_cost + h_cost
+            g_cost: f32, // 从起点到当前节点的实际成本
+            h_cost: f32, // 从当前节点到终点的启发式成本
+            f_cost: f32, // g_cost + h_cost
             parent: Option<GridPos>,
-            route_changes: u32,  // 换乘次数
+            route_changes: u32, // 换乘次数
         }
 
         impl AStarNode {
-            fn new(position: GridPos, g_cost: f32, h_cost: f32, parent: Option<GridPos>, route_changes: u32) -> Self {
+            fn new(
+                position: GridPos,
+                g_cost: f32,
+                h_cost: f32,
+                parent: Option<GridPos>,
+                route_changes: u32,
+            ) -> Self {
                 Self {
                     position,
                     g_cost,
@@ -383,24 +328,17 @@ fn update_pathfinding_graph(
         impl Plugin for PathfindingPlugin {
             fn build(&self, app: &mut App) {
                 app.insert_resource(PathfindingGraph::default())
-                    .add_systems(Update, (
-                        update_pathfinding_graph,
-                        find_paths_for_new_passengers,
-                        update_passenger_movement,
-                        handle_passenger_transfers,
-                        cleanup_finished_passengers,
-                    ).chain());
-            }
-        }
-
-        impl Default for PathfindingGraph {
-            fn default() -> Self {
-                Self {
-                    nodes: HashMap::new(),
-                    connections: HashMap::new(),
-                    station_lookup: HashMap::new(),
-                    route_network: HashMap::new(),
-                }
+                    .add_systems(
+                        Update,
+                        (
+                            update_pathfinding_graph,
+                            find_paths_for_new_passengers,
+                            update_passenger_movement,
+                            handle_passenger_transfers,
+                            cleanup_finished_passengers,
+                        )
+                            .chain(),
+                    );
             }
         }
 
@@ -409,8 +347,8 @@ fn update_pathfinding_graph(
         /// 更新寻路图，基于当前的路线段和站点状态
         fn update_pathfinding_graph(
             mut pathfinding_graph: ResMut<PathfindingGraph>,
-            route_segments: Query<(&crate::RouteSegment, &Transform), Changed<crate::RouteSegment>>,
-            stations: Query<&crate::StationEntity, Changed<crate::StationEntity>>,
+            route_segments: Query<(&RouteSegment, &Transform), Changed<RouteSegment>>,
+            stations: Query<&StationEntity, Changed<StationEntity>>,
         ) {
             // 清除旧的连接
             pathfinding_graph.connections.clear();
@@ -422,14 +360,19 @@ fn update_pathfinding_graph(
                 let station = &station_entity.station_data;
                 let pos = station.position;
 
-                pathfinding_graph.nodes.insert(pos, GraphNode {
-                    position: pos,
-                    node_type: GraphNodeType::Station,
-                    station_name: Some(station.name.clone()),
-                    is_accessible: true,
-                });
+                pathfinding_graph.nodes.insert(
+                    pos,
+                    GraphNode {
+                        position: pos,
+                        node_type: GraphNodeType::Station,
+                        station_name: Some(station.name.clone()),
+                        is_accessible: true,
+                    },
+                );
 
-                pathfinding_graph.station_lookup.insert(station.name.clone(), pos);
+                pathfinding_graph
+                    .station_lookup
+                    .insert(station.name.clone(), pos);
             }
 
             // 添加路线段节点并建立连接
@@ -439,86 +382,128 @@ fn update_pathfinding_graph(
                     let pos = segment.grid_pos;
                     route_segments_by_pos.insert(pos, segment);
 
-                    pathfinding_graph.nodes.insert(pos, GraphNode {
-                        position: pos,
-                        node_type: match segment.segment_type {
-                            RouteSegmentType::Cross | RouteSegmentType::TSplit => GraphNodeType::Intersection,
-                            _ => GraphNodeType::RouteSegment,
+                    pathfinding_graph.nodes.insert(
+                        pos,
+                        GraphNode {
+                            position: pos,
+                            node_type: match segment.segment_type {
+                                RouteSegmentType::Cross | RouteSegmentType::TSplit => {
+                                    GraphNodeType::Intersection
+                                }
+                                _ => GraphNodeType::RouteSegment,
+                            },
+                            station_name: None,
+                            is_accessible: true,
                         },
-                        station_name: None,
-                        is_accessible: true,
-                    });
+                    );
                 }
             }
 
             // 建立路线段之间的连接
+            let mut new_connections = Vec::new(); // 先收集所有连接，然后统一添加
+
             for (pos, segment) in &route_segments_by_pos {
-                let connections = get_segment_connections(*pos, &segment.segment_type, segment.rotation);
+                let connections =
+                    get_segment_connections(*pos, &segment.segment_type, segment.rotation);
 
                 for connection_pos in connections {
-                    if route_segments_by_pos.contains_key(&connection_pos) ||
-                        pathfinding_graph.station_lookup.values().any(|&station_pos| station_pos == connection_pos) {
-
-                        pathfinding_graph.connections.entry(*pos)
-                            .or_insert_with(Vec::new)
-                            .push(Connection {
+                    if route_segments_by_pos.contains_key(&connection_pos)
+                        || pathfinding_graph
+                            .station_lookup
+                            .values()
+                            .any(|&station_pos| station_pos == connection_pos)
+                    {
+                        new_connections.push((
+                            *pos,
+                            Connection {
                                 to: connection_pos,
                                 cost: 1.0,
                                 route_id: Some(format!("route_{}", pos.x + pos.y)), // 简化的路线ID
                                 connection_type: ConnectionType::BusRoute,
-                            });
+                            },
+                        ));
                     }
                 }
             }
 
+            // 统一添加所有连接，避免借用冲突
+            for (from_pos, connection) in new_connections {
+                pathfinding_graph
+                    .connections
+                    .entry(from_pos)
+                    .or_insert_with(Vec::new)
+                    .push(connection);
+            }
+
             // 建立站点与相邻路线段的连接
+            let mut station_connections = Vec::new(); // 先收集站点连接
+
             for (station_name, &station_pos) in &pathfinding_graph.station_lookup {
                 let adjacent_positions = get_adjacent_positions(station_pos);
 
                 for adj_pos in adjacent_positions {
                     if route_segments_by_pos.contains_key(&adj_pos) {
                         // 站点到路线段
-                        pathfinding_graph.connections.entry(station_pos)
-                            .or_insert_with(Vec::new)
-                            .push(Connection {
+                        station_connections.push((
+                            station_pos,
+                            Connection {
                                 to: adj_pos,
                                 cost: 0.5,
                                 route_id: None,
                                 connection_type: ConnectionType::Walk,
-                            });
+                            },
+                        ));
 
                         // 路线段到站点
-                        pathfinding_graph.connections.entry(adj_pos)
-                            .or_insert_with(Vec::new)
-                            .push(Connection {
+                        station_connections.push((
+                            adj_pos,
+                            Connection {
                                 to: station_pos,
                                 cost: 0.5,
                                 route_id: None,
                                 connection_type: ConnectionType::Walk,
-                            });
+                            },
+                        ));
                     }
                 }
+            }
+
+            // 统一添加所有站点连接
+            for (from_pos, connection) in station_connections {
+                pathfinding_graph
+                    .connections
+                    .entry(from_pos)
+                    .or_insert_with(Vec::new)
+                    .push(connection);
             }
         }
 
         fn find_paths_for_new_passengers(
             mut commands: Commands,
             pathfinding_graph: Res<PathfindingGraph>,
-            mut passengers: Query<(Entity, &mut PathfindingAgent), (Added<PathfindingAgent>, Without<super::PassengerEntity>)>,
+            mut passengers: Query<
+                (Entity, &mut PathfindingAgent),
+                (Added<PathfindingAgent>, Without<super::PassengerEntity>),
+            >,
         ) {
             for (entity, mut agent) in passengers.iter_mut() {
-                if let Some(path) = find_optimal_path(
-                    &pathfinding_graph,
-                    &agent.origin,
-                    &agent.destination,
-                ) {
+                if let Some(path) =
+                    find_optimal_path(&pathfinding_graph, &agent.origin, &agent.destination)
+                {
                     agent.current_path = path;
                     agent.current_step = 0;
                     agent.state = AgentState::WaitingAtStation;
 
-                    info!("为乘客 {:?} 找到路径，共 {} 步", agent.color, agent.current_path.len());
+                    info!(
+                        "为乘客 {:?} 找到路径，共 {} 步",
+                        agent.color,
+                        agent.current_path.len()
+                    );
                 } else {
-                    warn!("无法为乘客 {:?} 找到从 {} 到 {} 的路径", agent.color, agent.origin, agent.destination);
+                    warn!(
+                        "无法为乘客 {:?} 找到从 {} 到 {} 的路径",
+                        agent.color, agent.origin, agent.destination
+                    );
                     agent.state = AgentState::GaveUp;
                 }
             }
@@ -529,7 +514,7 @@ fn update_pathfinding_graph(
             mut passengers: Query<(&mut PathfindingAgent, &mut Transform)>,
             level_manager: Res<LevelManager>,
         ) {
-            let dt = time.delta_seconds();
+            let dt = time.delta_secs();
             let tile_size = level_manager.tile_size;
 
             // 获取网格尺寸信息
@@ -545,16 +530,22 @@ fn update_pathfinding_graph(
                         agent.waiting_time += dt;
                         agent.patience -= dt;
 
-                        if agent.waiting_time > 2.0 && agent.current_step < agent.current_path.len() - 1 {
+                        if agent.waiting_time > 2.0
+                            && agent.current_step < agent.current_path.len() - 1
+                        {
                             agent.current_step += 1;
                             agent.state = AgentState::Traveling;
                             agent.waiting_time = 0.0;
                         }
-                    },
+                    }
                     AgentState::Traveling => {
                         if agent.current_step < agent.current_path.len() {
                             let current_node = &agent.current_path[agent.current_step];
-                            let target_pos = current_node.position.to_world_pos(tile_size, grid_width, grid_height);
+                            let target_pos = current_node.position.to_world_pos(
+                                tile_size,
+                                grid_width,
+                                grid_height,
+                            );
 
                             let direction = (target_pos - transform.translation).normalize();
                             let speed = 100.0;
@@ -571,10 +562,10 @@ fn update_pathfinding_graph(
                                         } else {
                                             agent.state = AgentState::Transferring;
                                         }
-                                    },
+                                    }
                                     PathNodeType::TransferPoint => {
                                         agent.state = AgentState::Transferring;
-                                    },
+                                    }
                                     _ => {
                                         agent.current_step += 1;
                                         if agent.current_step >= agent.current_path.len() {
@@ -584,7 +575,7 @@ fn update_pathfinding_graph(
                                 }
                             }
                         }
-                    },
+                    }
                     _ => {}
                 }
 
@@ -594,9 +585,7 @@ fn update_pathfinding_graph(
             }
         }
 
-        fn handle_passenger_transfers(
-            mut passengers: Query<&mut PathfindingAgent>,
-        ) {
+        fn handle_passenger_transfers(mut passengers: Query<&mut PathfindingAgent>) {
             for mut agent in passengers.iter_mut() {
                 if agent.state == AgentState::Transferring && agent.waiting_time > 1.0 {
                     if agent.current_step < agent.current_path.len() - 1 {
@@ -617,11 +606,11 @@ fn update_pathfinding_graph(
                     AgentState::Arrived => {
                         info!("乘客 {:?} 成功到达目的地", agent.color);
                         commands.entity(entity).despawn();
-                    },
+                    }
                     AgentState::GaveUp => {
                         warn!("乘客 {:?} 耐心耗尽，放弃行程", agent.color);
                         commands.entity(entity).despawn();
-                    },
+                    }
                     _ => {}
                 }
             }
@@ -641,13 +630,7 @@ fn update_pathfinding_graph(
             let mut closed_set = HashSet::new();
             let mut came_from = HashMap::new();
 
-            let start_node = AStarNode::new(
-                start_pos,
-                0.0,
-                heuristic(start_pos, end_pos),
-                None,
-                0,
-            );
+            let start_node = AStarNode::new(start_pos, 0.0, heuristic(start_pos, end_pos), None, 0);
 
             open_set.push(start_node);
 
@@ -664,13 +647,15 @@ fn update_pathfinding_graph(
                             continue;
                         }
 
-                        let route_changes = if connection.connection_type == ConnectionType::Transfer {
-                            current.route_changes + 1
-                        } else {
-                            current.route_changes
-                        };
+                        let route_changes =
+                            if connection.connection_type == ConnectionType::Transfer {
+                                current.route_changes + 1
+                            } else {
+                                current.route_changes
+                            };
 
-                        let tentative_g_cost = current.g_cost + connection.cost + (route_changes as f32 * 5.0);
+                        let tentative_g_cost =
+                            current.g_cost + connection.cost + (route_changes as f32 * 5.0);
 
                         let neighbor = AStarNode::new(
                             connection.to,
@@ -680,7 +665,8 @@ fn update_pathfinding_graph(
                             route_changes,
                         );
 
-                        let should_add = open_set.iter()
+                        let should_add = open_set
+                            .iter()
                             .find(|node| node.position == connection.to)
                             .map_or(true, |existing| neighbor.f_cost < existing.f_cost);
 
@@ -711,7 +697,7 @@ fn update_pathfinding_graph(
                     let node_type = match &node.node_type {
                         GraphNodeType::Station => {
                             PathNodeType::Station(node.station_name.clone().unwrap_or_default())
-                        },
+                        }
                         GraphNodeType::Intersection => PathNodeType::TransferPoint,
                         GraphNodeType::RouteSegment => PathNodeType::RouteSegment,
                     };
@@ -741,7 +727,11 @@ fn update_pathfinding_graph(
 
         // ============ 辅助函数 ============
 
-        fn get_segment_connections(pos: GridPos, segment_type: &RouteSegmentType, rotation: u32) -> Vec<GridPos> {
+        fn get_segment_connections(
+            pos: GridPos,
+            segment_type: &RouteSegmentType,
+            rotation: u32,
+        ) -> Vec<GridPos> {
             let base_connections = match segment_type {
                 RouteSegmentType::Straight => vec![(0, -1), (0, 1)],
                 RouteSegmentType::Curve => vec![(0, -1), (1, 0)],
@@ -750,7 +740,8 @@ fn update_pathfinding_graph(
                 RouteSegmentType::Bridge | RouteSegmentType::Tunnel => vec![(0, -1), (0, 1)],
             };
 
-            base_connections.into_iter()
+            base_connections
+                .into_iter()
                 .map(|(dx, dy)| {
                     let (new_dx, new_dy) = rotate_offset(dx, dy, rotation);
                     GridPos::new(pos.x + new_dx, pos.y + new_dy)
@@ -776,30 +767,6 @@ fn update_pathfinding_graph(
                 GridPos::new(pos.x + 1, pos.y),
             ]
         }
-
-        for adj_pos in adjacent_positions {
-            if route_segments_by_pos.contains_key(&adj_pos) {
-                // 站点到路线段
-                pathfinding_graph.connections.entry(station_pos)
-                    .or_insert_with(Vec::new)
-                    .push(Connection {
-                        to: adj_pos,
-                        cost: 0.5, // 上车成本较低
-                        route_id: None,
-                        connection_type: ConnectionType::Walk,
-                    });
-
-                // 路线段到站点
-                pathfinding_graph.connections.entry(adj_pos)
-                    .or_insert_with(Vec::new)
-                    .push(Connection {
-                        to: station_pos,
-                        cost: 0.5, // 下车成本较低
-                        route_id: None,
-                        connection_type: ConnectionType::Walk,
-                    });
-            }
-        }
     }
 }
 
@@ -807,21 +774,28 @@ fn update_pathfinding_graph(
 fn find_paths_for_new_passengers(
     mut commands: Commands,
     pathfinding_graph: Res<PathfindingGraph>,
-    mut passengers: Query<(Entity, &mut PathfindingAgent), (Added<PathfindingAgent>, Without<crate::PassengerEntity>)>,
+    mut passengers: Query<
+        (Entity, &mut PathfindingAgent),
+        (Added<PathfindingAgent>, Without<super::PassengerEntity>),
+    >,
 ) {
     for (entity, mut agent) in passengers.iter_mut() {
-        if let Some(path) = find_optimal_path(
-            &pathfinding_graph,
-            &agent.origin,
-            &agent.destination,
-        ) {
+        if let Some(path) = find_optimal_path(&pathfinding_graph, &agent.origin, &agent.destination)
+        {
             agent.current_path = path;
             agent.current_step = 0;
             agent.state = AgentState::WaitingAtStation;
 
-            info!("为乘客 {:?} 找到路径，共 {} 步", agent.color, agent.current_path.len());
+            info!(
+                "为乘客 {:?} 找到路径，共 {} 步",
+                agent.color,
+                agent.current_path.len()
+            );
         } else {
-            warn!("无法为乘客 {:?} 找到从 {} 到 {} 的路径", agent.color, agent.origin, agent.destination);
+            warn!(
+                "无法为乘客 {:?} 找到从 {} 到 {} 的路径",
+                agent.color, agent.origin, agent.destination
+            );
             agent.state = AgentState::GaveUp;
         }
     }
@@ -831,9 +805,9 @@ fn find_paths_for_new_passengers(
 fn update_passenger_movement(
     time: Res<Time>,
     mut passengers: Query<(&mut PathfindingAgent, &mut Transform)>,
-    level_manager: Res<crate::LevelManager>,
+    level_manager: Res<LevelManager>,
 ) {
-    let dt = time.delta_seconds();
+    let dt = time.delta_secs();
     let tile_size = level_manager.tile_size;
 
     // 获取网格尺寸信息
@@ -855,11 +829,14 @@ fn update_passenger_movement(
                     agent.state = AgentState::Traveling;
                     agent.waiting_time = 0.0;
                 }
-            },
+            }
             AgentState::Traveling => {
                 if agent.current_step < agent.current_path.len() {
                     let current_node = &agent.current_path[agent.current_step];
-                    let target_pos = current_node.position.to_world_pos(tile_size, grid_width, grid_height);
+                    let target_pos =
+                        current_node
+                            .position
+                            .to_world_pos(tile_size, grid_width, grid_height);
 
                     // 简单的移动插值
                     let direction = (target_pos - transform.translation).normalize();
@@ -878,10 +855,10 @@ fn update_passenger_movement(
                                 } else {
                                     agent.state = AgentState::Transferring;
                                 }
-                            },
+                            }
                             PathNodeType::TransferPoint => {
                                 agent.state = AgentState::Transferring;
-                            },
+                            }
                             _ => {
                                 // 继续移动到下一个节点
                                 agent.current_step += 1;
@@ -892,7 +869,7 @@ fn update_passenger_movement(
                         }
                     }
                 }
-            },
+            }
             _ => {} // Arrived 或 GaveUp 状态不需要更新
         }
 
@@ -904,9 +881,7 @@ fn update_passenger_movement(
 }
 
 /// 处理乘客换乘逻辑
-fn handle_passenger_transfers(
-    mut passengers: Query<&mut PathfindingAgent>,
-) {
+fn handle_passenger_transfers(mut passengers: Query<&mut PathfindingAgent>) {
     for mut agent in passengers.iter_mut() {
         if agent.state == AgentState::Transferring && agent.waiting_time > 1.0 {
             // 模拟换乘等待时间
@@ -929,11 +904,11 @@ fn cleanup_finished_passengers(
             AgentState::Arrived => {
                 info!("乘客 {:?} 成功到达目的地", agent.color);
                 commands.entity(entity).despawn();
-            },
+            }
             AgentState::GaveUp => {
                 warn!("乘客 {:?} 耐心耗尽，放弃行程", agent.color);
                 commands.entity(entity).despawn();
-            },
+            }
             _ => {}
         }
     }
@@ -955,13 +930,7 @@ fn find_optimal_path(
     let mut came_from = HashMap::new();
 
     // 初始化起点
-    let start_node = AStarNode::new(
-        start_pos,
-        0.0,
-        heuristic(start_pos, end_pos),
-        None,
-        0,
-    );
+    let start_node = AStarNode::new(start_pos, 0.0, heuristic(start_pos, end_pos), None, 0);
 
     open_set.push(start_node);
 
@@ -986,7 +955,8 @@ fn find_optimal_path(
                     current.route_changes
                 };
 
-                let tentative_g_cost = current.g_cost + connection.cost + (route_changes as f32 * 5.0); // 换乘惩罚
+                let tentative_g_cost =
+                    current.g_cost + connection.cost + (route_changes as f32 * 5.0); // 换乘惩罚
 
                 let neighbor = AStarNode::new(
                     connection.to,
@@ -997,7 +967,8 @@ fn find_optimal_path(
                 );
 
                 // 检查是否找到更好的路径
-                let should_add = open_set.iter()
+                let should_add = open_set
+                    .iter()
                     .find(|node| node.position == connection.to)
                     .map_or(true, |existing| neighbor.f_cost < existing.f_cost);
 
@@ -1030,7 +1001,7 @@ fn reconstruct_path(
             let node_type = match &node.node_type {
                 GraphNodeType::Station => {
                     PathNodeType::Station(node.station_name.clone().unwrap_or_default())
-                },
+                }
                 GraphNodeType::Intersection => PathNodeType::TransferPoint,
                 GraphNodeType::RouteSegment => PathNodeType::RouteSegment,
             };
@@ -1062,7 +1033,11 @@ fn reconstruct_path(
 // ============ 辅助函数 ============
 
 /// 根据路线段类型和旋转角度获取连接位置
-fn get_segment_connections(pos: GridPos, segment_type: &RouteSegmentType, rotation: u32) -> Vec<GridPos> {
+fn get_segment_connections(
+    pos: GridPos,
+    segment_type: &RouteSegmentType,
+    rotation: u32,
+) -> Vec<GridPos> {
     let base_connections = match segment_type {
         RouteSegmentType::Straight => vec![(0, -1), (0, 1)], // 上下连接
         RouteSegmentType::Curve => vec![(0, -1), (1, 0)],    // L型
@@ -1071,7 +1046,8 @@ fn get_segment_connections(pos: GridPos, segment_type: &RouteSegmentType, rotati
         RouteSegmentType::Bridge | RouteSegmentType::Tunnel => vec![(0, -1), (0, 1)], // 直线
     };
 
-    base_connections.into_iter()
+    base_connections
+        .into_iter()
         .map(|(dx, dy)| {
             // 根据旋转角度调整连接方向
             let (new_dx, new_dy) = rotate_offset(dx, dy, rotation);

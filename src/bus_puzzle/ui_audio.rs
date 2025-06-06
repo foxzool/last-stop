@@ -1,3 +1,4 @@
+use crate::bus_puzzle::{AudioAssets, GameScore, GameState, GameStateEnum, LevelCompletedEvent, LevelManager, ObjectiveCompletedEvent, PassengerColor, RouteSegmentType, SegmentPlacedEvent, SegmentRemovedEvent};
 use bevy::{
     audio::{PlaybackMode, Volume},
     prelude::*,
@@ -5,18 +6,6 @@ use bevy::{
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-
-// 引入之前定义的数据结构
-use crate::{
-    AgentState, GameScore, GameState, InventoryUpdatedEvent, LevelCompletedEvent, LevelData,
-    ObjectiveCompletedEvent, ObjectiveCondition, PassengerColor, PathfindingAgent,
-    RouteSegmentType, SegmentPlacedEvent, SegmentRemovedEvent,
-    bus_puzzle::{
-        GameScore, GameState, LevelCompletedEvent, LevelManager, ObjectiveCompletedEvent,
-        PassengerColor, PathfindingAgent, RouteSegmentType, SegmentPlacedEvent,
-        SegmentRemovedEvent,
-    },
-};
 // ============ UI 组件 ============
 
 #[derive(Component)]
@@ -108,17 +97,6 @@ pub enum ButtonType {
 
 // ============ 游戏状态 ============
 
-#[derive(States, Debug, Clone, PartialEq, Eq, Hash, Default)]
-pub enum GameStateEnum {
-    #[default]
-    MainMenu,
-    Loading,
-    Playing,
-    Paused,
-    LevelComplete,
-    GameOver,
-}
-
 #[derive(Resource)]
 pub struct UIAssets {
     pub font: Handle<Font>,
@@ -129,8 +107,6 @@ pub struct UIAssets {
     pub segment_icons: HashMap<RouteSegmentType, Handle<Image>>,
     pub passenger_icons: HashMap<PassengerColor, Handle<Image>>,
 }
-
-
 
 #[derive(Resource)]
 pub struct AudioSettings {

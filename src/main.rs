@@ -48,7 +48,7 @@ impl Plugin for AppPlugin {
         app.add_plugins((
             asset_tracking::plugin,
             audio::plugin,
-            bus_puzzle::BusPuzzlePlugin,
+            bus_puzzle::BusPuzzleGamePlugin,
             #[cfg(feature = "dev")]
             dev_tools::plugin,
             menus::plugin,

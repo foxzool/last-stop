@@ -1,6 +1,6 @@
 // src/bus_puzzle/level_system.rs
 
-use crate::bus_puzzle::{GridPos, GridTile, ObjectiveCondition, ObjectiveType, PassengerColor, PassengerEntity, RouteSegment, RouteSegmentType, StationEntity, StationType, TerrainType};
+use crate::bus_puzzle::{GridPos, GridTile, LevelManager, PassengerColor, PassengerEntity, RouteSegment, RouteSegmentType, StationEntity, StationType, TerrainType};
 use bevy::{platform::collections::HashMap, prelude::*};
 use serde::{Deserialize, Serialize};
 // ============ 关卡数据结构 ============
@@ -29,6 +29,23 @@ pub struct AvailableSegment {
     pub segment_type: RouteSegmentType,
     pub count: u32,
     pub cost: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ObjectiveCondition {
+    pub description: String,
+    pub condition_type: ObjectiveType,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum ObjectiveType {
+    ConnectAllPassengers,
+    MaxTransfers(u32),
+    MaxSegments(u32),
+    MaxCost(u32),
+    MinEfficiency(f32),
+    TimeLimit(f32),
+    PassengerSatisfaction(f32),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -603,15 +620,14 @@ pub fn create_advanced_level() -> LevelData {
 
 // ============ 地图生成系统 ============
 
-#[derive(Resource)]
-pub struct LevelManager {
-    pub current_level: Option<LevelData>,
-    pub tile_size: f32,
-}
 
 fn setup_level_generation(mut commands: Commands) {
     commands.insert_resource(LevelManager {
         current_level: None,
         tile_size: 64.0,
+        available_levels: vec![],
+        current_level_index: 0,
+        unlocked_levels: vec![],
+        level_scores: Default::default(),
     });
 }
