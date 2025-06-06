@@ -260,8 +260,8 @@ fn setup_main_menu(mut commands: Commands, ui_assets: Res<UIAssets>) {
     commands
         .spawn((
             Node {
-                width: Val::Percent(100.0),
-                height: Val::Percent(100.0),
+                width: Percent(100.0),
+                height: Percent(100.0),
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
                 flex_direction: FlexDirection::Column,
@@ -352,7 +352,7 @@ fn setup_gameplay_ui(mut commands: Commands, ui_assets: Res<UIAssets>, game_stat
     commands
         .spawn((
             Node {
-                width: Val::Percent(100.0),
+                width: Percent(100.0),
                 height: Px(80.0),
                 position_type: PositionType::Absolute,
                 top: Px(0.0),
@@ -456,7 +456,7 @@ fn setup_gameplay_ui(mut commands: Commands, ui_assets: Res<UIAssets>, game_stat
         .spawn((
             Node {
                 width: Px(120.0),
-                height: Val::Percent(80.0),
+                height: Percent(80.0),
                 position_type: PositionType::Absolute,
                 left: Px(10.0),
                 top: Px(90.0),
@@ -640,8 +640,8 @@ fn setup_pause_menu(mut commands: Commands, ui_assets: Res<UIAssets>) {
     commands
         .spawn((
             Node {
-                width: Val::Percent(100.0),
-                height: Val::Percent(100.0),
+                width: Percent(100.0),
+                height: Percent(100.0),
                 position_type: PositionType::Absolute,
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
@@ -701,8 +701,8 @@ fn setup_level_complete_ui(
     commands
         .spawn((
             Node {
-                width: Val::Percent(100.0),
-                height: Val::Percent(100.0),
+                width: Percent(100.0),
+                height: Percent(100.0),
                 position_type: PositionType::Absolute,
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
@@ -1160,7 +1160,7 @@ fn update_progress_bars(
         };
 
         progress_bar.current_value = progress * progress_bar.max_value;
-        node.width = Val::Percent(progress * 100.0);
+        node.width = Percent(progress * 100.0);
     }
 }
 
