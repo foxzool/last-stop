@@ -143,13 +143,6 @@ pub struct AudioSettings {
     pub is_muted: bool,
 }
 
-#[derive(Resource)]
-pub struct LevelManager {
-    pub available_levels: Vec<String>,
-    pub current_level_index: usize,
-    pub unlocked_levels: Vec<bool>,
-    pub level_scores: HashMap<String, u32>,
-}
 
 // ============ 插件系统 ============
 

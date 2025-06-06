@@ -8,6 +8,7 @@ pub mod ui_audio;
 pub mod components;
 pub mod resources;
 pub mod events;
+pub mod utils;
 
 
 // 重新导出主要类型
@@ -18,6 +19,7 @@ pub use level_system::*;
 pub use pathfinding::*;
 pub use interaction::*;
 pub use ui_audio::*;
+pub use utils::*;
 
 use bevy::prelude::*;
 

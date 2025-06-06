@@ -44,7 +44,7 @@ pub enum TerrainType {
 }
 
 // 路线段类型
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Hash, Eq)]
 pub enum RouteSegmentType {
     Straight,
     Curve,
@@ -113,7 +113,7 @@ pub struct AvailableSegment {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ObjectiveCondition {
     pub description: String,
-    pub condition_type: crate::bus_puzzle::ObjectiveType,
+    pub condition_type: ObjectiveType,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
