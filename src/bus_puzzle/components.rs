@@ -1,6 +1,5 @@
+use crate::bus_puzzle::{LevelData, PathNode, Station};
 use bevy::prelude::*;
-
-use super::{LevelData, Station};
 use serde::{Deserialize, Serialize};
 
 // 基础数据结构
@@ -44,7 +43,7 @@ pub enum TerrainType {
 }
 
 // 路线段类型
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Hash, Eq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum RouteSegmentType {
     Straight,
     Curve,
@@ -103,26 +102,78 @@ pub struct PassengerEntity {
     pub path: Vec<GridPos>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct AvailableSegment {
+// 寻路组件
+#[derive(Component)]
+pub struct PathfindingAgent {
+    pub color: PassengerColor,
+    pub origin: String,
+    pub destination: String,
+    pub current_path: Vec<PathNode>,
+    pub current_step: usize,
+    pub state: AgentState,
+    pub patience: f32,
+    pub max_patience: f32,
+    pub waiting_time: f32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum AgentState {
+    WaitingAtStation,
+    Traveling,
+    Transferring,
+    Arrived,
+    GaveUp,
+}
+
+// UI 组件
+#[derive(Component)]
+pub struct MainMenuUI;
+
+#[derive(Component)]
+pub struct GameplayUI;
+
+#[derive(Component)]
+pub struct PauseMenuUI;
+
+#[derive(Component)]
+pub struct LevelCompleteUI;
+
+#[derive(Component)]
+pub struct InventoryUI {
     pub segment_type: RouteSegmentType,
-    pub count: u32, // 可用数量
-    pub cost: u32,  // 建设成本
+    pub slot_index: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ObjectiveCondition {
-    pub description: String,
-    pub condition_type: ObjectiveType,
+#[derive(Component)]
+pub struct ObjectiveUI {
+    pub objective_index: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum ObjectiveType {
-    ConnectAllPassengers,       // 连接所有乘客到目的地
-    MaxTransfers(u32),          // 最大换乘次数限制
-    MaxSegments(u32),           // 最大路段数量限制
-    MaxCost(u32),               // 最大建设成本限制
-    MinEfficiency(f32),         // 最小效率要求
-    TimeLimit(f32),             // 时间限制（秒）
-    PassengerSatisfaction(f32), // 乘客满意度要求
+#[derive(Component)]
+pub struct ScoreText;
+
+#[derive(Component)]
+pub struct TimerText;
+
+#[derive(Component)]
+pub struct CostText;
+
+#[derive(Component)]
+pub struct PassengerCountText;
+
+// 交互组件
+#[derive(Component)]
+pub struct DraggableSegment {
+    pub segment_type: RouteSegmentType,
+    pub rotation: u32,
+    pub is_being_dragged: bool,
+    pub is_placed: bool,
+    pub cost: u32,
+}
+
+#[derive(Component)]
+pub struct SegmentPreview {
+    pub segment_type: RouteSegmentType,
+    pub rotation: u32,
+    pub target_position: GridPos,
 }

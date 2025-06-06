@@ -415,31 +415,68 @@ fn update_objectives(
     passengers: Query<&PathfindingAgent>,
     mut objective_completed_events: EventWriter<ObjectiveCompletedEvent>,
 ) {
-    // 先获取需要的数据，避免借用冲突
+    // First, determine the number of objectives and ensure objectives_completed is sized.
     let objectives_len = if let Some(level_data) = &game_state.current_level {
         level_data.objectives.len()
     } else {
+        // No level data, so no objectives to check.
         return;
     };
 
-    // 确保 objectives_completed 有足够的长度
+    // Ensure objectives_completed has the correct length.
+    // This mutable borrow is fine as the immutable borrow for objectives_len has ended.
     if game_state.objectives_completed.len() < objectives_len {
         game_state
             .objectives_completed
             .resize(objectives_len, false);
     }
 
-    // 现在可以安全地获取 level_data 的引用
+    let mut completed_objective_indices = Vec::new();
+
+    // Phase 1: Check objectives and collect indices of newly completed ones.
+    // This phase only reads from game_state related to objectives.
     if let Some(level_data) = &game_state.current_level {
-        for (i, objective) in level_data.objectives.iter().enumerate() {
+        // Immutable borrow of game_state.current_level via level_data.
+        // This borrow lasts for the scope of this if-let block.
+        let objectives = &level_data.objectives;
+
+        for (i, objective) in objectives.iter().enumerate() {
+            // Read from game_state.objectives_completed (immutable).
+            // This is fine alongside the immutable borrow of game_state.current_level.
             if !game_state.objectives_completed[i] {
-                let is_completed = check_objective_completion(objective, &game_state, &passengers);
+                // Pass an immutable reference to game_state.
+                // Bevy systems auto-deref ResMut<T> to &T or &mut T as needed.
+                // Here, &*game_state explicitly gives &GameState.
+                let is_completed = check_objective_completion(objective, &*game_state, &passengers);
 
                 if is_completed {
-                    game_state.objectives_completed[i] = true;
-                    objective_completed_events.send(ObjectiveCompletedEvent { objective_index: i });
-                    info!("目标完成: {}", objective.description);
+                    completed_objective_indices.push(i);
                 }
+            }
+        }
+    } // Immutable borrow of game_state.current_level (level_data) ends here.
+
+    // Phase 2: Apply updates for completed objectives.
+    // All conflicting immutable borrows from Phase 1 have ended.
+    // We can now safely mutate game_state.
+    for index in completed_objective_indices {
+        // It's good practice to check again, though with ResMut it might be redundant
+        // if this system is the sole writer to objectives_completed.
+        if game_state.objectives_completed.get(index) == Some(&false) {
+            game_state.objectives_completed[index] = true;
+            objective_completed_events.send(ObjectiveCompletedEvent { objective_index: index });
+
+            // Log completion with description. This requires another short immutable borrow.
+            if let Some(level_data) = &game_state.current_level { // Short immutable borrow
+                if let Some(objective) = level_data.objectives.get(index) {
+                    info!("目标完成: {}", objective.description);
+                } else {
+                    // This case should ideally not happen if index is valid.
+                    info!("目标 {} 完成 (描述信息获取失败)", index);
+                }
+            } else {
+                 // This case should also ideally not happen if we passed phase 1.
+                info!("目标 {} 完成 (关卡数据获取失败)", index);
             }
         }
     }

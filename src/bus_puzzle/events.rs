@@ -1,5 +1,5 @@
-use bevy::prelude::Event;
-use crate::bus_puzzle::{GridPos, RouteSegmentType};
+use crate::bus_puzzle::{GridPos, PassengerColor, RouteSegmentType};
+use bevy::prelude::*;
 
 #[derive(Event)]
 pub struct SegmentPlacedEvent {
@@ -28,4 +28,18 @@ pub struct LevelCompletedEvent {
 pub struct InventoryUpdatedEvent {
     pub segment_type: RouteSegmentType,
     pub new_count: u32,
+}
+
+#[derive(Event)]
+pub struct PassengerSpawnedEvent {
+    pub color: PassengerColor,
+    pub origin: String,
+    pub destination: String,
+}
+
+#[derive(Event)]
+pub struct PassengerArrivedEvent {
+    pub color: PassengerColor,
+    pub travel_time: f32,
+    pub transfers: u32,
 }

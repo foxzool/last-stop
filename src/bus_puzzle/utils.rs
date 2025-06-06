@@ -1,8 +1,13 @@
+use crate::bus_puzzle::{GridPos, PassengerColor};
 use bevy::prelude::*;
-use super::{GridPos, LevelData};
 
 /// 将世界坐标转换为网格坐标
-pub fn world_to_grid(world_pos: Vec3, tile_size: f32, grid_width: u32, grid_height: u32) -> GridPos {
+pub fn world_to_grid(
+    world_pos: Vec3,
+    tile_size: f32,
+    grid_width: u32,
+    grid_height: u32,
+) -> GridPos {
     let center_offset_x = (grid_width as f32 - 1.0) * tile_size * 0.5;
     let center_offset_y = (grid_height as f32 - 1.0) * tile_size * 0.5;
 
@@ -22,8 +27,7 @@ pub fn manhattan_distance(pos1: GridPos, pos2: GridPos) -> u32 {
 
 /// 检查网格位置是否在边界内
 pub fn is_within_bounds(pos: GridPos, grid_size: (u32, u32)) -> bool {
-    pos.x >= 0 && pos.y >= 0 &&
-        pos.x < grid_size.0 as i32 && pos.y < grid_size.1 as i32
+    pos.x >= 0 && pos.y >= 0 && pos.x < grid_size.0 as i32 && pos.y < grid_size.1 as i32
 }
 
 /// 获取网格位置的相邻位置（四个方向）
@@ -56,13 +60,13 @@ pub fn format_time(seconds: f32) -> String {
 }
 
 /// 颜色工具函数
-pub fn get_passenger_color(passenger_color: crate::PassengerColor) -> Color {
+pub fn get_passenger_color(passenger_color: PassengerColor) -> Color {
     match passenger_color {
-        crate::PassengerColor::Red => Color::srgb(1.0, 0.2, 0.2),
-        crate::PassengerColor::Blue => Color::srgb(0.2, 0.2, 1.0),
-        crate::PassengerColor::Green => Color::srgb(0.2, 1.0, 0.2),
-        crate::PassengerColor::Yellow => Color::srgb(1.0, 1.0, 0.2),
-        crate::PassengerColor::Purple => Color::srgb(0.8, 0.2, 0.8),
-        crate::PassengerColor::Orange => Color::srgb(1.0, 0.6, 0.2),
+        PassengerColor::Red => Color::srgb(1.0, 0.2, 0.2),
+        PassengerColor::Blue => Color::srgb(0.2, 0.2, 1.0),
+        PassengerColor::Green => Color::srgb(0.2, 1.0, 0.2),
+        PassengerColor::Yellow => Color::srgb(1.0, 1.0, 0.2),
+        PassengerColor::Purple => Color::srgb(0.8, 0.2, 0.8),
+        PassengerColor::Orange => Color::srgb(1.0, 0.6, 0.2),
     }
 }

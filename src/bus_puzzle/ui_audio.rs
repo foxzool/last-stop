@@ -1,16 +1,22 @@
-use bevy::prelude::*;
-use bevy::ui::Val::*;
-use bevy::audio::{PlaybackMode, Volume};
-use std::collections::HashMap;
+use bevy::{
+    audio::{PlaybackMode, Volume},
+    prelude::*,
+    ui::Val::*,
+};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 // 引入之前定义的数据结构
 use crate::{
-    LevelData, GameState, GameScore, ObjectiveCondition, RouteSegmentType,
-    SegmentPlacedEvent, SegmentRemovedEvent, ObjectiveCompletedEvent, LevelCompletedEvent,
-    InventoryUpdatedEvent, PathfindingAgent, AgentState, PassengerColor
+    AgentState, GameScore, GameState, InventoryUpdatedEvent, LevelCompletedEvent, LevelData,
+    ObjectiveCompletedEvent, ObjectiveCondition, PassengerColor, PathfindingAgent,
+    RouteSegmentType, SegmentPlacedEvent, SegmentRemovedEvent,
+    bus_puzzle::{
+        GameScore, GameState, LevelCompletedEvent, LevelManager, ObjectiveCompletedEvent,
+        PassengerColor, PathfindingAgent, RouteSegmentType, SegmentPlacedEvent,
+        SegmentRemovedEvent,
+    },
 };
-
 // ============ UI 组件 ============
 
 #[derive(Component)]
@@ -102,8 +108,9 @@ pub enum ButtonType {
 
 // ============ 游戏状态 ============
 
-#[derive(States, Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(States, Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub enum GameStateEnum {
+    #[default]
     MainMenu,
     Loading,
     Playing,
@@ -123,17 +130,7 @@ pub struct UIAssets {
     pub passenger_icons: HashMap<PassengerColor, Handle<Image>>,
 }
 
-#[derive(Resource)]
-pub struct AudioAssets {
-    pub background_music: Handle<AudioSource>,
-    pub segment_place_sound: Handle<AudioSource>,
-    pub segment_remove_sound: Handle<AudioSource>,
-    pub passenger_arrive_sound: Handle<AudioSource>,
-    pub objective_complete_sound: Handle<AudioSource>,
-    pub level_complete_sound: Handle<AudioSource>,
-    pub button_click_sound: Handle<AudioSource>,
-    pub error_sound: Handle<AudioSource>,
-}
+
 
 #[derive(Resource)]
 pub struct AudioSettings {
@@ -143,14 +140,13 @@ pub struct AudioSettings {
     pub is_muted: bool,
 }
 
-
 // ============ 插件系统 ============
 
 pub struct GameUIPlugin;
 
 impl Plugin for GameUIPlugin {
     fn build(&self, app: &mut App) {
-        app.add_state::<GameStateEnum>()
+        app.init_state::<GameStateEnum>()
             .insert_resource(AudioSettings {
                 master_volume: 1.0,
                 music_volume: 0.7,
@@ -163,33 +159,41 @@ impl Plugin for GameUIPlugin {
                 unlocked_levels: vec![true, false],
                 level_scores: HashMap::new(),
             })
-            .add_systems(Startup, (
-                load_ui_assets,
-                load_audio_assets,
-            ))
+            .add_systems(Startup, (load_ui_assets, load_audio_assets))
             .add_systems(OnEnter(GameStateEnum::MainMenu), setup_main_menu)
             .add_systems(OnEnter(GameStateEnum::Playing), setup_gameplay_ui)
             .add_systems(OnEnter(GameStateEnum::Paused), setup_pause_menu)
-            .add_systems(OnEnter(GameStateEnum::LevelComplete), setup_level_complete_ui)
+            .add_systems(
+                OnEnter(GameStateEnum::LevelComplete),
+                setup_level_complete_ui,
+            )
             .add_systems(OnExit(GameStateEnum::MainMenu), cleanup_main_menu)
             .add_systems(OnExit(GameStateEnum::Playing), cleanup_gameplay_ui)
             .add_systems(OnExit(GameStateEnum::Paused), cleanup_pause_menu)
-            .add_systems(OnExit(GameStateEnum::LevelComplete), cleanup_level_complete_ui)
-            .add_systems(Update, (
-                handle_button_interactions,
-                update_ui_animations,
-                update_gameplay_ui_values,
-                update_progress_bars,
-                handle_audio_events,
-                update_background_music,
-            ).run_if(in_state(GameStateEnum::Playing)))
-            .add_systems(Update, (
-                handle_menu_buttons,
-            ).run_if(in_state(GameStateEnum::MainMenu)))
-            .add_systems(Update, (
-                handle_pause_input,
-                handle_pause_buttons,
-            ).run_if(in_state(GameStateEnum::Paused)));
+            .add_systems(
+                OnExit(GameStateEnum::LevelComplete),
+                cleanup_level_complete_ui,
+            )
+            .add_systems(
+                Update,
+                (
+                    handle_button_interactions,
+                    update_ui_animations,
+                    update_gameplay_ui_values,
+                    update_progress_bars,
+                    handle_audio_events,
+                    update_background_music,
+                )
+                    .run_if(in_state(GameStateEnum::Playing)),
+            )
+            .add_systems(
+                Update,
+                (handle_menu_buttons,).run_if(in_state(GameStateEnum::MainMenu)),
+            )
+            .add_systems(
+                Update,
+                (handle_pause_input, handle_pause_buttons).run_if(in_state(GameStateEnum::Paused)),
+            );
     }
 }
 
@@ -197,20 +201,56 @@ impl Plugin for GameUIPlugin {
 
 fn load_ui_assets(mut commands: Commands, asset_server: Res<AssetServer>) {
     let mut segment_icons = HashMap::new();
-    segment_icons.insert(RouteSegmentType::Straight, asset_server.load("ui/icons/straight_icon.png"));
-    segment_icons.insert(RouteSegmentType::Curve, asset_server.load("ui/icons/curve_icon.png"));
-    segment_icons.insert(RouteSegmentType::TSplit, asset_server.load("ui/icons/tsplit_icon.png"));
-    segment_icons.insert(RouteSegmentType::Cross, asset_server.load("ui/icons/cross_icon.png"));
-    segment_icons.insert(RouteSegmentType::Bridge, asset_server.load("ui/icons/bridge_icon.png"));
-    segment_icons.insert(RouteSegmentType::Tunnel, asset_server.load("ui/icons/tunnel_icon.png"));
+    segment_icons.insert(
+        RouteSegmentType::Straight,
+        asset_server.load("ui/icons/straight_icon.png"),
+    );
+    segment_icons.insert(
+        RouteSegmentType::Curve,
+        asset_server.load("ui/icons/curve_icon.png"),
+    );
+    segment_icons.insert(
+        RouteSegmentType::TSplit,
+        asset_server.load("ui/icons/tsplit_icon.png"),
+    );
+    segment_icons.insert(
+        RouteSegmentType::Cross,
+        asset_server.load("ui/icons/cross_icon.png"),
+    );
+    segment_icons.insert(
+        RouteSegmentType::Bridge,
+        asset_server.load("ui/icons/bridge_icon.png"),
+    );
+    segment_icons.insert(
+        RouteSegmentType::Tunnel,
+        asset_server.load("ui/icons/tunnel_icon.png"),
+    );
 
     let mut passenger_icons = HashMap::new();
-    passenger_icons.insert(PassengerColor::Red, asset_server.load("ui/icons/passenger_red.png"));
-    passenger_icons.insert(PassengerColor::Blue, asset_server.load("ui/icons/passenger_blue.png"));
-    passenger_icons.insert(PassengerColor::Green, asset_server.load("ui/icons/passenger_green.png"));
-    passenger_icons.insert(PassengerColor::Yellow, asset_server.load("ui/icons/passenger_yellow.png"));
-    passenger_icons.insert(PassengerColor::Purple, asset_server.load("ui/icons/passenger_purple.png"));
-    passenger_icons.insert(PassengerColor::Orange, asset_server.load("ui/icons/passenger_orange.png"));
+    passenger_icons.insert(
+        PassengerColor::Red,
+        asset_server.load("ui/icons/passenger_red.png"),
+    );
+    passenger_icons.insert(
+        PassengerColor::Blue,
+        asset_server.load("ui/icons/passenger_blue.png"),
+    );
+    passenger_icons.insert(
+        PassengerColor::Green,
+        asset_server.load("ui/icons/passenger_green.png"),
+    );
+    passenger_icons.insert(
+        PassengerColor::Yellow,
+        asset_server.load("ui/icons/passenger_yellow.png"),
+    );
+    passenger_icons.insert(
+        PassengerColor::Purple,
+        asset_server.load("ui/icons/passenger_purple.png"),
+    );
+    passenger_icons.insert(
+        PassengerColor::Orange,
+        asset_server.load("ui/icons/passenger_orange.png"),
+    );
 
     commands.insert_resource(UIAssets {
         font: asset_server.load("fonts/FiraSans-Bold.ttf"),
@@ -240,55 +280,60 @@ fn load_audio_assets(mut commands: Commands, asset_server: Res<AssetServer>) {
 
 fn setup_main_menu(mut commands: Commands, ui_assets: Res<UIAssets>) {
     // 主菜单背景
-    commands.spawn((
-        NodeBundle {
-            style: Style {
-                width: Percent(100.0),
-                height: Percent(100.0),
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
-                flex_direction: FlexDirection::Column,
-                ..default()
-            },
-            background_color: Color::srgb(0.1, 0.1, 0.2).into(),
-            ..default()
-        },
-        MainMenuUI,
-    ))
-        .with_children(|parent| {
-            // 游戏标题
-            parent.spawn(TextBundle::from_section(
-                "公交路线拼图",
-                TextStyle {
-                    font: ui_assets.font.clone(),
-                    font_size: 60.0,
-                    color: Color::WHITE,
-                },
-            ).with_style(Style {
-                margin: UiRect::bottom(Px(50.0)),
-                ..default()
-            }));
-
-            // 开始游戏按钮
-            parent.spawn((
-                ButtonBundle {
-                    style: Style {
-                        width: Px(200.0),
-                        height: Px(60.0),
-                        justify_content: JustifyContent::Center,
-                        align_items: AlignItems::Center,
-                        margin: UiRect::all(Px(10.0)),
-                        ..default()
-                    },
-                    background_color: Color::srgb(0.2, 0.6, 0.2).into(),
+    commands
+        .spawn((
+            NodeBundle {
+                style: Style {
+                    width: Percent(100.0),
+                    height: Percent(100.0),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    flex_direction: FlexDirection::Column,
                     ..default()
                 },
-                ButtonComponent {
-                    button_type: ButtonType::StartGame,
-                    is_hovered: false,
-                    is_pressed: false,
-                },
-            ))
+                background_color: Color::srgb(0.1, 0.1, 0.2).into(),
+                ..default()
+            },
+            MainMenuUI,
+        ))
+        .with_children(|parent| {
+            // 游戏标题
+            parent.spawn(
+                TextBundle::from_section(
+                    "公交路线拼图",
+                    TextStyle {
+                        font: ui_assets.font.clone(),
+                        font_size: 60.0,
+                        color: Color::WHITE,
+                    },
+                )
+                .with_style(Style {
+                    margin: UiRect::bottom(Px(50.0)),
+                    ..default()
+                }),
+            );
+
+            // 开始游戏按钮
+            parent
+                .spawn((
+                    ButtonBundle {
+                        style: Style {
+                            width: Px(200.0),
+                            height: Px(60.0),
+                            justify_content: JustifyContent::Center,
+                            align_items: AlignItems::Center,
+                            margin: UiRect::all(Px(10.0)),
+                            ..default()
+                        },
+                        background_color: Color::srgb(0.2, 0.6, 0.2).into(),
+                        ..default()
+                    },
+                    ButtonComponent {
+                        button_type: ButtonType::StartGame,
+                        is_hovered: false,
+                        is_pressed: false,
+                    },
+                ))
                 .with_children(|parent| {
                     parent.spawn(TextBundle::from_section(
                         "开始游戏",
@@ -301,25 +346,26 @@ fn setup_main_menu(mut commands: Commands, ui_assets: Res<UIAssets>) {
                 });
 
             // 退出游戏按钮
-            parent.spawn((
-                ButtonBundle {
-                    style: Style {
-                        width: Px(200.0),
-                        height: Px(60.0),
-                        justify_content: JustifyContent::Center,
-                        align_items: AlignItems::Center,
-                        margin: UiRect::all(Px(10.0)),
+            parent
+                .spawn((
+                    ButtonBundle {
+                        style: Style {
+                            width: Px(200.0),
+                            height: Px(60.0),
+                            justify_content: JustifyContent::Center,
+                            align_items: AlignItems::Center,
+                            margin: UiRect::all(Px(10.0)),
+                            ..default()
+                        },
+                        background_color: Color::srgb(0.6, 0.2, 0.2).into(),
                         ..default()
                     },
-                    background_color: Color::srgb(0.6, 0.2, 0.2).into(),
-                    ..default()
-                },
-                ButtonComponent {
-                    button_type: ButtonType::QuitGame,
-                    is_hovered: false,
-                    is_pressed: false,
-                },
-            ))
+                    ButtonComponent {
+                        button_type: ButtonType::QuitGame,
+                        is_hovered: false,
+                        is_pressed: false,
+                    },
+                ))
                 .with_children(|parent| {
                     parent.spawn(TextBundle::from_section(
                         "退出游戏",
@@ -335,36 +381,38 @@ fn setup_main_menu(mut commands: Commands, ui_assets: Res<UIAssets>) {
 
 fn setup_gameplay_ui(mut commands: Commands, ui_assets: Res<UIAssets>, game_state: Res<GameState>) {
     // 顶部状态栏
-    commands.spawn((
-        NodeBundle {
-            style: Style {
-                width: Percent(100.0),
-                height: Px(80.0),
-                position_type: PositionType::Absolute,
-                top: Px(0.0),
-                left: Px(0.0),
-                justify_content: JustifyContent::SpaceBetween,
-                align_items: AlignItems::Center,
-                padding: UiRect::all(Px(20.0)),
-                ..default()
-            },
-            background_color: Color::srgba(0.0, 0.0, 0.0, 0.8).into(),
-            z_index: ZIndex::Global(1000),
-            ..default()
-        },
-        GameplayUI,
-    ))
-        .with_children(|parent| {
-            // 左侧信息组
-            parent.spawn(NodeBundle {
+    commands
+        .spawn((
+            NodeBundle {
                 style: Style {
-                    flex_direction: FlexDirection::Row,
+                    width: Percent(100.0),
+                    height: Px(80.0),
+                    position_type: PositionType::Absolute,
+                    top: Px(0.0),
+                    left: Px(0.0),
+                    justify_content: JustifyContent::SpaceBetween,
                     align_items: AlignItems::Center,
-                    gap: Px(20.0),
+                    padding: UiRect::all(Px(20.0)),
                     ..default()
                 },
+                background_color: Color::srgba(0.0, 0.0, 0.0, 0.8).into(),
+                z_index: ZIndex::Global(1000),
                 ..default()
-            })
+            },
+            GameplayUI,
+        ))
+        .with_children(|parent| {
+            // 左侧信息组
+            parent
+                .spawn(NodeBundle {
+                    style: Style {
+                        flex_direction: FlexDirection::Row,
+                        align_items: AlignItems::Center,
+                        gap: Px(20.0),
+                        ..default()
+                    },
+                    ..default()
+                })
                 .with_children(|parent| {
                     // 分数显示
                     parent.spawn((
@@ -420,24 +468,25 @@ fn setup_gameplay_ui(mut commands: Commands, ui_assets: Res<UIAssets>, game_stat
                 });
 
             // 右侧按钮
-            parent.spawn((
-                ButtonBundle {
-                    style: Style {
-                        width: Px(100.0),
-                        height: Px(40.0),
-                        justify_content: JustifyContent::Center,
-                        align_items: AlignItems::Center,
+            parent
+                .spawn((
+                    ButtonBundle {
+                        style: Style {
+                            width: Px(100.0),
+                            height: Px(40.0),
+                            justify_content: JustifyContent::Center,
+                            align_items: AlignItems::Center,
+                            ..default()
+                        },
+                        background_color: Color::srgb(0.3, 0.3, 0.3).into(),
                         ..default()
                     },
-                    background_color: Color::srgb(0.3, 0.3, 0.3).into(),
-                    ..default()
-                },
-                ButtonComponent {
-                    button_type: ButtonType::PauseGame,
-                    is_hovered: false,
-                    is_pressed: false,
-                },
-            ))
+                    ButtonComponent {
+                        button_type: ButtonType::PauseGame,
+                        is_hovered: false,
+                        is_pressed: false,
+                    },
+                ))
                 .with_children(|parent| {
                     parent.spawn(TextBundle::from_section(
                         "暂停",
@@ -451,25 +500,26 @@ fn setup_gameplay_ui(mut commands: Commands, ui_assets: Res<UIAssets>, game_stat
         });
 
     // 左侧库存面板
-    commands.spawn((
-        NodeBundle {
-            style: Style {
-                width: Px(120.0),
-                height: Percent(80.0),
-                position_type: PositionType::Absolute,
-                left: Px(10.0),
-                top: Px(90.0),
-                flex_direction: FlexDirection::Column,
-                padding: UiRect::all(Px(10.0)),
-                gap: Px(10.0),
+    commands
+        .spawn((
+            NodeBundle {
+                style: Style {
+                    width: Px(120.0),
+                    height: Percent(80.0),
+                    position_type: PositionType::Absolute,
+                    left: Px(10.0),
+                    top: Px(90.0),
+                    flex_direction: FlexDirection::Column,
+                    padding: UiRect::all(Px(10.0)),
+                    gap: Px(10.0),
+                    ..default()
+                },
+                background_color: Color::srgba(0.2, 0.2, 0.2, 0.9).into(),
+                z_index: ZIndex::Global(999),
                 ..default()
             },
-            background_color: Color::srgba(0.2, 0.2, 0.2, 0.9).into(),
-            z_index: ZIndex::Global(999),
-            ..default()
-        },
-        GameplayUI,
-    ))
+            GameplayUI,
+        ))
         .with_children(|parent| {
             // 库存标题
             parent.spawn(TextBundle::from_section(
@@ -492,36 +542,42 @@ fn setup_gameplay_ui(mut commands: Commands, ui_assets: Res<UIAssets>, game_stat
             ];
 
             for (index, segment_type) in segment_types.iter().enumerate() {
-                let available_count = game_state.player_inventory.get(segment_type).copied().unwrap_or(0);
+                let available_count = game_state
+                    .player_inventory
+                    .get(segment_type)
+                    .copied()
+                    .unwrap_or(0);
 
-                parent.spawn((
-                    ButtonBundle {
-                        style: Style {
-                            width: Px(80.0),
-                            height: Px(80.0),
-                            justify_content: JustifyContent::Center,
-                            align_items: AlignItems::Center,
-                            border: UiRect::all(Px(2.0)),
+                parent
+                    .spawn((
+                        ButtonBundle {
+                            style: Style {
+                                width: Px(80.0),
+                                height: Px(80.0),
+                                justify_content: JustifyContent::Center,
+                                align_items: AlignItems::Center,
+                                border: UiRect::all(Px(2.0)),
+                                ..default()
+                            },
+                            background_color: if available_count > 0 {
+                                Color::srgb(0.4, 0.4, 0.4)
+                            } else {
+                                Color::srgb(0.2, 0.2, 0.2)
+                            }
+                            .into(),
+                            border_color: Color::WHITE.into(),
                             ..default()
                         },
-                        background_color: if available_count > 0 {
-                            Color::srgb(0.4, 0.4, 0.4)
-                        } else {
-                            Color::srgb(0.2, 0.2, 0.2)
-                        }.into(),
-                        border_color: Color::WHITE.into(),
-                        ..default()
-                    },
-                    ButtonComponent {
-                        button_type: ButtonType::InventorySlot(segment_type.clone()),
-                        is_hovered: false,
-                        is_pressed: false,
-                    },
-                    InventoryUI {
-                        segment_type: segment_type.clone(),
-                        slot_index: index,
-                    },
-                ))
+                        ButtonComponent {
+                            button_type: ButtonType::InventorySlot(segment_type.clone()),
+                            is_hovered: false,
+                            is_pressed: false,
+                        },
+                        InventoryUI {
+                            segment_type: segment_type.clone(),
+                            slot_index: index,
+                        },
+                    ))
                     .with_children(|parent| {
                         // 路线段图标
                         if let Some(icon) = ui_assets.segment_icons.get(segment_type) {
@@ -537,44 +593,48 @@ fn setup_gameplay_ui(mut commands: Commands, ui_assets: Res<UIAssets>, game_stat
                         }
 
                         // 数量文本
-                        parent.spawn(TextBundle::from_section(
-                            format!("{}", available_count),
-                            TextStyle {
-                                font: ui_assets.font.clone(),
-                                font_size: 14.0,
-                                color: Color::WHITE,
-                            },
-                        ).with_style(Style {
-                            position_type: PositionType::Absolute,
-                            bottom: Px(5.0),
-                            right: Px(5.0),
-                            ..default()
-                        }));
+                        parent.spawn(
+                            TextBundle::from_section(
+                                format!("{}", available_count),
+                                TextStyle {
+                                    font: ui_assets.font.clone(),
+                                    font_size: 14.0,
+                                    color: Color::WHITE,
+                                },
+                            )
+                            .with_style(Style {
+                                position_type: PositionType::Absolute,
+                                bottom: Px(5.0),
+                                right: Px(5.0),
+                                ..default()
+                            }),
+                        );
                     });
             }
         });
 
     // 右侧目标面板
     if let Some(level_data) = &game_state.current_level {
-        commands.spawn((
-            NodeBundle {
-                style: Style {
-                    width: Px(300.0),
-                    height: Px(200.0),
-                    position_type: PositionType::Absolute,
-                    right: Px(10.0),
-                    top: Px(90.0),
-                    flex_direction: FlexDirection::Column,
-                    padding: UiRect::all(Px(15.0)),
-                    gap: Px(10.0),
+        commands
+            .spawn((
+                NodeBundle {
+                    style: Style {
+                        width: Px(300.0),
+                        height: Px(200.0),
+                        position_type: PositionType::Absolute,
+                        right: Px(10.0),
+                        top: Px(90.0),
+                        flex_direction: FlexDirection::Column,
+                        padding: UiRect::all(Px(15.0)),
+                        gap: Px(10.0),
+                        ..default()
+                    },
+                    background_color: Color::srgba(0.2, 0.2, 0.2, 0.9).into(),
+                    z_index: ZIndex::Global(999),
                     ..default()
                 },
-                background_color: Color::srgba(0.2, 0.2, 0.2, 0.9).into(),
-                z_index: ZIndex::Global(999),
-                ..default()
-            },
-            GameplayUI,
-        ))
+                GameplayUI,
+            ))
             .with_children(|parent| {
                 // 目标标题
                 parent.spawn(TextBundle::from_section(
@@ -588,20 +648,27 @@ fn setup_gameplay_ui(mut commands: Commands, ui_assets: Res<UIAssets>, game_stat
 
                 // 目标列表
                 for (index, objective) in level_data.objectives.iter().enumerate() {
-                    let is_completed = game_state.objectives_completed.get(index).copied().unwrap_or(false);
+                    let is_completed = game_state
+                        .objectives_completed
+                        .get(index)
+                        .copied()
+                        .unwrap_or(false);
 
-                    parent.spawn((
-                        NodeBundle {
-                            style: Style {
-                                flex_direction: FlexDirection::Row,
-                                align_items: AlignItems::Center,
-                                gap: Px(10.0),
+                    parent
+                        .spawn((
+                            NodeBundle {
+                                style: Style {
+                                    flex_direction: FlexDirection::Row,
+                                    align_items: AlignItems::Center,
+                                    gap: Px(10.0),
+                                    ..default()
+                                },
                                 ..default()
                             },
-                            ..default()
-                        },
-                        ObjectiveUI { objective_index: index },
-                    ))
+                            ObjectiveUI {
+                                objective_index: index,
+                            },
+                        ))
                         .with_children(|parent| {
                             // 完成状态指示器
                             parent.spawn(NodeBundle {
@@ -614,7 +681,8 @@ fn setup_gameplay_ui(mut commands: Commands, ui_assets: Res<UIAssets>, game_stat
                                     Color::srgb(0.0, 1.0, 0.0)
                                 } else {
                                     Color::srgb(0.5, 0.5, 0.5)
-                                }.into(),
+                                }
+                                .into(),
                                 ..default()
                             });
 
@@ -638,37 +706,39 @@ fn setup_gameplay_ui(mut commands: Commands, ui_assets: Res<UIAssets>, game_stat
 }
 
 fn setup_pause_menu(mut commands: Commands, ui_assets: Res<UIAssets>) {
-    commands.spawn((
-        NodeBundle {
-            style: Style {
-                width: Percent(100.0),
-                height: Percent(100.0),
-                position_type: PositionType::Absolute,
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
-                ..default()
-            },
-            background_color: Color::srgba(0.0, 0.0, 0.0, 0.7).into(),
-            z_index: ZIndex::Global(2000),
-            ..default()
-        },
-        PauseMenuUI,
-    ))
-        .with_children(|parent| {
-            parent.spawn(NodeBundle {
+    commands
+        .spawn((
+            NodeBundle {
                 style: Style {
-                    width: Px(300.0),
-                    height: Px(400.0),
-                    flex_direction: FlexDirection::Column,
+                    width: Percent(100.0),
+                    height: Percent(100.0),
+                    position_type: PositionType::Absolute,
                     justify_content: JustifyContent::Center,
                     align_items: AlignItems::Center,
-                    gap: Px(20.0),
-                    padding: UiRect::all(Px(30.0)),
                     ..default()
                 },
-                background_color: Color::srgb(0.2, 0.2, 0.3).into(),
+                background_color: Color::srgba(0.0, 0.0, 0.0, 0.7).into(),
+                z_index: ZIndex::Global(2000),
                 ..default()
-            })
+            },
+            PauseMenuUI,
+        ))
+        .with_children(|parent| {
+            parent
+                .spawn(NodeBundle {
+                    style: Style {
+                        width: Px(300.0),
+                        height: Px(400.0),
+                        flex_direction: FlexDirection::Column,
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        gap: Px(20.0),
+                        padding: UiRect::all(Px(30.0)),
+                        ..default()
+                    },
+                    background_color: Color::srgb(0.2, 0.2, 0.3).into(),
+                    ..default()
+                })
                 .with_children(|parent| {
                     // 暂停标题
                     parent.spawn(TextBundle::from_section(
@@ -697,44 +767,46 @@ fn setup_level_complete_ui(
     ui_assets: Res<UIAssets>,
     game_state: Res<GameState>,
 ) {
-    commands.spawn((
-        NodeBundle {
-            style: Style {
-                width: Percent(100.0),
-                height: Percent(100.0),
-                position_type: PositionType::Absolute,
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
-                ..default()
-            },
-            background_color: Color::srgba(0.0, 0.0, 0.0, 0.8).into(),
-            z_index: ZIndex::Global(2000),
-            ..default()
-        },
-        LevelCompleteUI,
-        AnimatedUI {
-            animation_type: UIAnimation::ScaleUp,
-            duration: 0.5,
-            elapsed: 0.0,
-            start_value: 0.0,
-            target_value: 1.0,
-        },
-    ))
-        .with_children(|parent| {
-            parent.spawn(NodeBundle {
+    commands
+        .spawn((
+            NodeBundle {
                 style: Style {
-                    width: Px(400.0),
-                    height: Px(500.0),
-                    flex_direction: FlexDirection::Column,
+                    width: Percent(100.0),
+                    height: Percent(100.0),
+                    position_type: PositionType::Absolute,
                     justify_content: JustifyContent::Center,
                     align_items: AlignItems::Center,
-                    gap: Px(20.0),
-                    padding: UiRect::all(Px(40.0)),
                     ..default()
                 },
-                background_color: Color::srgb(0.1, 0.3, 0.1).into(),
+                background_color: Color::srgba(0.0, 0.0, 0.0, 0.8).into(),
+                z_index: ZIndex::Global(2000),
                 ..default()
-            })
+            },
+            LevelCompleteUI,
+            AnimatedUI {
+                animation_type: UIAnimation::ScaleUp,
+                duration: 0.5,
+                elapsed: 0.0,
+                start_value: 0.0,
+                target_value: 1.0,
+            },
+        ))
+        .with_children(|parent| {
+            parent
+                .spawn(NodeBundle {
+                    style: Style {
+                        width: Px(400.0),
+                        height: Px(500.0),
+                        flex_direction: FlexDirection::Column,
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        gap: Px(20.0),
+                        padding: UiRect::all(Px(40.0)),
+                        ..default()
+                    },
+                    background_color: Color::srgb(0.1, 0.3, 0.1).into(),
+                    ..default()
+                })
                 .with_children(|parent| {
                     // 完成标题
                     parent.spawn(TextBundle::from_section(
@@ -798,24 +870,25 @@ fn spawn_menu_button(
     text: &str,
     button_type: ButtonType,
 ) {
-    parent.spawn((
-        ButtonBundle {
-            style: Style {
-                width: Px(200.0),
-                height: Px(50.0),
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
+    parent
+        .spawn((
+            ButtonBundle {
+                style: Style {
+                    width: Px(200.0),
+                    height: Px(50.0),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    ..default()
+                },
+                background_color: Color::srgb(0.3, 0.3, 0.5).into(),
                 ..default()
             },
-            background_color: Color::srgb(0.3, 0.3, 0.5).into(),
-            ..default()
-        },
-        ButtonComponent {
-            button_type,
-            is_hovered: false,
-            is_pressed: false,
-        },
-    ))
+            ButtonComponent {
+                button_type,
+                is_hovered: false,
+                is_pressed: false,
+            },
+        ))
         .with_children(|parent| {
             parent.spawn(TextBundle::from_section(
                 text,
@@ -848,7 +921,10 @@ fn cleanup_pause_menu(mut commands: Commands, ui_query: Query<Entity, With<Pause
     }
 }
 
-fn cleanup_level_complete_ui(mut commands: Commands, ui_query: Query<Entity, With<LevelCompleteUI>>) {
+fn cleanup_level_complete_ui(
+    mut commands: Commands,
+    ui_query: Query<Entity, With<LevelCompleteUI>>,
+) {
     for entity in ui_query.iter() {
         commands.entity(entity).despawn_recursive();
     }
@@ -877,7 +953,9 @@ fn handle_button_interactions(
                         source: audio_assets.button_click_sound.clone(),
                         settings: PlaybackSettings {
                             mode: PlaybackMode::Despawn,
-                            volume: Volume::new(audio_settings.sfx_volume * audio_settings.master_volume),
+                            volume: Volume::new(
+                                audio_settings.sfx_volume * audio_settings.master_volume,
+                            ),
                             ..default()
                         },
                     });
@@ -987,11 +1065,13 @@ fn update_ui_animations(
                 // 简化处理，仅作为示例
             }
             UIAnimation::ScaleUp => {
-                let scale = animation.start_value + (animation.target_value - animation.start_value) * ease_out_back(progress);
+                let scale = animation.start_value
+                    + (animation.target_value - animation.start_value) * ease_out_back(progress);
                 transform.scale = Vec3::splat(scale);
             }
             UIAnimation::Bounce => {
-                let bounce_offset = (progress * std::f32::consts::PI * 4.0).sin() * (1.0 - progress) * 10.0;
+                let bounce_offset =
+                    (progress * std::f32::consts::PI * 4.0).sin() * (1.0 - progress) * 10.0;
                 transform.translation.y += bounce_offset;
             }
             _ => {}
@@ -1006,10 +1086,42 @@ fn update_ui_animations(
 fn update_gameplay_ui_values(
     game_state: Res<GameState>,
     passengers: Query<&PathfindingAgent>,
-    mut score_text: Query<&mut Text, (With<ScoreText>, Without<TimerText>, Without<CostText>, Without<PassengerCountText>)>,
-    mut timer_text: Query<&mut Text, (With<TimerText>, Without<ScoreText>, Without<CostText>, Without<PassengerCountText>)>,
-    mut cost_text: Query<&mut Text, (With<CostText>, Without<ScoreText>, Without<TimerText>, Without<PassengerCountText>)>,
-    mut passenger_text: Query<&mut Text, (With<PassengerCountText>, Without<ScoreText>, Without<TimerText>, Without<CostText>)>,
+    mut score_text: Query<
+        &mut Text,
+        (
+            With<ScoreText>,
+            Without<TimerText>,
+            Without<CostText>,
+            Without<PassengerCountText>,
+        ),
+    >,
+    mut timer_text: Query<
+        &mut Text,
+        (
+            With<TimerText>,
+            Without<ScoreText>,
+            Without<CostText>,
+            Without<PassengerCountText>,
+        ),
+    >,
+    mut cost_text: Query<
+        &mut Text,
+        (
+            With<CostText>,
+            Without<ScoreText>,
+            Without<TimerText>,
+            Without<PassengerCountText>,
+        ),
+    >,
+    mut passenger_text: Query<
+        &mut Text,
+        (
+            With<PassengerCountText>,
+            Without<ScoreText>,
+            Without<TimerText>,
+            Without<CostText>,
+        ),
+    >,
 ) {
     // 更新分数显示
     if let Ok(mut text) = score_text.get_single_mut() {
@@ -1031,7 +1143,8 @@ fn update_gameplay_ui_values(
     // 更新乘客计数
     if let Ok(mut text) = passenger_text.get_single_mut() {
         let total_passengers = passengers.iter().count();
-        let arrived_passengers = passengers.iter()
+        let arrived_passengers = passengers
+            .iter()
             .filter(|agent| matches!(agent.state, AgentState::Arrived))
             .count();
         text.sections[0].value = format!("乘客: {}/{}", arrived_passengers, total_passengers);
@@ -1046,7 +1159,9 @@ fn update_progress_bars(
     for (mut progress_bar, mut style) in progress_bars.iter_mut() {
         let progress = match progress_bar.bar_type {
             ProgressBarType::ObjectiveProgress => {
-                let completed_objectives = game_state.objectives_completed.iter()
+                let completed_objectives = game_state
+                    .objectives_completed
+                    .iter()
                     .filter(|&&completed| completed)
                     .count();
                 let total_objectives = game_state.objectives_completed.len();
@@ -1059,11 +1174,15 @@ fn update_progress_bars(
             ProgressBarType::TimeRemaining => {
                 // 假设有时间限制
                 if let Some(level_data) = &game_state.current_level {
-                    if let Some(time_limit) = level_data.objectives.iter()
-                        .find_map(|obj| match &obj.condition_type {
-                            crate::ObjectiveType::TimeLimit(limit) => Some(*limit),
-                            _ => None,
-                        }) {
+                    if let Some(time_limit) =
+                        level_data
+                            .objectives
+                            .iter()
+                            .find_map(|obj| match &obj.condition_type {
+                                crate::ObjectiveType::TimeLimit(limit) => Some(*limit),
+                                _ => None,
+                            })
+                    {
                         1.0 - (game_state.game_time / time_limit).clamp(0.0, 1.0)
                     } else {
                         1.0
@@ -1075,11 +1194,15 @@ fn update_progress_bars(
             ProgressBarType::BudgetUsed => {
                 // 假设有预算限制
                 if let Some(level_data) = &game_state.current_level {
-                    if let Some(budget_limit) = level_data.objectives.iter()
-                        .find_map(|obj| match &obj.condition_type {
-                            crate::ObjectiveType::MaxCost(limit) => Some(*limit as f32),
-                            _ => None,
-                        }) {
+                    if let Some(budget_limit) =
+                        level_data
+                            .objectives
+                            .iter()
+                            .find_map(|obj| match &obj.condition_type {
+                                crate::ObjectiveType::MaxCost(limit) => Some(*limit as f32),
+                                _ => None,
+                            })
+                    {
                         (game_state.total_cost as f32 / budget_limit).clamp(0.0, 1.0)
                     } else {
                         0.0
@@ -1220,12 +1343,13 @@ impl Plugin for BusPuzzleGamePlugin {
             crate::PuzzleInteractionPlugin,
             GameUIPlugin,
         ))
-            .add_systems(Startup, initialize_game)
-            .add_systems(OnEnter(GameStateEnum::Loading), load_current_level)
-            .add_systems(Update, (
-                update_game_score,
-                check_level_failure_conditions,
-            ).run_if(in_state(GameStateEnum::Playing)));
+        .add_systems(Startup, initialize_game)
+        .add_systems(OnEnter(GameStateEnum::Loading), load_current_level)
+        .add_systems(
+            Update,
+            (update_game_score, check_level_failure_conditions)
+                .run_if(in_state(GameStateEnum::Playing)),
+        );
     }
 }
 
@@ -1258,7 +1382,10 @@ fn load_current_level(
     level_manager: Res<LevelManager>,
     mut next_state: ResMut<NextState<GameStateEnum>>,
 ) {
-    if let Some(level_id) = level_manager.available_levels.get(level_manager.current_level_index) {
+    if let Some(level_id) = level_manager
+        .available_levels
+        .get(level_manager.current_level_index)
+    {
         // 这里应该从文件或数据库加载关卡
         // 现在使用示例关卡
         let level_data = match level_id.as_str() {
@@ -1287,16 +1414,14 @@ fn load_current_level(
     }
 }
 
-fn update_game_score(
-    mut game_state: ResMut<GameState>,
-    passengers: Query<&PathfindingAgent>,
-) {
+fn update_game_score(mut game_state: ResMut<GameState>, passengers: Query<&PathfindingAgent>) {
     if let Some(level_data) = &game_state.current_level {
         let base_points = level_data.scoring.base_points;
 
         // 计算效率奖励
         let network_efficiency = crate::calculate_network_efficiency(&game_state, &passengers);
-        let efficiency_bonus = (network_efficiency * level_data.scoring.efficiency_bonus as f32) as u32;
+        let efficiency_bonus =
+            (network_efficiency * level_data.scoring.efficiency_bonus as f32) as u32;
 
         // 计算速度奖励（基于剩余时间）
         let speed_bonus = if game_state.game_time < 60.0 {
@@ -1328,7 +1453,8 @@ fn check_level_failure_conditions(
     mut next_state: ResMut<NextState<GameStateEnum>>,
 ) {
     // 检查是否有乘客因为耐心耗尽而放弃
-    let gave_up_count = passengers.iter()
+    let gave_up_count = passengers
+        .iter()
         .filter(|agent| matches!(agent.state, AgentState::GaveUp))
         .count();
 
