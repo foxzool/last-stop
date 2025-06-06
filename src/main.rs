@@ -12,7 +12,11 @@ mod menus;
 mod screens;
 mod theme;
 
-use bevy::{asset::AssetMetaCheck, prelude::*};
+use bevy::{
+    asset::AssetMetaCheck,
+    prelude::*,
+    render::view::screenshot::{Screenshot, save_to_disk},
+};
 
 fn main() -> AppExit {
     App::new().add_plugins(AppPlugin).run()
@@ -46,33 +50,14 @@ impl Plugin for AppPlugin {
 
         // 添加其他插件。
         app.add_plugins((
-            asset_tracking::plugin,
-            audio::plugin,
             bus_puzzle::BusPuzzleGamePlugin,
-            #[cfg(feature = "dev")]
-            dev_tools::plugin,
-            menus::plugin,
-            screens::plugin,
-            theme::plugin,
+            // #[cfg(feature = "dev")]
+            // dev_tools::plugin,
         ));
 
-        // 通过在这里添加新的`AppSystems`变体来排序：
-        app.configure_sets(
-            Update,
-            (
-                AppSystems::TickTimers,
-                AppSystems::RecordInput,
-                AppSystems::Update,
-            )
-                .chain(),
-        );
-
-        // 设置`Pause`状态。
-        app.init_state::<Pause>();
-        app.configure_sets(Update, PausableSystems.run_if(in_state(Pause(false))));
-
         // 生成主摄像机。
-        app.add_systems(Startup, spawn_camera);
+        app.add_systems(Startup, spawn_camera)
+            .add_systems(Update, (debug_info_system, screenshot_system));
     }
 }
 
@@ -100,4 +85,45 @@ struct PausableSystems;
 
 fn spawn_camera(mut commands: Commands) {
     commands.spawn((Name::new("Camera"), Camera2d));
+}
+
+fn debug_info_system(
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    game_state: Res<bus_puzzle::GameState>,
+    passengers: Query<&bus_puzzle::PathfindingAgent>,
+    placed_segments: Query<&bus_puzzle::RouteSegment>,
+) {
+    if keyboard_input.just_pressed(KeyCode::F1) {
+        info!("=== 调试信息 ===");
+        info!("游戏时间: {:.1}秒", game_state.game_time);
+        info!("总成本: {}", game_state.total_cost);
+        info!("已放置路段数: {}", placed_segments.iter().count());
+        info!("乘客总数: {}", passengers.iter().count());
+
+        let arrived_count = passengers
+            .iter()
+            .filter(|agent| matches!(agent.state, bus_puzzle::AgentState::Arrived))
+            .count();
+
+        info!("已到达乘客数: {}", arrived_count);
+        info!("目标完成情况: {:?}", game_state.objectives_completed);
+        info!("当前得分: {}", game_state.score.total_score);
+    }
+}
+
+fn screenshot_system(
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    mut commands: Commands,
+    main_window: Query<Entity, With<bevy::window::PrimaryWindow>>,
+) {
+    if keyboard_input.just_pressed(KeyCode::F12) {
+        let path = format!(
+            "screenshot_{}.png",
+            chrono::Utc::now().format("%Y%m%d_%H%M%S")
+        );
+        info!("截图保存到: {}", path);
+        commands
+            .spawn(Screenshot::primary_window())
+            .observe(save_to_disk(path));
+    }
 }

@@ -34,15 +34,25 @@ impl Plugin for BusPuzzleGamePlugin {
             PathfindingPlugin,
             PuzzleInteractionPlugin,
             GameUIPlugin,
-        ))
-        .init_resource::<GameState>()
-        .add_systems(Startup, initialize_game)
-        .add_systems(OnEnter(GameStateEnum::Loading), load_current_level)
-        .add_systems(
-            Update,
-            (update_game_score, check_level_failure_conditions)
-                .run_if(in_state(GameStateEnum::Playing)),
-        );
+        ));
+
+        app.init_resource::<GameState>();
+
+        app.add_event::<SegmentPlacedEvent>()
+            .add_event::<SegmentRemovedEvent>()
+            .add_event::<ObjectiveCompletedEvent>()
+            .add_event::<LevelCompletedEvent>()
+            .add_event::<InventoryUpdatedEvent>()
+            .add_event::<PassengerSpawnedEvent>()
+            .add_event::<PassengerArrivedEvent>();
+
+        app.add_systems(Startup, initialize_game)
+            .add_systems(OnEnter(GameStateEnum::Loading), load_current_level)
+            .add_systems(
+                Update,
+                (update_game_score, check_level_failure_conditions)
+                    .run_if(in_state(GameStateEnum::Playing)),
+            );
     }
 }
 
