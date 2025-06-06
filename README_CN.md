@@ -186,5 +186,6 @@ audio/
     ├── level_complete.ogg            # 胜利音乐 https://opengameart.org/content/level-finish-fanfares
     └── button_click.ogg              # 按钮点击声 https://opengameart.org/content/menu-selection-click
     └── error.ogg                     # 错误提示音 https://opengameart.org/content/error
-
+fonts/
+    └── quan.ttf                      # 字体 https://diaowinner.itch.io/galmuri-extended
 

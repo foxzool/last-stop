@@ -6,6 +6,7 @@ pub mod interaction;
 pub mod level_system;
 pub mod pathfinding;
 pub mod resources;
+pub mod splash;
 pub mod ui_audio;
 pub mod utils;
 
@@ -22,7 +23,7 @@ pub use ui_audio::*;
 pub use utils::*;
 
 use bevy::prelude::*;
-
+use crate::bus_puzzle::splash::SplashPlugin;
 // ============ 游戏主循环集成 ============
 
 pub struct BusPuzzleGamePlugin;
@@ -30,13 +31,15 @@ pub struct BusPuzzleGamePlugin;
 impl Plugin for BusPuzzleGamePlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins((
+            SplashPlugin,
             LevelGenerationPlugin,
             PathfindingPlugin,
             PuzzleInteractionPlugin,
             GameUIPlugin,
         ));
 
-        app.init_resource::<GameState>();
+        app.init_resource::<GameState>()
+            .init_state::<GameStateEnum>();
 
         app.add_event::<SegmentPlacedEvent>()
             .add_event::<SegmentRemovedEvent>()

@@ -130,48 +130,47 @@ pub struct GameUIPlugin;
 
 impl Plugin for GameUIPlugin {
     fn build(&self, app: &mut App) {
-        app.init_state::<GameStateEnum>()
-            .insert_resource(AudioSettings {
-                master_volume: 1.0,
-                music_volume: 0.7,
-                sfx_volume: 0.8,
-                is_muted: false,
-            })
-            .add_systems(Startup, (load_ui_assets, load_audio_assets))
-            .add_systems(OnEnter(GameStateEnum::MainMenu), setup_main_menu)
-            .add_systems(OnEnter(GameStateEnum::Playing), setup_gameplay_ui)
-            .add_systems(OnEnter(GameStateEnum::Paused), setup_pause_menu)
-            .add_systems(
-                OnEnter(GameStateEnum::LevelComplete),
-                setup_level_complete_ui,
+        app.insert_resource(AudioSettings {
+            master_volume: 1.0,
+            music_volume: 0.7,
+            sfx_volume: 0.8,
+            is_muted: false,
+        })
+        .add_systems(Startup, (load_ui_assets, load_audio_assets))
+        .add_systems(OnEnter(GameStateEnum::MainMenu), setup_main_menu)
+        .add_systems(OnEnter(GameStateEnum::Playing), setup_gameplay_ui)
+        .add_systems(OnEnter(GameStateEnum::Paused), setup_pause_menu)
+        .add_systems(
+            OnEnter(GameStateEnum::LevelComplete),
+            setup_level_complete_ui,
+        )
+        .add_systems(OnExit(GameStateEnum::MainMenu), cleanup_main_menu)
+        .add_systems(OnExit(GameStateEnum::Playing), cleanup_gameplay_ui)
+        .add_systems(OnExit(GameStateEnum::Paused), cleanup_pause_menu)
+        .add_systems(
+            OnExit(GameStateEnum::LevelComplete),
+            cleanup_level_complete_ui,
+        )
+        .add_systems(
+            Update,
+            (
+                handle_button_interactions,
+                update_ui_animations,
+                update_gameplay_ui_values,
+                update_progress_bars,
+                handle_audio_events,
+                update_background_music,
             )
-            .add_systems(OnExit(GameStateEnum::MainMenu), cleanup_main_menu)
-            .add_systems(OnExit(GameStateEnum::Playing), cleanup_gameplay_ui)
-            .add_systems(OnExit(GameStateEnum::Paused), cleanup_pause_menu)
-            .add_systems(
-                OnExit(GameStateEnum::LevelComplete),
-                cleanup_level_complete_ui,
-            )
-            .add_systems(
-                Update,
-                (
-                    handle_button_interactions,
-                    update_ui_animations,
-                    update_gameplay_ui_values,
-                    update_progress_bars,
-                    handle_audio_events,
-                    update_background_music,
-                )
-                    .run_if(in_state(GameStateEnum::Playing)),
-            )
-            .add_systems(
-                Update,
-                (handle_menu_buttons,).run_if(in_state(GameStateEnum::MainMenu)),
-            )
-            .add_systems(
-                Update,
-                (handle_pause_input, handle_pause_buttons).run_if(in_state(GameStateEnum::Paused)),
-            );
+                .run_if(in_state(GameStateEnum::Playing)),
+        )
+        .add_systems(
+            Update,
+            (handle_menu_buttons,).run_if(in_state(GameStateEnum::MainMenu)),
+        )
+        .add_systems(
+            Update,
+            (handle_pause_input, handle_pause_buttons).run_if(in_state(GameStateEnum::Paused)),
+        );
     }
 }
 
@@ -232,7 +231,7 @@ fn load_ui_assets(mut commands: Commands, asset_server: Res<AssetServer>) {
     );
 
     commands.insert_resource(UIAssets {
-        font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+        font: asset_server.load("fonts/quan.ttf"),
         button_texture: asset_server.load("ui/button.png"),
         panel_texture: asset_server.load("ui/panel.png"),
         progress_bar_bg: asset_server.load("ui/progress_bg.png"),
@@ -273,7 +272,7 @@ fn setup_main_menu(mut commands: Commands, ui_assets: Res<UIAssets>) {
         ))
         .with_children(|parent| {
             parent.spawn((
-                Text::new("公交路线拼图"),
+                Text::new("下一站"),
                 TextFont {
                     font: ui_assets.font.clone(),
                     font_size: 60.0,
@@ -281,7 +280,7 @@ fn setup_main_menu(mut commands: Commands, ui_assets: Res<UIAssets>) {
                 },
                 TextColor(Color::WHITE),
                 Node {
-                    margin: UiRect::bottom(Val::Px(50.0)),
+                    margin: UiRect::bottom(Px(50.0)),
                     ..default()
                 },
             ));
@@ -290,11 +289,11 @@ fn setup_main_menu(mut commands: Commands, ui_assets: Res<UIAssets>) {
                 .spawn((
                     Button,
                     Node {
-                        width: Val::Px(200.0),
-                        height: Val::Px(60.0),
+                        width: Px(200.0),
+                        height: Px(60.0),
                         justify_content: JustifyContent::Center,
                         align_items: AlignItems::Center,
-                        margin: UiRect::all(Val::Px(10.0)),
+                        margin: UiRect::all(Px(10.0)),
                         ..default()
                     },
                     BackgroundColor(Color::srgb(0.2, 0.6, 0.2)),
@@ -320,11 +319,11 @@ fn setup_main_menu(mut commands: Commands, ui_assets: Res<UIAssets>) {
                 .spawn((
                     Button,
                     Node {
-                        width: Val::Px(200.0),
-                        height: Val::Px(60.0),
+                        width: Px(200.0),
+                        height: Px(60.0),
                         justify_content: JustifyContent::Center,
                         align_items: AlignItems::Center,
-                        margin: UiRect::all(Val::Px(10.0)),
+                        margin: UiRect::all(Px(10.0)),
                         ..default()
                     },
                     BackgroundColor(Color::srgb(0.6, 0.2, 0.2)),
@@ -354,13 +353,13 @@ fn setup_gameplay_ui(mut commands: Commands, ui_assets: Res<UIAssets>, game_stat
         .spawn((
             Node {
                 width: Val::Percent(100.0),
-                height: Val::Px(80.0),
+                height: Px(80.0),
                 position_type: PositionType::Absolute,
-                top: Val::Px(0.0),
-                left: Val::Px(0.0),
+                top: Px(0.0),
+                left: Px(0.0),
                 justify_content: JustifyContent::SpaceBetween,
                 align_items: AlignItems::Center,
-                padding: UiRect::all(Val::Px(20.0)),
+                padding: UiRect::all(Px(20.0)),
                 ..default()
             },
             BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.8)),
@@ -373,7 +372,7 @@ fn setup_gameplay_ui(mut commands: Commands, ui_assets: Res<UIAssets>, game_stat
                 .spawn(Node {
                     flex_direction: FlexDirection::Row,
                     align_items: AlignItems::Center,
-                    column_gap: Val::Px(20.0),
+                    column_gap: Px(20.0),
                     ..default()
                 })
                 .with_children(|parent| {
@@ -426,8 +425,8 @@ fn setup_gameplay_ui(mut commands: Commands, ui_assets: Res<UIAssets>, game_stat
                 .spawn((
                     Button,
                     Node {
-                        width: Val::Px(100.0),
-                        height: Val::Px(40.0),
+                        width: Px(100.0),
+                        height: Px(40.0),
                         justify_content: JustifyContent::Center,
                         align_items: AlignItems::Center,
                         ..default()
@@ -456,14 +455,14 @@ fn setup_gameplay_ui(mut commands: Commands, ui_assets: Res<UIAssets>, game_stat
     commands
         .spawn((
             Node {
-                width: Val::Px(120.0),
+                width: Px(120.0),
                 height: Val::Percent(80.0),
                 position_type: PositionType::Absolute,
-                left: Val::Px(10.0),
-                top: Val::Px(90.0),
+                left: Px(10.0),
+                top: Px(90.0),
                 flex_direction: FlexDirection::Column,
-                padding: UiRect::all(Val::Px(10.0)),
-                row_gap: Val::Px(10.0),
+                padding: UiRect::all(Px(10.0)),
+                row_gap: Px(10.0),
                 ..default()
             },
             BackgroundColor(Color::srgba(0.2, 0.2, 0.2, 0.9)),
@@ -501,11 +500,11 @@ fn setup_gameplay_ui(mut commands: Commands, ui_assets: Res<UIAssets>, game_stat
                     .spawn((
                         Button,
                         Node {
-                            width: Val::Px(80.0),
-                            height: Val::Px(80.0),
+                            width: Px(80.0),
+                            height: Px(80.0),
                             justify_content: JustifyContent::Center,
                             align_items: AlignItems::Center,
-                            border: UiRect::all(Val::Px(2.0)),
+                            border: UiRect::all(Px(2.0)),
                             ..default()
                         },
                         BackgroundColor(if available_count > 0 {
@@ -529,8 +528,8 @@ fn setup_gameplay_ui(mut commands: Commands, ui_assets: Res<UIAssets>, game_stat
                             parent.spawn((
                                 ImageNode::new(icon.clone()),
                                 Node {
-                                    width: Val::Px(40.0),
-                                    height: Val::Px(40.0),
+                                    width: Px(40.0),
+                                    height: Px(40.0),
                                     ..default()
                                 },
                             ));
@@ -546,8 +545,8 @@ fn setup_gameplay_ui(mut commands: Commands, ui_assets: Res<UIAssets>, game_stat
                             TextColor(Color::WHITE),
                             Node {
                                 position_type: PositionType::Absolute,
-                                bottom: Val::Px(5.0),
-                                right: Val::Px(5.0),
+                                bottom: Px(5.0),
+                                right: Px(5.0),
                                 ..default()
                             },
                         ));
@@ -560,14 +559,14 @@ fn setup_gameplay_ui(mut commands: Commands, ui_assets: Res<UIAssets>, game_stat
         commands
             .spawn((
                 Node {
-                    width: Val::Px(300.0),
-                    height: Val::Px(200.0),
+                    width: Px(300.0),
+                    height: Px(200.0),
                     position_type: PositionType::Absolute,
-                    right: Val::Px(10.0),
-                    top: Val::Px(90.0),
+                    right: Px(10.0),
+                    top: Px(90.0),
                     flex_direction: FlexDirection::Column,
-                    padding: UiRect::all(Val::Px(15.0)),
-                    row_gap: Val::Px(10.0),
+                    padding: UiRect::all(Px(15.0)),
+                    row_gap: Px(10.0),
                     ..default()
                 },
                 BackgroundColor(Color::srgba(0.2, 0.2, 0.2, 0.9)),
@@ -597,7 +596,7 @@ fn setup_gameplay_ui(mut commands: Commands, ui_assets: Res<UIAssets>, game_stat
                             Node {
                                 flex_direction: FlexDirection::Row,
                                 align_items: AlignItems::Center,
-                                column_gap: Val::Px(10.0),
+                                column_gap: Px(10.0),
                                 ..default()
                             },
                             ObjectiveUI {
@@ -607,8 +606,8 @@ fn setup_gameplay_ui(mut commands: Commands, ui_assets: Res<UIAssets>, game_stat
                         .with_children(|parent| {
                             parent.spawn((
                                 Node {
-                                    width: Val::Px(16.0),
-                                    height: Val::Px(16.0),
+                                    width: Px(16.0),
+                                    height: Px(16.0),
                                     ..default()
                                 },
                                 BackgroundColor(if is_completed {
@@ -656,13 +655,13 @@ fn setup_pause_menu(mut commands: Commands, ui_assets: Res<UIAssets>) {
             parent
                 .spawn((
                     Node {
-                        width: Val::Px(300.0),
-                        height: Val::Px(400.0),
+                        width: Px(300.0),
+                        height: Px(400.0),
                         flex_direction: FlexDirection::Column,
                         justify_content: JustifyContent::Center,
                         align_items: AlignItems::Center,
-                        row_gap: Val::Px(20.0),
-                        padding: UiRect::all(Val::Px(30.0)),
+                        row_gap: Px(20.0),
+                        padding: UiRect::all(Px(30.0)),
                         ..default()
                     },
                     BackgroundColor(Color::srgb(0.2, 0.2, 0.3)),
@@ -724,13 +723,13 @@ fn setup_level_complete_ui(
             parent
                 .spawn((
                     Node {
-                        width: Val::Px(400.0),
-                        height: Val::Px(500.0),
+                        width: Px(400.0),
+                        height: Px(500.0),
                         flex_direction: FlexDirection::Column,
                         justify_content: JustifyContent::Center,
                         align_items: AlignItems::Center,
-                        row_gap: Val::Px(20.0),
-                        padding: UiRect::all(Val::Px(40.0)),
+                        row_gap: Px(20.0),
+                        padding: UiRect::all(Px(40.0)),
                         ..default()
                     },
                     BackgroundColor(Color::srgb(0.1, 0.3, 0.1)),
@@ -829,11 +828,11 @@ fn spawn_menu_button(
         .spawn((
             Button,
             Node {
-                width: Val::Px(200.0),
-                height: Val::Px(50.0),
+                width: Px(200.0),
+                height: Px(50.0),
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
-                margin: UiRect::all(Val::Px(5.0)),
+                margin: UiRect::all(Px(5.0)),
                 ..default()
             },
             BackgroundColor(color),
