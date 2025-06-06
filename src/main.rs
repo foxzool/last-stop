@@ -54,6 +54,10 @@ impl Plugin for AppPlugin {
             // #[cfg(feature = "dev")]
             // dev_tools::plugin,
         ));
+        // .add_plugins(bevy_inspector_egui::bevy_egui::EguiPlugin {
+        //     enable_multipass_for_primary_context: true,
+        // })
+        // .add_plugins(WorldInspectorPlugin::new());
 
         // 生成主摄像机。
         app.add_systems(Startup, spawn_camera)
@@ -91,7 +95,7 @@ fn debug_info_system(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     game_state: Res<bus_puzzle::GameState>,
     passengers: Query<&bus_puzzle::PathfindingAgent>,
-    placed_segments: Query<&bus_puzzle::RouteSegment>,
+    placed_segments: Query<(Entity, &bus_puzzle::RouteSegment, &Transform)>,
 ) {
     if keyboard_input.just_pressed(KeyCode::F1) {
         info!("=== 调试信息 ===");
@@ -108,6 +112,30 @@ fn debug_info_system(
         info!("已到达乘客数: {}", arrived_count);
         info!("目标完成情况: {:?}", game_state.objectives_completed);
         info!("当前得分: {}", game_state.score.total_score);
+
+        // 显示所有已放置的路段详情
+        info!("=== 已放置的路段 ===");
+        for (entity, segment, transform) in placed_segments.iter() {
+            info!(
+                "实体: {:?}, 位置: {:?}, 世界坐标: {:?}, 类型: {:?}, 旋转: {}°",
+                entity,
+                segment.grid_pos,
+                transform.translation,
+                segment.segment_type,
+                segment.rotation
+            );
+        }
+    }
+
+    // 添加F2键来强制显示路段位置
+    if keyboard_input.just_pressed(KeyCode::F2) {
+        info!("=== 强制显示路段位置信息 ===");
+        for (entity, segment, transform) in placed_segments.iter() {
+            info!(
+                "路段 {:?}: 网格{:?} -> 世界坐标{:?}",
+                entity, segment.grid_pos, transform.translation
+            );
+        }
     }
 }
 

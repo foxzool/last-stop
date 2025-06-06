@@ -4,6 +4,7 @@ use std::collections::HashMap;
 
 // 游戏状态
 #[derive(States, Debug, Clone, PartialEq, Eq, Hash, Default)]
+#[states(scoped_entities)]
 pub enum GameStateEnum {
     #[default]
     Splash,

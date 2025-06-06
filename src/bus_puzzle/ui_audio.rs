@@ -461,8 +461,8 @@ fn setup_gameplay_ui(mut commands: Commands, ui_assets: Res<UIAssets>, game_stat
                 row_gap: Px(10.0),
                 ..default()
             },
-            BackgroundColor(Color::srgba(0.2, 0.2, 0.2, 0.9)),
-            ZIndex(999),
+            BackgroundColor(Color::srgba(0.2, 0.2, 0.2, 0.7)),
+            ZIndex(50),
             GameplayUI,
         ))
         .with_children(|parent| {
@@ -567,8 +567,8 @@ fn setup_gameplay_ui(mut commands: Commands, ui_assets: Res<UIAssets>, game_stat
                     row_gap: Px(10.0),
                     ..default()
                 },
-                BackgroundColor(Color::srgba(0.2, 0.2, 0.2, 0.9)),
-                ZIndex(999),
+                BackgroundColor(Color::srgba(0.2, 0.2, 0.2, 0.7)),
+                ZIndex(50),
                 GameplayUI,
             ))
             .with_children(|parent| {
