@@ -1,7 +1,6 @@
 use bevy::{audio::Volume, input::common_conditions::input_just_pressed, prelude::*, ui::Val::*};
 
 use crate::{
-    game::level::WantLevel,
     menus::{
         Menu,
         common::{go_back, go_back_on_click},
@@ -41,7 +40,7 @@ fn spawn_level_1(
     mut commands: Commands,
 ) {
     next_screen.set(Screen::Gameplay);
-    commands.insert_resource(WantLevel(1));
+    // commands.insert_resource(WantLevel(1));
 }
 
 fn spawn_level_2(
@@ -50,7 +49,7 @@ fn spawn_level_2(
     mut commands: Commands,
 ) {
     next_screen.set(Screen::Gameplay);
-    commands.insert_resource(WantLevel(2));
+    // commands.insert_resource(WantLevel(2));
 }
 
 fn spawn_level_3(
@@ -59,7 +58,7 @@ fn spawn_level_3(
     mut commands: Commands,
 ) {
     next_screen.set(Screen::Gameplay);
-    commands.insert_resource(WantLevel(3));
+    // commands.insert_resource(WantLevel(3));
 }
 
 fn spawn_level_4(
@@ -68,7 +67,7 @@ fn spawn_level_4(
     mut commands: Commands,
 ) {
     next_screen.set(Screen::Gameplay);
-    commands.insert_resource(WantLevel(4));
+    // commands.insert_resource(WantLevel(4));
 }
 
 fn spawn_level_5(
@@ -77,7 +76,7 @@ fn spawn_level_5(
     mut commands: Commands,
 ) {
     next_screen.set(Screen::Gameplay);
-    commands.insert_resource(WantLevel(5));
+    // commands.insert_resource(WantLevel(5));
 }
 
 #[derive(Component, Reflect)]

@@ -1,4 +1,4 @@
-//! The game's menus and transitions between them.
+//! The bus_puzzle's menus and transitions between them.
 
 mod credits;
 mod main;

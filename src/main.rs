@@ -5,9 +5,9 @@
 
 mod asset_tracking;
 mod audio;
+mod bus_puzzle;
 #[cfg(feature = "dev")]
 mod dev_tools;
-mod game;
 mod menus;
 mod screens;
 mod theme;
@@ -48,7 +48,7 @@ impl Plugin for AppPlugin {
         app.add_plugins((
             asset_tracking::plugin,
             audio::plugin,
-            game::plugin,
+            bus_puzzle::BusPuzzlePlugin,
             #[cfg(feature = "dev")]
             dev_tools::plugin,
             menus::plugin,
