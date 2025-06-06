@@ -262,7 +262,12 @@ fn update_pathfinding_graph(
     }
 
     // 建立站点与相邻路线段的连接
-    for (station_name, &station_pos) in &pathfinding_graph.station_lookup {
+    let station_lookup_data: Vec<(String, GridPos)> = pathfinding_graph
+        .station_lookup
+        .iter()
+        .map(|(name, pos_ref)| (name.clone(), *pos_ref))
+        .collect();
+    for (station_name, station_pos) in station_lookup_data {
         let adjacent_positions = get_adjacent_positions(station_pos);
 
         for adj_pos in adjacent_positions {
