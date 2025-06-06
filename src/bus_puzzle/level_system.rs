@@ -186,7 +186,7 @@ pub fn generate_level_map(
     for preset_route in &level_data.preset_routes {
         for (pos, segment_type, rotation) in &preset_route.segments {
             let world_pos = pos.to_world_pos(tile_size, width, height);
-            let texture_path = get_segment_texture(segment_type);
+            let texture_path = segment_type.get_texture_path();
 
             commands.spawn((
                 Sprite::from_image(asset_server.load(texture_path)),
@@ -289,12 +289,12 @@ fn spawn_passenger(
     level_manager: &LevelManager,
 ) {
     let texture_path = match demand.color {
-        PassengerColor::Red => "ui/icons/passenger_red.png",
-        PassengerColor::Blue => "ui/icons/passenger_blue.png",
-        PassengerColor::Green => "ui/icons/passenger_green.png",
-        PassengerColor::Yellow => "ui/icons/passenger_yellow.png",
-        PassengerColor::Purple => "ui/icons/passenger_purple.png",
-        PassengerColor::Orange => "ui/icons/passenger_orange.png",
+        PassengerColor::Red => "ui/icons/red.png",
+        PassengerColor::Blue => "ui/icons/blue.png",
+        PassengerColor::Green => "ui/icons/green.png",
+        PassengerColor::Yellow => "ui/icons/yellow.png",
+        PassengerColor::Purple => "ui/icons/purple.png",
+        PassengerColor::Orange => "ui/icons/orange.png",
     };
 
     // 找到起点站的位置
@@ -336,17 +336,6 @@ fn get_station_texture(station_type: &StationType) -> &'static str {
         StationType::BusStop => "textures/stations/bus_stop.png",
         StationType::TransferHub => "textures/stations/transfer_hub.png",
         StationType::Terminal => "textures/stations/terminal.png",
-    }
-}
-
-fn get_segment_texture(segment_type: &RouteSegmentType) -> &'static str {
-    match segment_type {
-        RouteSegmentType::Straight => "textures/routes/straight.png",
-        RouteSegmentType::Curve => "textures/routes/curve.png",
-        RouteSegmentType::TSplit => "textures/routes/t_split.png",
-        RouteSegmentType::Cross => "textures/routes/cross.png",
-        RouteSegmentType::Bridge => "textures/routes/bridge.png",
-        RouteSegmentType::Tunnel => "textures/routes/tunnel.png",
     }
 }
 

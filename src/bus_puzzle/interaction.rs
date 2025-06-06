@@ -1,53 +1,21 @@
 // src/bus_puzzle/interaction.rs
 
-use bevy::{input::mouse::MouseWheel, prelude::*, window::PrimaryWindow};
+use bevy::{
+    input::mouse::{MouseButtonInput, MouseWheel},
+    prelude::*,
+    window::PrimaryWindow,
+};
+use std::collections::{HashMap, VecDeque};
 
 // 使用相对路径引用同模块下的其他文件
 use super::{
-    AgentState, CameraController, GameState, GridPos, InputState, InventoryUpdatedEvent,
-    LevelCompletedEvent, LevelData, LevelManager, ObjectiveCompletedEvent, ObjectiveCondition,
-    ObjectiveType, PathNode, PathfindingAgent, PlacedSegment, RouteSegmentType, SegmentPlacedEvent,
-    SegmentRemovedEvent, world_to_grid,
+    AgentState, AvailableSegment, ButtonComponent, ButtonType, CameraController, DraggableSegment,
+    GameScore, GameState, GameStateEnum, GridHighlight, GridPos, InputState, InventorySlot,
+    InventoryUI, InventoryUpdatedEvent, LevelCompletedEvent, LevelData, LevelManager,
+    ObjectiveCompletedEvent, ObjectiveCondition, ObjectiveTracker, ObjectiveType, PassengerColor,
+    PathNode, PathfindingAgent, PlacedSegment, RouteSegment, RouteSegmentType, SegmentPlacedEvent,
+    SegmentPreview, SegmentRemovedEvent, UIElement, world_to_grid,
 };
-
-// ============ 拼图交互组件 ============
-
-#[derive(Component)]
-pub struct DraggableSegment {
-    pub segment_type: RouteSegmentType,
-    pub rotation: u32,
-    pub is_being_dragged: bool,
-    pub is_placed: bool,
-    pub cost: u32,
-}
-
-#[derive(Component)]
-pub struct GridHighlight {
-    pub is_valid_placement: bool,
-}
-
-#[derive(Component)]
-pub struct SegmentPreview {
-    pub segment_type: RouteSegmentType,
-    pub rotation: u32,
-    pub target_position: GridPos,
-}
-
-#[derive(Component)]
-pub struct UIElement;
-
-#[derive(Component)]
-pub struct InventorySlot {
-    pub slot_index: usize,
-    pub segment_type: Option<RouteSegmentType>,
-    pub available_count: u32,
-}
-
-#[derive(Component)]
-pub struct ObjectiveTracker {
-    pub objective_index: usize,
-    pub is_completed: bool,
-}
 
 // ============ 插件定义 ============
 
@@ -62,7 +30,7 @@ impl Plugin for PuzzleInteractionPlugin {
                 (
                     update_mouse_world_position,
                     handle_camera_controls,
-                    handle_segment_selection,
+                    handle_button_interactions, // 统一的按钮交互处理
                     handle_segment_placement,
                     handle_segment_rotation,
                     handle_segment_removal,
@@ -163,26 +131,61 @@ fn handle_camera_controls(
     Ok(())
 }
 
-fn handle_segment_selection(
-    mut input_state: ResMut<InputState>,
-    mouse_button_input: Res<ButtonInput<MouseButton>>,
-    inventory_slots: Query<(&InventorySlot, &Transform), With<UIElement>>,
-) {
-    if mouse_button_input.just_pressed(MouseButton::Left) {
-        for (inventory_slot, slot_transform) in inventory_slots.iter() {
-            let slot_bounds = Rect::from_center_size(
-                slot_transform.translation.truncate(),
-                Vec2::new(80.0, 80.0),
-            );
+// ============ 交互处理系统 ============
 
-            if slot_bounds.contains(input_state.mouse_world_pos.truncate()) {
-                if let Some(segment_type) = inventory_slot.segment_type.clone() {
-                    if inventory_slot.available_count > 0 {
-                        info!("选择了路线段: {:?}", segment_type);
-                        input_state.selected_segment = Some(segment_type);
+fn handle_button_interactions(
+    button_query: Query<(&Interaction, &ButtonComponent), (Changed<Interaction>, With<Button>)>,
+    mut input_state: ResMut<InputState>,
+    mut next_state: ResMut<NextState<GameStateEnum>>,
+    mut app_exit_events: EventWriter<bevy::app::AppExit>,
+    mut level_manager: ResMut<LevelManager>,
+    game_state: Res<GameState>,
+    mut commands: Commands,
+) {
+    for (interaction, button_component) in button_query.iter() {
+        if matches!(*interaction, Interaction::Pressed) {
+            // 处理按钮逻辑
+            match &button_component.button_type {
+                ButtonType::StartGame => {
+                    next_state.set(GameStateEnum::Playing);
+                }
+                ButtonType::QuitGame => {
+                    app_exit_events.write(AppExit::Success);
+                }
+                ButtonType::PauseGame => {
+                    next_state.set(GameStateEnum::Paused);
+                }
+                ButtonType::ResumeGame => {
+                    next_state.set(GameStateEnum::Playing);
+                }
+                ButtonType::RestartLevel => {
+                    next_state.set(GameStateEnum::Loading);
+                }
+                ButtonType::MainMenu => {
+                    next_state.set(GameStateEnum::MainMenu);
+                }
+                ButtonType::NextLevel => {
+                    level_manager.current_level_index += 1;
+                    if level_manager.current_level_index < level_manager.available_levels.len() {
+                        next_state.set(GameStateEnum::Loading);
+                    } else {
+                        next_state.set(GameStateEnum::MainMenu);
                     }
                 }
-                break;
+                ButtonType::InventorySlot(segment_type) => {
+                    let available_count = game_state
+                        .player_inventory
+                        .get(segment_type)
+                        .copied()
+                        .unwrap_or(0);
+
+                    if available_count > 0 {
+                        input_state.selected_segment = Some(segment_type.clone());
+                        info!("Selected route segment: {:?}", segment_type);
+                    } else {
+                        warn!("Insufficient inventory: {:?}", segment_type);
+                    }
+                }
             }
         }
     }
@@ -198,7 +201,7 @@ fn handle_segment_placement(
     mut inventory_updated_events: EventWriter<InventoryUpdatedEvent>,
     level_manager: Res<LevelManager>,
 ) {
-    if mouse_button_input.just_pressed(MouseButton::Left) {
+    if mouse_button_input.just_released(MouseButton::Left) {
         if let (Some(segment_type), Some(grid_pos)) = (
             input_state.selected_segment.clone(),
             input_state.grid_cursor_pos,
@@ -207,7 +210,7 @@ fn handle_segment_placement(
                 if let Some(&available_count) = game_state.player_inventory.get(&segment_type) {
                     if available_count > 0 {
                         let rotation = 0;
-                        let cost = get_segment_cost(&segment_type);
+                        let cost = segment_type.get_cost();
 
                         let entity = spawn_route_segment(
                             &mut commands,
@@ -258,7 +261,7 @@ fn handle_segment_placement(
 
 fn handle_segment_rotation(
     mut game_state: ResMut<GameState>,
-    mut route_segments: Query<&mut Transform, With<super::RouteSegment>>,
+    mut route_segments: Query<&mut Transform, With<RouteSegment>>,
     mouse_button_input: Res<ButtonInput<MouseButton>>,
     input_state: Res<InputState>,
 ) {
@@ -273,7 +276,10 @@ fn handle_segment_rotation(
                     );
                 }
 
-                info!("旋转路线段到 {} 度", placed_segment.rotation);
+                info!(
+                    "Rotated route segment to {} degrees",
+                    placed_segment.rotation
+                );
             }
         }
     }
@@ -350,7 +356,7 @@ fn update_grid_preview(
 
         commands.spawn((
             Sprite {
-                image: asset_server.load(get_segment_texture_path(&segment_type)),
+                image: asset_server.load(segment_type.get_texture_path()),
                 color,
                 ..default()
             },
@@ -371,16 +377,12 @@ fn update_objectives(
     passengers: Query<&PathfindingAgent>,
     mut objective_completed_events: EventWriter<ObjectiveCompletedEvent>,
 ) {
-    // First, determine the number of objectives and ensure objectives_completed is sized.
     let objectives_len = if let Some(level_data) = &game_state.current_level {
         level_data.objectives.len()
     } else {
-        // No level data, so no objectives to check.
         return;
     };
 
-    // Ensure objectives_completed has the correct length.
-    // This mutable borrow is fine as the immutable borrow for objectives_len has ended.
     if game_state.objectives_completed.len() < objectives_len {
         game_state
             .objectives_completed
@@ -480,11 +482,10 @@ fn update_inventory_ui(
             if slot.segment_type.as_ref() == Some(&event.segment_type) {
                 slot.available_count = event.new_count;
 
-                // 更新UI颜色表示库存状态
                 sprite.color = if event.new_count > 0 {
                     Color::WHITE
                 } else {
-                    Color::srgb(0.5, 0.5, 0.5) // 灰色表示无库存
+                    Color::srgb(0.5, 0.5, 0.5)
                 };
             }
         }
@@ -498,7 +499,7 @@ fn update_objectives_ui(
     for event in objective_completed_events.read() {
         for (tracker, mut sprite) in objective_trackers.iter_mut() {
             if tracker.objective_index == event.objective_index {
-                sprite.color = Color::srgb(0.0, 1.0, 0.0); // 绿色表示完成
+                sprite.color = Color::srgb(0.0, 1.0, 0.0);
             }
         }
     }
@@ -549,28 +550,6 @@ fn is_valid_placement(
     true
 }
 
-fn get_segment_cost(segment_type: &RouteSegmentType) -> u32 {
-    match segment_type {
-        RouteSegmentType::Straight => 1,
-        RouteSegmentType::Curve => 2,
-        RouteSegmentType::TSplit => 3,
-        RouteSegmentType::Cross => 4,
-        RouteSegmentType::Bridge => 5,
-        RouteSegmentType::Tunnel => 6,
-    }
-}
-
-fn get_segment_texture_path(segment_type: &RouteSegmentType) -> &'static str {
-    match segment_type {
-        RouteSegmentType::Straight => "textures/routes/straight.png",
-        RouteSegmentType::Curve => "textures/routes/curve.png",
-        RouteSegmentType::TSplit => "textures/routes/t_split.png",
-        RouteSegmentType::Cross => "textures/routes/cross.png",
-        RouteSegmentType::Bridge => "textures/routes/bridge.png",
-        RouteSegmentType::Tunnel => "textures/routes/tunnel.png",
-    }
-}
-
 fn spawn_route_segment(
     commands: &mut Commands,
     asset_server: &Res<AssetServer>,
@@ -586,10 +565,10 @@ fn spawn_route_segment(
             level_data.grid_size.1,
         )
     } else {
-        position.to_world_pos(level_manager.tile_size, 10, 8) // 默认尺寸
+        position.to_world_pos(level_manager.tile_size, 10, 8)
     };
 
-    let texture_path = get_segment_texture_path(&segment_type);
+    let texture_path = segment_type.get_texture_path();
 
     commands
         .spawn((
@@ -597,7 +576,7 @@ fn spawn_route_segment(
             Transform::from_translation(world_pos + Vec3::Z * 0.5).with_rotation(
                 Quat::from_rotation_z((rotation as f32) * std::f32::consts::PI / 180.0),
             ),
-            super::RouteSegment {
+            RouteSegment {
                 grid_pos: position,
                 segment_type,
                 rotation,
@@ -608,7 +587,7 @@ fn spawn_route_segment(
                 rotation,
                 is_being_dragged: false,
                 is_placed: true,
-                cost: get_segment_cost(&segment_type),
+                cost: segment_type.get_cost(),
             },
         ))
         .id()
@@ -621,20 +600,16 @@ fn check_objective_completion(
 ) -> bool {
     match &objective.condition_type {
         ObjectiveType::ConnectAllPassengers => {
-            // 检查是否所有乘客都到达了目的地
             let all_arrived = passengers
                 .iter()
                 .all(|agent| matches!(agent.state, AgentState::Arrived));
             let has_passengers = !passengers.is_empty();
             all_arrived && has_passengers
         }
-        ObjectiveType::MaxTransfers(max_transfers) => {
-            // 检查是否没有乘客超过最大换乘次数
-            passengers
-                .iter()
-                .filter(|agent| matches!(agent.state, AgentState::Arrived))
-                .all(|agent| count_transfers_in_path(&agent.current_path) <= *max_transfers)
-        }
+        ObjectiveType::MaxTransfers(max_transfers) => passengers
+            .iter()
+            .filter(|agent| matches!(agent.state, AgentState::Arrived))
+            .all(|agent| count_transfers_in_path(&agent.current_path) <= *max_transfers),
         ObjectiveType::MaxSegments(max_segments) => {
             game_state.placed_segments.len() <= (*max_segments as usize)
         }
@@ -691,7 +666,7 @@ pub fn calculate_network_efficiency(
     }
 }
 
-pub fn calculate_passenger_satisfaction(passengers: &Query<&PathfindingAgent>) -> f32 {
+fn calculate_passenger_satisfaction(passengers: &Query<&PathfindingAgent>) -> f32 {
     if passengers.is_empty() {
         return 1.0;
     }

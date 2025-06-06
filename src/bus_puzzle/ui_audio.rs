@@ -9,9 +9,10 @@ use std::collections::HashMap;
 
 // 使用相对路径引用同模块下的其他文件
 use super::{
-    AgentState, CostText, GameState, GameStateEnum, LevelCompletedEvent, LevelManager,
-    ObjectiveCompletedEvent, PassengerColor, PassengerCountText, PathfindingAgent,
-    RouteSegmentType, ScoreText, SegmentPlacedEvent, SegmentRemovedEvent, TimerText, format_time,
+    AgentState, CostText, GameState, GameStateEnum, InventorySlot, LevelCompletedEvent,
+    LevelManager, ObjectiveCompletedEvent, PassengerColor, PassengerCountText, PathfindingAgent,
+    RouteSegmentType, ScoreText, SegmentPlacedEvent, SegmentRemovedEvent, TimerText, UIElement,
+    format_time,
 };
 
 // ============ UI 组件 ============
@@ -27,12 +28,6 @@ pub struct PauseMenuUI;
 
 #[derive(Component)]
 pub struct LevelCompleteUI;
-
-#[derive(Component)]
-pub struct InventoryUI {
-    pub segment_type: RouteSegmentType,
-    pub slot_index: usize,
-}
 
 #[derive(Component)]
 pub struct ObjectiveUI {
@@ -182,53 +177,53 @@ fn load_ui_assets(mut commands: Commands, asset_server: Res<AssetServer>) {
     let mut segment_icons = HashMap::new();
     segment_icons.insert(
         RouteSegmentType::Straight,
-        asset_server.load("ui/icons/straight_icon.png"),
+        asset_server.load("textures/routes/straight.png"),
     );
     segment_icons.insert(
         RouteSegmentType::Curve,
-        asset_server.load("ui/icons/curve_icon.png"),
+        asset_server.load("textures/routes/curve.png"),
     );
     segment_icons.insert(
         RouteSegmentType::TSplit,
-        asset_server.load("ui/icons/tsplit_icon.png"),
+        asset_server.load("textures/routes/tsplit.png"),
     );
     segment_icons.insert(
         RouteSegmentType::Cross,
-        asset_server.load("ui/icons/cross_icon.png"),
+        asset_server.load("textures/routes/cross.png"),
     );
     segment_icons.insert(
         RouteSegmentType::Bridge,
-        asset_server.load("ui/icons/bridge_icon.png"),
+        asset_server.load("textures/routes/bridge.png"),
     );
     segment_icons.insert(
         RouteSegmentType::Tunnel,
-        asset_server.load("ui/icons/tunnel_icon.png"),
+        asset_server.load("textures/routes/tunnel.png"),
     );
 
     let mut passenger_icons = HashMap::new();
     passenger_icons.insert(
         PassengerColor::Red,
-        asset_server.load("ui/icons/passenger_red.png"),
+        asset_server.load("textures/passengers/red.png"),
     );
     passenger_icons.insert(
         PassengerColor::Blue,
-        asset_server.load("ui/icons/passenger_blue.png"),
+        asset_server.load("textures/passengers/blue.png"),
     );
     passenger_icons.insert(
         PassengerColor::Green,
-        asset_server.load("ui/icons/passenger_green.png"),
+        asset_server.load("textures/passengers/green.png"),
     );
     passenger_icons.insert(
         PassengerColor::Yellow,
-        asset_server.load("ui/icons/passenger_yellow.png"),
+        asset_server.load("textures/passengers/yellow.png"),
     );
     passenger_icons.insert(
         PassengerColor::Purple,
-        asset_server.load("ui/icons/passenger_purple.png"),
+        asset_server.load("textures/passengers/purple.png"),
     );
     passenger_icons.insert(
         PassengerColor::Orange,
-        asset_server.load("ui/icons/passenger_orange.png"),
+        asset_server.load("textures/passengers/orange.png"),
     );
 
     commands.insert_resource(UIAssets {
@@ -519,10 +514,12 @@ fn setup_gameplay_ui(mut commands: Commands, ui_assets: Res<UIAssets>, game_stat
                             is_hovered: false,
                             is_pressed: false,
                         },
-                        InventoryUI {
-                            segment_type: segment_type.clone(),
+                        InventorySlot {
+                            segment_type: Some(segment_type.clone()),
                             slot_index: index,
+                            available_count,
                         },
+                        UIElement,
                     ))
                     .with_children(|parent| {
                         if let Some(icon) = ui_assets.segment_icons.get(segment_type) {

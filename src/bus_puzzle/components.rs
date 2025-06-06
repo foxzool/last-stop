@@ -53,6 +53,30 @@ pub enum RouteSegmentType {
     Tunnel,
 }
 
+impl RouteSegmentType {
+    pub fn get_cost(&self) -> u32 {
+        match self {
+            RouteSegmentType::Straight => 1,
+            RouteSegmentType::Curve => 2,
+            RouteSegmentType::TSplit => 3,
+            RouteSegmentType::Cross => 4,
+            RouteSegmentType::Bridge => 5,
+            RouteSegmentType::Tunnel => 6,
+        }
+    }
+
+    pub fn get_texture_path(&self) -> &'static str {
+        match self {
+            RouteSegmentType::Straight => "textures/routes/straight.png",
+            RouteSegmentType::Curve => "textures/routes/curve.png",
+            RouteSegmentType::TSplit => "textures/routes/t_split.png",
+            RouteSegmentType::Cross => "textures/routes/cross.png",
+            RouteSegmentType::Bridge => "textures/routes/bridge.png",
+            RouteSegmentType::Tunnel => "textures/routes/tunnel.png",
+        }
+    }
+}
+
 // 站点类型
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum StationType {
@@ -176,4 +200,25 @@ pub struct SegmentPreview {
     pub segment_type: RouteSegmentType,
     pub rotation: u32,
     pub target_position: GridPos,
+}
+
+#[derive(Component)]
+pub struct GridHighlight {
+    pub is_valid_placement: bool,
+}
+
+#[derive(Component)]
+pub struct UIElement;
+
+#[derive(Component)]
+pub struct InventorySlot {
+    pub slot_index: usize,
+    pub segment_type: Option<RouteSegmentType>,
+    pub available_count: u32,
+}
+
+#[derive(Component)]
+pub struct ObjectiveTracker {
+    pub objective_index: usize,
+    pub is_completed: bool,
 }
