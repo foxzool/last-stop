@@ -1,10 +1,11 @@
+use crate::bus_puzzle::{GridPos, LevelData, PassengerColor, RouteSegmentType};
 use bevy::prelude::*;
 use std::collections::HashMap;
-use crate::bus_puzzle::{GridPos, LevelData, PassengerColor, RouteSegmentType};
 
 // 游戏状态
-#[derive(States, Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(States, Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub enum GameStateEnum {
+    #[default]
     MainMenu,
     Loading,
     Playing,

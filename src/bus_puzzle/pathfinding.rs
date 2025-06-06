@@ -8,34 +8,9 @@ use std::{
 };
 
 // 使用相对路径引用同模块下的其他文件
-use super::{
-    GridPos, LevelManager, PassengerColor, RouteSegment, RouteSegmentType, StationEntity,
-    StationType, TerrainType,
-};
+use super::{AgentState, GridPos, LevelManager, PassengerColor, PathfindingAgent, RouteSegment, RouteSegmentType, StationEntity, StationType, TerrainType};
 
 // ============ 寻路相关组件 ============
-
-#[derive(Component)]
-pub struct PathfindingAgent {
-    pub color: PassengerColor,
-    pub origin: String,
-    pub destination: String,
-    pub current_path: Vec<PathNode>,
-    pub current_step: usize,
-    pub state: AgentState,
-    pub patience: f32,
-    pub max_patience: f32,
-    pub waiting_time: f32,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum AgentState {
-    WaitingAtStation,
-    Traveling,
-    Transferring,
-    Arrived,
-    GaveUp,
-}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PathNode {

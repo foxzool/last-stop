@@ -1,17 +1,13 @@
 // src/bus_puzzle/interaction.rs
 
-use bevy::{
-    input::mouse::{MouseButtonInput, MouseWheel},
-    prelude::*,
-    window::PrimaryWindow,
-};
-use std::collections::{HashMap, VecDeque};
+use bevy::{input::mouse::MouseWheel, prelude::*, window::PrimaryWindow};
 
 // 使用相对路径引用同模块下的其他文件
 use super::{
-    AgentState, GameState, GridPos, InventoryUpdatedEvent, LevelCompletedEvent, LevelData,
-    LevelManager, ObjectiveCompletedEvent, ObjectiveCondition, ObjectiveType, PathNode,
-    PathfindingAgent, RouteSegmentType, SegmentPlacedEvent, SegmentRemovedEvent, world_to_grid,
+    AgentState, CameraController, GameState, GridPos, InputState, InventoryUpdatedEvent,
+    LevelCompletedEvent, LevelData, LevelManager, ObjectiveCompletedEvent, ObjectiveCondition,
+    ObjectiveType, PathNode, PathfindingAgent, PlacedSegment, RouteSegmentType, SegmentPlacedEvent,
+    SegmentRemovedEvent, world_to_grid,
 };
 
 // ============ 拼图交互组件 ============
@@ -51,46 +47,6 @@ pub struct InventorySlot {
 pub struct ObjectiveTracker {
     pub objective_index: usize,
     pub is_completed: bool,
-}
-
-// ============ 游戏状态资源 ============
-
-#[derive(Debug, Clone)]
-pub struct PlacedSegment {
-    pub segment_type: RouteSegmentType,
-    pub rotation: u32,
-    pub entity: Entity,
-    pub cost: u32,
-}
-
-#[derive(Resource, Default)]
-pub struct InputState {
-    pub mouse_world_pos: Vec3,
-    pub selected_segment: Option<RouteSegmentType>,
-    pub is_dragging: bool,
-    pub drag_entity: Option<Entity>,
-    pub grid_cursor_pos: Option<GridPos>,
-}
-
-#[derive(Resource)]
-pub struct CameraController {
-    pub zoom: f32,
-    pub min_zoom: f32,
-    pub max_zoom: f32,
-    pub pan_speed: f32,
-    pub zoom_speed: f32,
-}
-
-impl Default for CameraController {
-    fn default() -> Self {
-        Self {
-            zoom: 1.0,
-            min_zoom: 0.3,
-            max_zoom: 3.0,
-            pan_speed: 500.0,
-            zoom_speed: 0.1,
-        }
-    }
 }
 
 // ============ 插件定义 ============
@@ -275,13 +231,13 @@ fn handle_segment_placement(
                         game_state.total_cost += cost;
                         *game_state.player_inventory.get_mut(&segment_type).unwrap() -= 1;
 
-                        segment_placed_events.send(SegmentPlacedEvent {
+                        segment_placed_events.write(SegmentPlacedEvent {
                             position: grid_pos,
                             segment_type: segment_type.clone(),
                             rotation,
                         });
 
-                        inventory_updated_events.send(InventoryUpdatedEvent {
+                        inventory_updated_events.write(InventoryUpdatedEvent {
                             segment_type: segment_type.clone(),
                             new_count: game_state.player_inventory[&segment_type],
                         });
@@ -342,8 +298,8 @@ fn handle_segment_removal(
                     .or_insert(0) += 1;
                 game_state.total_cost -= placed_segment.cost;
 
-                segment_removed_events.send(SegmentRemovedEvent { position: grid_pos });
-                inventory_updated_events.send(InventoryUpdatedEvent {
+                segment_removed_events.write(SegmentRemovedEvent { position: grid_pos });
+                inventory_updated_events.write(InventoryUpdatedEvent {
                     segment_type: placed_segment.segment_type.clone(),
                     new_count: game_state.player_inventory[&placed_segment.segment_type],
                 });
@@ -464,10 +420,13 @@ fn update_objectives(
         // if this system is the sole writer to objectives_completed.
         if game_state.objectives_completed.get(index) == Some(&false) {
             game_state.objectives_completed[index] = true;
-            objective_completed_events.send(ObjectiveCompletedEvent { objective_index: index });
+            objective_completed_events.write(ObjectiveCompletedEvent {
+                objective_index: index,
+            });
 
             // Log completion with description. This requires another short immutable borrow.
-            if let Some(level_data) = &game_state.current_level { // Short immutable borrow
+            if let Some(level_data) = &game_state.current_level {
+                // Short immutable borrow
                 if let Some(objective) = level_data.objectives.get(index) {
                     info!("目标完成: {}", objective.description);
                 } else {
@@ -475,7 +434,7 @@ fn update_objectives(
                     info!("目标 {} 完成 (描述信息获取失败)", index);
                 }
             } else {
-                 // This case should also ideally not happen if we passed phase 1.
+                // This case should also ideally not happen if we passed phase 1.
                 info!("目标 {} 完成 (关卡数据获取失败)", index);
             }
         }
@@ -500,7 +459,7 @@ fn handle_level_completion(
 
         if all_completed && !game_state.objectives_completed.is_empty() {
             let final_score = calculate_final_score(&game_state);
-            level_completed_events.send(LevelCompletedEvent {
+            level_completed_events.write(LevelCompletedEvent {
                 final_score,
                 completion_time: game_state.game_time,
             });
@@ -627,7 +586,7 @@ fn spawn_route_segment(
             level_data.grid_size.1,
         )
     } else {
-        position.to_world_pos(level_manager.tile_size, 10, 8)
+        position.to_world_pos(level_manager.tile_size, 10, 8) // 默认尺寸
     };
 
     let texture_path = get_segment_texture_path(&segment_type);
@@ -708,7 +667,7 @@ fn count_transfers_in_path(path: &[PathNode]) -> u32 {
     transfers
 }
 
-fn calculate_network_efficiency(
+pub fn calculate_network_efficiency(
     game_state: &GameState,
     passengers: &Query<&PathfindingAgent>,
 ) -> f32 {
@@ -732,7 +691,7 @@ fn calculate_network_efficiency(
     }
 }
 
-fn calculate_passenger_satisfaction(passengers: &Query<&PathfindingAgent>) -> f32 {
+pub fn calculate_passenger_satisfaction(passengers: &Query<&PathfindingAgent>) -> f32 {
     if passengers.is_empty() {
         return 1.0;
     }
