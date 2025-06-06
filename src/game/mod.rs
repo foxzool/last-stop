@@ -5,7 +5,7 @@ mod interaction;
 pub mod level;
 mod passenger;
 mod validation;
-
+mod route;
 pub(super) fn plugin(app: &mut App) {
     app.add_plugins((
         level::plugin,
