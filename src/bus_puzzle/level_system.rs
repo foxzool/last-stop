@@ -289,12 +289,12 @@ fn spawn_passenger(
     level_manager: &LevelManager,
 ) {
     let texture_path = match demand.color {
-        PassengerColor::Red => "textures/passengers/red.png",
-        PassengerColor::Blue => "textures/passengers/blue.png",
-        PassengerColor::Green => "textures/passengers/green.png",
-        PassengerColor::Yellow => "textures/passengers/yellow.png",
-        PassengerColor::Purple => "textures/passengers/purple.png",
-        PassengerColor::Orange => "textures/passengers/orange.png",
+        PassengerColor::Red => "ui/icons/passenger_red.png",
+        PassengerColor::Blue => "ui/icons/passenger_blue.png",
+        PassengerColor::Green => "ui/icons/passenger_green.png",
+        PassengerColor::Yellow => "ui/icons/passenger_yellow.png",
+        PassengerColor::Purple => "ui/icons/passenger_purple.png",
+        PassengerColor::Orange => "ui/icons/passenger_orange.png",
     };
 
     // 找到起点站的位置

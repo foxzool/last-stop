@@ -165,7 +165,8 @@ impl Plugin for GameUIPlugin {
         )
         .add_systems(
             Update,
-            (handle_menu_buttons,).run_if(in_state(GameStateEnum::MainMenu)),
+            (handle_menu_buttons, handle_button_interactions)
+                .run_if(in_state(GameStateEnum::MainMenu)),
         )
         .add_systems(
             Update,
@@ -894,7 +895,6 @@ fn handle_button_interactions(
     audio_assets: Res<AudioAssets>,
     audio_settings: Res<AudioSettings>,
     mut commands: Commands,
-    asset_server: Res<AssetServer>,
 ) {
     for (interaction, mut button_component, mut color) in button_query.iter_mut() {
         match *interaction {
