@@ -1,6 +1,9 @@
 // src/bus_puzzle/level_system.rs
 
-use crate::bus_puzzle::{GridPos, GridTile, LevelManager, PassengerColor, PassengerEntity, RouteSegment, RouteSegmentType, StationEntity, StationType, TerrainType};
+use crate::bus_puzzle::{
+    GridPos, GridTile, LevelManager, PassengerColor, PassengerEntity, RouteSegment,
+    RouteSegmentType, StationEntity, StationType, TerrainType,
+};
 use bevy::{platform::collections::HashMap, prelude::*};
 use serde::{Deserialize, Serialize};
 // ============ 关卡数据结构 ============
@@ -117,15 +120,14 @@ pub struct LevelGenerationPlugin;
 
 impl Plugin for LevelGenerationPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, setup_level_generation)
-            .add_systems(
-                Update,
-                (
-                    handle_level_load,
-                    update_passenger_spawning,
-                    handle_dynamic_events,
-                ),
-            );
+        app.init_resource::<LevelManager>().add_systems(
+            Update,
+            (
+                handle_level_load,
+                update_passenger_spawning,
+                handle_dynamic_events,
+            ),
+        );
     }
 }
 
@@ -617,17 +619,3 @@ pub fn create_advanced_level() -> LevelData {
         },
     }
 } // src/bus_puzzle/level_system.rs
-
-// ============ 地图生成系统 ============
-
-
-fn setup_level_generation(mut commands: Commands) {
-    commands.insert_resource(LevelManager {
-        current_level: None,
-        tile_size: 64.0,
-        available_levels: vec![],
-        current_level_index: 0,
-        unlocked_levels: vec![],
-        level_scores: Default::default(),
-    });
-}

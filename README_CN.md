@@ -177,5 +177,14 @@
 
 
 
+audio/
+    ├── background_music.ogg          # 轻松愉快的背景音乐 https://opengameart.org/content/white-sands-day-night
+    ├── place_segment.ogg             # 咔嗒声 (clicking sound) https://opengameart.org/content/click-0
+    ├── remove_segment.ogg            # 轻微的撤销声 https://opengameart.org/content/mouse-click
+    ├── passenger_arrive.ogg          # 愉快的叮咚声 https://opengameart.org/content/completion-sound
+    ├── objective_complete.ogg        # 成功提示音  https://opengameart.org/content/new-thing-get
+    ├── level_complete.ogg            # 胜利音乐 https://opengameart.org/content/level-finish-fanfares
+    └── button_click.ogg              # 按钮点击声 https://opengameart.org/content/menu-selection-click
+    └── error.ogg                     # 错误提示音 https://opengameart.org/content/error
 
 

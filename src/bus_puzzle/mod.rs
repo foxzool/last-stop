@@ -35,6 +35,7 @@ impl Plugin for BusPuzzleGamePlugin {
             PuzzleInteractionPlugin,
             GameUIPlugin,
         ))
+        .init_resource::<GameState>()
         .add_systems(Startup, initialize_game)
         .add_systems(OnEnter(GameStateEnum::Loading), load_current_level)
         .add_systems(

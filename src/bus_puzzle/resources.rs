@@ -6,6 +6,7 @@ use std::collections::HashMap;
 #[derive(States, Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub enum GameStateEnum {
     #[default]
+    Splash,
     MainMenu,
     Loading,
     Playing,

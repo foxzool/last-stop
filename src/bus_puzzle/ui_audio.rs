@@ -178,6 +178,7 @@ impl Plugin for GameUIPlugin {
 // ============ 资源加载 ============
 
 fn load_ui_assets(mut commands: Commands, asset_server: Res<AssetServer>) {
+    info!("加载 UI 资源");
     let mut segment_icons = HashMap::new();
     segment_icons.insert(
         RouteSegmentType::Straight,
