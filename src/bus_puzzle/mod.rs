@@ -22,8 +22,8 @@ pub use resources::*;
 pub use ui_audio::*;
 pub use utils::*;
 
-use bevy::prelude::*;
 use crate::bus_puzzle::splash::SplashPlugin;
+use bevy::prelude::*;
 // ============ 游戏主循环集成 ============
 
 pub struct BusPuzzleGamePlugin;
@@ -63,12 +63,19 @@ fn initialize_game(
     mut commands: Commands,
     mut level_manager: ResMut<LevelManager>,
     mut game_state: ResMut<GameState>,
+    asset_server: Res<AssetServer>,
 ) {
     // 初始化第一个关卡
     level_manager.current_level_index = 0;
 
     // 创建教学关卡
     let tutorial_level = create_tutorial_level();
+    generate_level_map(
+        &mut commands,
+        &asset_server,
+        &tutorial_level,
+        level_manager.tile_size,
+    );
 
     // 初始化库存
     let mut inventory = HashMap::new();
