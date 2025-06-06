@@ -185,7 +185,7 @@ fn load_ui_assets(mut commands: Commands, asset_server: Res<AssetServer>) {
     );
     segment_icons.insert(
         RouteSegmentType::TSplit,
-        asset_server.load("textures/routes/tsplit.png"),
+        asset_server.load("textures/routes/t_split.png"),
     );
     segment_icons.insert(
         RouteSegmentType::Cross,
