@@ -4,11 +4,15 @@ use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::{
     cmp::Ordering,
-    collections::{BinaryHeap, HashMap, HashSet, VecDeque},
+    collections::{BinaryHeap, HashMap, HashSet},
 };
 
 // 使用相对路径引用同模块下的其他文件
-use super::{AgentState, GridPos, LevelManager, PassengerColor, PathfindingAgent, RouteSegment, RouteSegmentType, StationEntity, StationType, TerrainType};
+use super::{
+    AgentState, Connection, ConnectionType, GraphNode, GraphNodeType, GridPos, LevelManager,
+    PathfindingAgent, PathfindingGraph, RouteSegment, RouteSegmentType, StationEntity, StationType,
+    TerrainType,
+};
 
 // ============ 寻路相关组件 ============
 
@@ -25,55 +29,6 @@ pub enum PathNodeType {
     Station(String),
     RouteSegment,
     TransferPoint,
-}
-
-// ============ 寻路资源 ============
-
-#[derive(Resource)]
-pub struct PathfindingGraph {
-    pub nodes: HashMap<GridPos, GraphNode>,
-    pub connections: HashMap<GridPos, Vec<Connection>>,
-    pub station_lookup: HashMap<String, GridPos>,
-    pub route_network: HashMap<String, RouteInfo>,
-}
-
-#[derive(Debug, Clone)]
-pub struct GraphNode {
-    pub position: GridPos,
-    pub node_type: GraphNodeType,
-    pub station_name: Option<String>,
-    pub is_accessible: bool,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum GraphNodeType {
-    Station,
-    RouteSegment,
-    Intersection,
-}
-
-#[derive(Debug, Clone)]
-pub struct Connection {
-    pub to: GridPos,
-    pub cost: f32,
-    pub route_id: Option<String>,
-    pub connection_type: ConnectionType,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum ConnectionType {
-    Walk,
-    BusRoute,
-    Transfer,
-}
-
-#[derive(Debug, Clone)]
-pub struct RouteInfo {
-    pub id: String,
-    pub segments: Vec<GridPos>,
-    pub frequency: f32,
-    pub capacity: u32,
-    pub is_active: bool,
 }
 
 // ============ A* 寻路算法节点 ============
@@ -146,16 +101,7 @@ impl Plugin for PathfindingPlugin {
     }
 }
 
-impl Default for PathfindingGraph {
-    fn default() -> Self {
-        Self {
-            nodes: HashMap::new(),
-            connections: HashMap::new(),
-            station_lookup: HashMap::new(),
-            route_network: HashMap::new(),
-        }
-    }
-}
+
 
 // ============ 系统实现 ============
 

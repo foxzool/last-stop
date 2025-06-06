@@ -8,14 +8,7 @@ use bevy::{
 use std::collections::{HashMap, VecDeque};
 
 // 使用相对路径引用同模块下的其他文件
-use super::{
-    AgentState, AvailableSegment, ButtonComponent, ButtonType, CameraController, DraggableSegment,
-    GameScore, GameState, GameStateEnum, GridHighlight, GridPos, InputState, InventorySlot,
-    InventoryUI, InventoryUpdatedEvent, LevelCompletedEvent, LevelData, LevelManager,
-    ObjectiveCompletedEvent, ObjectiveCondition, ObjectiveTracker, ObjectiveType, PassengerColor,
-    PathNode, PathfindingAgent, PlacedSegment, RouteSegment, RouteSegmentType, SegmentPlacedEvent,
-    SegmentPreview, SegmentRemovedEvent, UIElement, world_to_grid,
-};
+use super::{AgentState, AvailableSegment, ButtonComponent, ButtonType, CameraController, DraggableSegment, GameScore, GameState, GameStateEnum, GridHighlight, GridPos, InputState, InventorySlot, InventoryUI, InventoryUpdatedEvent, LevelCompletedEvent, LevelData, LevelManager, ObjectiveCompletedEvent, ObjectiveCondition, ObjectiveTracker, ObjectiveType, PassengerColor, PathNode, PathfindingAgent, PlacedSegment, RouteSegment, RouteSegmentType, SegmentPlacedEvent, SegmentPreview, SegmentRemovedEvent, UIElement, world_to_grid, PathfindingGraph};
 
 // ============ 插件定义 ============
 
@@ -509,7 +502,103 @@ fn update_score_display(game_state: Res<GameState>, passengers: Query<&Pathfindi
     // 实时计算和更新分数的逻辑
 }
 
+fn handle_segment_events(
+    mut segment_placed_events: EventReader<SegmentPlacedEvent>,
+    mut segment_removed_events: EventReader<SegmentRemovedEvent>,
+    mut pathfinding_graph: ResMut<PathfindingGraph>,
+    game_state: Res<GameState>,
+) {
+    let mut graph_needs_update = false;
+
+    // 处理路线段放置事件
+    for event in segment_placed_events.read() {
+        info!("Route segment placed: {:?} at {:?}", event.segment_type, event.position);
+        graph_needs_update = true;
+
+        // 可以在这里添加特殊效果，比如粒子效果、动画等
+        // spawn_placement_effect(&mut commands, event.position);
+    }
+
+    // 处理路线段移除事件
+    for event in segment_removed_events.read() {
+        info!("Route segment removed at {:?}", event.position);
+        graph_needs_update = true;
+
+        // 可以在这里添加移除效果
+        // spawn_removal_effect(&mut commands, event.position);
+    }
+
+    // 如果有路线段变化，更新寻路图
+    // if graph_needs_update {
+    //     _pathfinding_graph(&mut pathfinding_graph, &game_state);
+    //     info!("Pathfinding graph updated due to route changes");
+    // }
+}
+
+fn handle_objective_events(
+    mut objective_completed_events: EventReader<ObjectiveCompletedEvent>,
+    game_state: Res<GameState>,
+) {
+    for event in objective_completed_events.read() {
+        if let Some(level_data) = &game_state.current_level {
+            if let Some(objective) = level_data.objectives.get(event.objective_index) {
+                info!("Objective completed: {}", objective.description);
+
+                // 可以在这里添加目标完成的特效
+                // spawn_objective_complete_effect(&mut commands, event.objective_index);
+
+                // 检查是否有特殊奖励
+                match &objective.condition_type {
+                    ObjectiveType::ConnectAllPassengers => {
+                        info!("All passengers connected! Excellent work!");
+                    }
+                    ObjectiveType::MaxCost(cost) => {
+                        info!("Completed within budget of {} cost units!", cost);
+                    }
+                    ObjectiveType::TimeLimit(time) => {
+                        info!("Completed within {} seconds time limit!", time);
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+}
+
+fn handle_level_events(
+    mut level_completed_events: EventReader<LevelCompletedEvent>,
+    mut next_state: ResMut<NextState<GameStateEnum>>,
+    level_manager: Res<LevelManager>,
+) {
+    for event in level_completed_events.read() {
+        info!("Level completed! Final score: {}, Time: {:.1}s",
+              event.final_score, event.completion_time);
+
+        // 计算评级
+        let rating = calculate_level_rating(event.final_score, event.completion_time);
+        info!("Level rating: {}", rating);
+
+        // 可以在这里保存成绩到本地存储
+        // save_level_completion(level_manager.current_level_index, event);
+
+        // 切换到完成界面
+        next_state.set(GameStateEnum::LevelComplete);
+    }
+}
+
 // ============ 辅助函数 ============
+
+fn calculate_level_rating(score: u32, completion_time: f32) -> &'static str {
+    if score >= 300 && completion_time <= 60.0 {
+        "★★★ Perfect!"
+    } else if score >= 200 && completion_time <= 120.0 {
+        "★★ Great!"
+    } else if score >= 100 {
+        "★ Good"
+    } else {
+        "Complete"
+    }
+}
 
 fn is_valid_placement(
     game_state: &GameState,
