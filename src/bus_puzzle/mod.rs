@@ -6,7 +6,6 @@ pub mod events;
 pub mod interaction;
 pub mod level_system;
 pub mod passenger_movement_debug;
-pub mod passenger_test;
 pub mod pathfinding;
 pub mod resources;
 pub mod splash;
@@ -21,7 +20,6 @@ pub use events::*;
 pub use interaction::*;
 pub use level_system::*;
 pub use passenger_movement_debug::*;
-pub use passenger_test::*;
 pub use pathfinding::*;
 pub use resources::*;
 pub use ui_audio::*;
@@ -44,7 +42,6 @@ impl Plugin for BusPuzzleGamePlugin {
             PathfindingPlugin,
             PuzzleInteractionPlugin,
             GameUIPlugin,
-            PassengerTestPlugin,
             PassengerMovementDebugPlugin,
             FixedConnectionSystemPlugin,
         ));

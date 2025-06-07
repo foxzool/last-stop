@@ -1,9 +1,10 @@
 // src/bus_puzzle/level_system.rs
 
 use crate::bus_puzzle::{
-    spawn_passenger_no_texture, GameState, GameStateEnum, GridPos, GridTile, LevelCompletedEvent,
-    LevelManager, PassengerColor, PassengerSpawnedEvent, PathfindingAgent, RouteSegment,
-    RouteSegmentType, StationEntity, StationType, TerrainType, ROUTE_Z, STATION_Z, TERRAIN_Z,
+    get_passenger_color, AgentState, GameState, GameStateEnum, GridPos, GridTile,
+    LevelCompletedEvent, LevelManager, PassengerColor, PassengerEntity, PassengerSpawnedEvent,
+    PathfindingAgent, RouteSegment, RouteSegmentType, StationEntity, StationType, TerrainType,
+    PASSENGER_Z, ROUTE_Z, STATION_Z, TERRAIN_Z,
 };
 use bevy::{platform::collections::HashMap, prelude::*};
 use rand::Rng;
@@ -253,6 +254,68 @@ fn debug_passenger_spawning(
                 );
             }
         }
+    }
+}
+
+// 无纹理的乘客生成函数（供其他模块使用）
+fn spawn_passenger_no_texture(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<ColorMaterial>>,
+    demand: &PassengerDemand,
+    level_data: &crate::bus_puzzle::LevelData,
+) {
+    if let Some(origin_station) = level_data.stations.iter().find(|s| s.name == demand.origin) {
+        let tile_size = 64.0;
+        let (grid_width, grid_height) = level_data.grid_size;
+        let world_pos = origin_station
+            .position
+            .to_world_pos(tile_size, grid_width, grid_height);
+
+        let passenger_world_pos = Vec3::new(world_pos.x, world_pos.y, PASSENGER_Z);
+        let bevy_color = get_passenger_color(demand.color);
+
+        let _entity = commands
+            .spawn((
+                Name::new(format!(
+                    "Passenger {:?} {} -> {}",
+                    demand.color, demand.origin, demand.destination
+                )),
+                Mesh2d(meshes.add(Circle::new(16.0))),
+                MeshMaterial2d(materials.add(bevy_color)),
+                Transform::from_translation(passenger_world_pos),
+                PassengerEntity {
+                    color: demand.color,
+                    origin: demand.origin.clone(),
+                    destination: demand.destination.clone(),
+                    current_patience: demand.patience,
+                    path: Vec::new(),
+                },
+                PathfindingAgent {
+                    color: demand.color,
+                    origin: demand.origin.clone(),
+                    destination: demand.destination.clone(),
+                    current_path: Vec::new(),
+                    current_step: 0,
+                    state: AgentState::WaitingAtStation,
+                    patience: demand.patience,
+                    max_patience: demand.patience,
+                    waiting_time: 0.0,
+                },
+            ))
+            .id();
+
+        info!(
+            "生成乘客: {:?} {} -> {}",
+            demand.color, demand.origin, demand.destination
+        );
+        commands.send_event(PassengerSpawnedEvent {
+            color: demand.color,
+            origin: demand.origin.clone(),
+            destination: demand.destination.clone(),
+        });
+    } else {
+        error!("找不到起点站: {}", demand.origin);
     }
 }
 
