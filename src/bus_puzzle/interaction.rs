@@ -162,6 +162,7 @@ fn handle_button_interactions(
                     next_state.set(GameStateEnum::MainMenu);
                 }
                 ButtonType::NextLevel => {
+                    info!("next level");
                     level_manager.current_level_index += 1;
                     if level_manager.current_level_index < level_manager.available_levels.len() {
                         next_state.set(GameStateEnum::Loading);

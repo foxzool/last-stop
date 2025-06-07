@@ -13,6 +13,7 @@ use bevy::{
     prelude::*,
     ui::Val::*,
 };
+use std::time::Instant;
 
 // ============ UI 组件 ============
 
@@ -73,7 +74,7 @@ pub struct ButtonComponent {
     pub is_pressed: bool,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum ButtonType {
     StartGame,
     PauseGame,
@@ -165,6 +166,11 @@ impl Plugin for GameUIPlugin {
             .add_systems(
                 Update,
                 (handle_pause_input, handle_pause_buttons).run_if(in_state(GameStateEnum::Paused)),
+            )
+            .add_systems(
+                Update,
+                (handle_level_complete_buttons, handle_button_interactions)
+                    .run_if(in_state(GameStateEnum::LevelComplete)),
             );
     }
 }
@@ -698,7 +704,7 @@ fn setup_level_complete_ui(
     ui_assets: Res<UIAssets>,
     game_state: Res<GameState>,
 ) {
-    commands
+    let level_complete_entity = commands
         .spawn((
             Node {
                 width: Percent(100.0),
@@ -711,13 +717,6 @@ fn setup_level_complete_ui(
             BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.8)),
             ZIndex(2000),
             LevelCompleteUI,
-            AnimatedUI {
-                animation_type: UIAnimation::ScaleUp,
-                duration: 0.5,
-                elapsed: 0.0,
-                start_value: 0.0,
-                target_value: 1.0,
-            },
         ))
         .with_children(|parent| {
             parent
@@ -733,6 +732,7 @@ fn setup_level_complete_ui(
                         ..default()
                     },
                     BackgroundColor(Color::srgb(0.1, 0.3, 0.1)),
+                    ZIndex(2001), // 确保在背景之上
                 ))
                 .with_children(|parent| {
                     spawn_title_text(parent, &ui_assets, "关卡完成！", 36.0);
@@ -778,7 +778,19 @@ fn setup_level_complete_ui(
                         Color::srgb(0.6, 0.2, 0.2),
                     );
                 });
-        });
+        })
+        .id();
+
+    // 延迟添加动画组件，避免动画影响初始交互
+    commands.entity(level_complete_entity).insert(AnimatedUI {
+        animation_type: UIAnimation::ScaleUp,
+        duration: 0.3, // 缩短动画时间
+        elapsed: 0.0,
+        start_value: 0.8, // 从80%开始，避免从0开始导致的交互问题
+        target_value: 1.0,
+    });
+
+    info!("关卡完成UI创建完毕，等待按钮交互");
 }
 
 // ============ 辅助函数 ============
@@ -841,6 +853,8 @@ fn spawn_menu_button(
                 is_hovered: false,
                 is_pressed: false,
             },
+            // 确保按钮可以接收交互
+            ZIndex(10), // 高Z-index确保在其他元素之上
         ))
         .with_children(|parent| {
             parent.spawn((
@@ -851,6 +865,8 @@ fn spawn_menu_button(
                     ..default()
                 },
                 TextColor(Color::WHITE),
+                // 确保文本不会阻挡按钮交互
+                ZIndex(11),
             ));
         });
 }
@@ -917,12 +933,20 @@ fn handle_button_interactions(
             Interaction::Hovered => {
                 button_component.is_hovered = true;
                 button_component.is_pressed = false;
-                *color = Color::srgb(0.4, 0.4, 0.6).into();
+                // 使用更明显的悬停颜色
+                *color = Color::srgb(0.5, 0.5, 0.7).into();
             }
             Interaction::None => {
                 button_component.is_hovered = false;
                 button_component.is_pressed = false;
-                *color = Color::srgb(0.3, 0.3, 0.5).into();
+                // 重置为按钮的原始颜色（这里使用默认色，实际应该存储原始颜色）
+                // 暂时使用一个通用的默认颜色
+                if color.0 != Color::srgb(0.2, 0.6, 0.2)
+                    && color.0 != Color::srgb(0.6, 0.6, 0.2)
+                    && color.0 != Color::srgb(0.6, 0.2, 0.2)
+                {
+                    *color = Color::srgb(0.3, 0.3, 0.5).into();
+                }
             }
         }
     }
@@ -992,6 +1016,39 @@ fn handle_pause_buttons(
                         // 游戏完成
                         next_state.set(GameStateEnum::MainMenu);
                     }
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+fn handle_level_complete_buttons(
+    button_query: Query<&ButtonComponent, (Changed<ButtonComponent>, With<Button>)>,
+    mut next_state: ResMut<NextState<GameStateEnum>>,
+    mut level_manager: ResMut<LevelManager>,
+) {
+    for button in button_query.iter() {
+        if button.is_pressed {
+            info!("关卡完成界面按钮被点击: {:?}", button.button_type);
+            match button.button_type {
+                ButtonType::NextLevel => {
+                    level_manager.current_level_index += 1;
+                    if level_manager.current_level_index < level_manager.available_levels.len() {
+                        info!("进入下一关卡，索引: {}", level_manager.current_level_index);
+                        next_state.set(GameStateEnum::Loading);
+                    } else {
+                        info!("所有关卡已完成，返回主菜单");
+                        next_state.set(GameStateEnum::MainMenu);
+                    }
+                }
+                ButtonType::RestartLevel => {
+                    info!("重新挑战当前关卡");
+                    next_state.set(GameStateEnum::Loading);
+                }
+                ButtonType::MainMenu => {
+                    info!("返回主菜单");
+                    next_state.set(GameStateEnum::MainMenu);
                 }
                 _ => {}
             }
