@@ -1,9 +1,9 @@
 // src/bus_puzzle/level_system.rs
 
 use crate::bus_puzzle::{
-    spawn_passenger_no_texture, GameState, GameStateEnum, GridPos, GridTile, LevelManager,
-    PassengerColor, PassengerSpawnedEvent, PathfindingAgent, RouteSegment, RouteSegmentType,
-    StationEntity, StationType, TerrainType, ROUTE_Z, STATION_Z, TERRAIN_Z,
+    spawn_passenger_no_texture, GameState, GameStateEnum, GridPos, GridTile, LevelCompletedEvent,
+    LevelManager, PassengerColor, PassengerSpawnedEvent, PathfindingAgent, RouteSegment,
+    RouteSegmentType, StationEntity, StationType, TerrainType, ROUTE_Z, STATION_Z, TERRAIN_Z,
 };
 use bevy::{platform::collections::HashMap, prelude::*};
 use rand::Rng;
@@ -117,7 +117,11 @@ impl Plugin for LevelGenerationPlugin {
                 Update,
                 (
                     sync_level_data,
-                    (update_passenger_spawning, handle_passenger_spawn)
+                    (
+                        update_passenger_spawning,
+                        handle_passenger_spawn,
+                        handle_level_events,
+                    )
                         .run_if(in_state(GameStateEnum::Playing)),
                     handle_dynamic_events.run_if(in_state(GameStateEnum::Playing)),
                     debug_passenger_spawning,
@@ -467,5 +471,42 @@ fn handle_passenger_spawn(
             }
         }
         game_state.passenger_stats.total_spawned += 1;
+    }
+}
+
+fn handle_level_events(
+    mut level_completed_events: EventReader<LevelCompletedEvent>,
+    mut next_state: ResMut<NextState<GameStateEnum>>,
+    // level_manager: Res<LevelManager>,
+) {
+    for event in level_completed_events.read() {
+        info!(
+            "Level completed! Final score: {}, Time: {:.1}s",
+            event.final_score, event.completion_time
+        );
+
+        // 计算评级
+        let rating = calculate_level_rating(event.final_score, event.completion_time);
+        info!("Level rating: {}", rating);
+
+        // 可以在这里保存成绩到本地存储
+        // save_level_completion(level_manager.current_level_index, event);
+
+        // 切换到完成界面
+        next_state.set(GameStateEnum::LevelComplete);
+    }
+}
+
+// ============ 辅助函数 ============
+
+fn calculate_level_rating(score: u32, completion_time: f32) -> &'static str {
+    if score >= 300 && completion_time <= 60.0 {
+        "★★★ Perfect!"
+    } else if score >= 200 && completion_time <= 120.0 {
+        "★★ Great!"
+    } else if score >= 100 {
+        "★ Good"
+    } else {
+        "Complete"
     }
 }

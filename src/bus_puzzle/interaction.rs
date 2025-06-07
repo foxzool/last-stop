@@ -43,7 +43,7 @@ impl Plugin for PuzzleInteractionPlugin {
                 (
                     update_inventory_ui,
                     update_objectives_ui,
-                    update_score_display,
+                    // update_score_display,
                 )
                     .run_if(in_state(GameStateEnum::Playing)),
             );
@@ -462,7 +462,6 @@ fn handle_level_completion(
                 final_score,
                 completion_time: game_state.game_time,
             });
-            info!("关卡完成！最终得分: {}", final_score);
         }
     }
 }
@@ -470,7 +469,7 @@ fn handle_level_completion(
 // ============ UI 更新系统 ============
 
 fn update_inventory_ui(
-    game_state: Res<GameState>,
+    // game_state: Res<GameState>,
     mut inventory_slots: Query<(&mut InventorySlot, &mut Sprite)>,
     mut inventory_count_text: Query<(&InventoryCountText, &mut Text)>,
     mut inventory_updated_events: EventReader<InventoryUpdatedEvent>,
@@ -509,10 +508,6 @@ fn update_objectives_ui(
             }
         }
     }
-}
-
-fn update_score_display(game_state: Res<GameState>, passengers: Query<&PathfindingAgent>) {
-    // 实时计算和更新分数的逻辑
 }
 
 fn handle_segment_events(
@@ -578,43 +573,6 @@ fn handle_objective_events(
                 }
             }
         }
-    }
-}
-
-fn handle_level_events(
-    mut level_completed_events: EventReader<LevelCompletedEvent>,
-    mut next_state: ResMut<NextState<GameStateEnum>>,
-    level_manager: Res<LevelManager>,
-) {
-    for event in level_completed_events.read() {
-        info!(
-            "Level completed! Final score: {}, Time: {:.1}s",
-            event.final_score, event.completion_time
-        );
-
-        // 计算评级
-        let rating = calculate_level_rating(event.final_score, event.completion_time);
-        info!("Level rating: {}", rating);
-
-        // 可以在这里保存成绩到本地存储
-        // save_level_completion(level_manager.current_level_index, event);
-
-        // 切换到完成界面
-        next_state.set(GameStateEnum::LevelComplete);
-    }
-}
-
-// ============ 辅助函数 ============
-
-fn calculate_level_rating(score: u32, completion_time: f32) -> &'static str {
-    if score >= 300 && completion_time <= 60.0 {
-        "★★★ Perfect!"
-    } else if score >= 200 && completion_time <= 120.0 {
-        "★★ Great!"
-    } else if score >= 100 {
-        "★ Good"
-    } else {
-        "Complete"
     }
 }
 
