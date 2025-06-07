@@ -8,7 +8,15 @@ use bevy::{
 use std::collections::{HashMap, VecDeque};
 
 // 使用相对路径引用同模块下的其他文件
-use super::{AgentState, AvailableSegment, ButtonComponent, ButtonType, CameraController, DraggableSegment, GameScore, GameState, GameStateEnum, GridHighlight, GridPos, InputState, InventorySlot, InventoryUI, InventoryUpdatedEvent, LevelCompletedEvent, LevelData, LevelManager, ObjectiveCompletedEvent, ObjectiveCondition, ObjectiveTracker, ObjectiveType, PassengerColor, PathNode, PathfindingAgent, PlacedSegment, RouteSegment, RouteSegmentType, SegmentPlacedEvent, SegmentPreview, SegmentRemovedEvent, UIElement, world_to_grid, PathfindingGraph};
+use super::{
+    AgentState, AvailableSegment, ButtonComponent, ButtonType, CameraController, DraggableSegment,
+    GameScore, GameState, GameStateEnum, GridHighlight, GridPos, InputState, InventorySlot,
+    InventoryUI, InventoryUpdatedEvent, LevelCompletedEvent, LevelData, LevelManager,
+    ObjectiveCompletedEvent, ObjectiveCondition, ObjectiveTracker, ObjectiveType, PassengerColor,
+    PathNode, PathfindingAgent, PathfindingGraph, PlacedSegment, RouteSegment, RouteSegmentType,
+    SegmentPlacedEvent, SegmentPreview, SegmentRemovedEvent, UIElement, rebuild_pathfinding_graph,
+    world_to_grid,
+};
 
 // ============ 插件定义 ============
 
@@ -512,7 +520,10 @@ fn handle_segment_events(
 
     // 处理路线段放置事件
     for event in segment_placed_events.read() {
-        info!("Route segment placed: {:?} at {:?}", event.segment_type, event.position);
+        info!(
+            "Route segment placed: {:?} at {:?}",
+            event.segment_type, event.position
+        );
         graph_needs_update = true;
 
         // 可以在这里添加特殊效果，比如粒子效果、动画等
@@ -529,10 +540,10 @@ fn handle_segment_events(
     }
 
     // 如果有路线段变化，更新寻路图
-    // if graph_needs_update {
-    //     _pathfinding_graph(&mut pathfinding_graph, &game_state);
-    //     info!("Pathfinding graph updated due to route changes");
-    // }
+    if graph_needs_update {
+        rebuild_pathfinding_graph(&mut pathfinding_graph, &game_state);
+        info!("Pathfinding graph updated due to route changes");
+    }
 }
 
 fn handle_objective_events(
@@ -571,8 +582,10 @@ fn handle_level_events(
     level_manager: Res<LevelManager>,
 ) {
     for event in level_completed_events.read() {
-        info!("Level completed! Final score: {}, Time: {:.1}s",
-              event.final_score, event.completion_time);
+        info!(
+            "Level completed! Final score: {}, Time: {:.1}s",
+            event.final_score, event.completion_time
+        );
 
         // 计算评级
         let rating = calculate_level_rating(event.final_score, event.completion_time);
