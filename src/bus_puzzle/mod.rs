@@ -3,8 +3,11 @@ pub mod components;
 pub mod config;
 pub mod connection_debug;
 pub mod connection_fix;
+pub mod connection_system;
 pub mod events;
 pub mod interaction;
+pub mod junction_movement;
+pub mod junction_pathfinding;
 pub mod level_system;
 pub mod passenger_movement_debug;
 pub mod passenger_test;
@@ -22,6 +25,7 @@ pub use connection_debug::*;
 pub use connection_fix::*;
 pub use events::*;
 pub use interaction::*;
+pub use junction_movement::*;
 pub use level_system::*;
 pub use passenger_movement_debug::*;
 pub use passenger_test::*;
@@ -30,9 +34,9 @@ pub use resources::*;
 pub use ui_audio::*;
 pub use utils::*;
 
-use crate::bus_puzzle::splash::SplashPlugin;
+use crate::bus_puzzle::{connection_system::ConnectionSystemPlugin, splash::SplashPlugin};
 use bevy::prelude::*;
-
+use crate::bus_puzzle::junction_pathfinding::JunctionPathfindingPlugin;
 // ============ 游戏主循环集成 ============
 
 pub struct BusPuzzleGamePlugin;
@@ -47,8 +51,11 @@ impl Plugin for BusPuzzleGamePlugin {
             GameUIPlugin,
             PassengerTestPlugin,
             PassengerMovementDebugPlugin,
-            ConnectionDebugPlugin,
-            ConnectionFixPlugin,
+            // ConnectionDebugPlugin,
+            // ConnectionFixPlugin,
+            JunctionPathfindingPlugin,
+            JunctionMovementPlugin,
+            ConnectionSystemPlugin,
         ));
 
         app.init_resource::<GameState>()

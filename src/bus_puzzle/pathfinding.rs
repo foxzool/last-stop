@@ -393,6 +393,7 @@ fn manhattan_distance_internal(pos1: GridPos, pos2: GridPos) -> u32 {
 fn find_paths_for_new_passengers(
     pathfinding_graph: Res<PathfindingGraph>,
     mut passengers: Query<&mut PathfindingAgent, Added<PathfindingAgent>>,
+    route_segments: Query<&RouteSegment>,
 ) {
     for mut agent in passengers.iter_mut() {
         // 检查寻路图是否有必要的站点
@@ -411,12 +412,20 @@ fn find_paths_for_new_passengers(
             continue;
         }
 
-        if let Some(path) = find_optimal_path(&pathfinding_graph, &agent.origin, &agent.destination)
-        {
-            agent.current_path = path;
+        if let Some(basic_path) = find_optimal_path(&pathfinding_graph, &agent.origin, &agent.destination) {
+            // 检查路径是否经过路口，如果是则增强路径
+            let enhanced_path = if path_needs_junction_enhancement(&basic_path, &route_segments) {
+                let enhanced = enhance_path_with_junction_nodes(basic_path.clone(), &route_segments);
+                info!("为乘客 {:?} 增强路径，从 {} 步增加到 {} 步",
+                    agent.color, enhanced.len() - (enhanced.len() - basic_path.len()), enhanced.len());
+                enhanced
+            } else {
+                basic_path
+            };
+
+            agent.current_path = enhanced_path;
             agent.current_step = 0;
             agent.state = AgentState::WaitingAtStation;
-            // 重置等待时间，避免立即开始移动
             agent.waiting_time = 0.0;
 
             info!(
@@ -425,13 +434,80 @@ fn find_paths_for_new_passengers(
                 agent.current_path.len()
             );
         } else {
-            // 如果没有路线段连接，创建一个直接等待路径
             info!("暂时无法为乘客 {:?} 找到路径，设置为等待状态", agent.color);
             agent.state = AgentState::WaitingAtStation;
             agent.waiting_time = 0.0;
-            // 不立即放弃，等待玩家建设路线
         }
     }
+}
+
+/// 检查路径是否需要路口增强
+pub fn path_needs_junction_enhancement(path: &[PathNode], route_segments: &Query<&RouteSegment>) -> bool {
+    for node in path {
+        if find_junction_at_position(node.position, route_segments).is_some() {
+            return true;
+        }
+    }
+    false
+}
+
+/// 为路径添加路口内部节点
+pub fn enhance_path_with_junction_nodes(
+    original_path: Vec<PathNode>,
+    route_segments: &Query<&RouteSegment>,
+) -> Vec<PathNode> {
+    let mut enhanced_path = Vec::new();
+
+    for (i, node) in original_path.iter().enumerate() {
+        // 添加原始节点
+        enhanced_path.push(node.clone());
+
+        // 检查当前节点是否是路口
+        if let Some(junction) = find_junction_at_position(node.position, route_segments) {
+            // 在路口前插入进入节点
+            enhanced_path.push(PathNode {
+                position: junction.grid_pos,
+                node_type: PathNodeType::TransferPoint,
+                estimated_wait_time: 0.2,
+                route_id: Some(format!("junction_enter_{}", junction.grid_pos.x)),
+            });
+
+            // 插入路口中心节点
+            enhanced_path.push(PathNode {
+                position: junction.grid_pos,
+                node_type: PathNodeType::TransferPoint,
+                estimated_wait_time: 0.3,
+                route_id: Some(format!("junction_center_{}", junction.grid_pos.x)),
+            });
+
+            // 插入路口退出节点
+            enhanced_path.push(PathNode {
+                position: junction.grid_pos,
+                node_type: PathNodeType::TransferPoint,
+                estimated_wait_time: 0.1,
+                route_id: Some(format!("junction_exit_{}", junction.grid_pos.x)),
+            });
+
+            info!("为 {:?} 路口添加内部节点", junction.segment_type);
+        }
+    }
+
+    enhanced_path
+}
+
+/// 查找指定位置的路口
+fn find_junction_at_position(pos: GridPos, route_segments: &Query<&RouteSegment>) -> Option<RouteSegment> {
+    for segment in route_segments.iter() {
+        if segment.grid_pos == pos && segment.is_active {
+            match segment.segment_type {
+                RouteSegmentType::Curve | RouteSegmentType::TSplit | RouteSegmentType::Cross => {
+                    return Some(segment.clone());
+                }
+                _ => {}
+            }
+        }
+    }
+    None
 }
 
 fn update_passenger_movement(

@@ -103,7 +103,7 @@ pub struct GridTile {
     pub terrain_type: TerrainType,
 }
 
-#[derive(Component)]
+#[derive(Component, Clone, Copy)]
 pub struct RouteSegment {
     pub grid_pos: GridPos,
     pub segment_type: RouteSegmentType,
