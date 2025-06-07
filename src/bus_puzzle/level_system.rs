@@ -1,13 +1,15 @@
 // src/bus_puzzle/level_system.rs
 
 use crate::bus_puzzle::{
-    AgentState, GameState, GameStateEnum, GridPos, GridTile, LevelManager, PassengerColor,
-    PassengerEntity, PathfindingAgent, RouteSegment, RouteSegmentType, StationEntity, StationType,
-    TerrainType, get_passenger_color,
+    GameState, GameStateEnum, GridPos, GridTile, LevelManager, PASSENGER_Z, PassengerColor,
+    PassengerEntity, PathfindingAgent, ROUTE_Z, RouteSegment, RouteSegmentType, STATION_Z,
+    StationEntity, StationType, TERRAIN_Z, TerrainType, get_passenger_color,
+    spawn_passenger_no_texture,
 };
 use bevy::{platform::collections::HashMap, prelude::*};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
+
 // ============ 关卡数据结构 ============
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -206,74 +208,6 @@ fn update_passenger_spawning_no_texture(
     }
 }
 
-// 无纹理的乘客生成函数
-fn spawn_passenger_no_texture(
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<ColorMaterial>>,
-    demand: &PassengerDemand,
-    level_data: &crate::bus_puzzle::LevelData,
-) {
-    // 找到起点站的位置
-    if let Some(origin_station) = level_data.stations.iter().find(|s| s.name == demand.origin) {
-        let tile_size = 64.0;
-        let (grid_width, grid_height) = level_data.grid_size;
-        let world_pos = origin_station
-            .position
-            .to_world_pos(tile_size, grid_width, grid_height);
-
-        let bevy_color = get_passenger_color(demand.color);
-
-        // 创建乘客实体（使用圆形网格而不是纹理）
-        let entity = commands
-            .spawn((
-                Name::new(format!(
-                    "Passenger {:?} {} -> {}",
-                    demand.color, demand.origin, demand.destination
-                )),
-                Mesh2d(meshes.add(Circle::new(16.0))), // 16像素半径的圆形
-                MeshMaterial2d(materials.add(bevy_color)), // 使用对应颜色
-                Transform::from_translation(world_pos + Vec3::Z * 2.0),
-                // 基础乘客信息
-                PassengerEntity {
-                    color: demand.color,
-                    origin: demand.origin.clone(),
-                    destination: demand.destination.clone(),
-                    current_patience: demand.patience,
-                    path: Vec::new(),
-                },
-                // 寻路代理信息
-                PathfindingAgent {
-                    color: demand.color,
-                    origin: demand.origin.clone(),
-                    destination: demand.destination.clone(),
-                    current_path: Vec::new(),
-                    current_step: 0,
-                    state: AgentState::WaitingAtStation,
-                    patience: demand.patience,
-                    max_patience: demand.patience,
-                    waiting_time: 0.0,
-                },
-            ))
-            .id();
-
-        info!(
-            "成功生成乘客 (Entity: {:?}): {:?} {} -> {} 位置: {:?}",
-            entity, demand.color, demand.origin, demand.destination, world_pos
-        );
-    } else {
-        error!(
-            "找不到起点站: {} (可用站点: {:?})",
-            demand.origin,
-            level_data
-                .stations
-                .iter()
-                .map(|s| &s.name)
-                .collect::<Vec<_>>()
-        );
-    }
-}
-
 // 调试系统（保持不变）
 fn debug_passenger_spawning(
     keyboard_input: Res<ButtonInput<KeyCode>>,
@@ -374,11 +308,12 @@ pub fn generate_level_map(
 ) {
     let (width, height) = level_data.grid_size;
 
-    // 生成地形网格
+    // 生成地形网格（在最底层）
     for x in 0..width as i32 {
         for y in 0..height as i32 {
             let grid_pos = GridPos::new(x, y);
-            let world_pos = grid_pos.to_world_pos(tile_size, width, height);
+            let mut world_pos = grid_pos.to_world_pos(tile_size, width, height);
+            world_pos.z = TERRAIN_Z; // 确保地形在最底层
 
             let terrain_type = level_data
                 .terrain
@@ -399,32 +334,41 @@ pub fn generate_level_map(
         }
     }
 
-    // 生成站点
+    // 生成站点（在地形上方）
     for station in &level_data.stations {
-        let world_pos = station.position.to_world_pos(tile_size, width, height);
+        let mut world_pos = station.position.to_world_pos(tile_size, width, height);
+        world_pos.z = STATION_Z; // 站点在地形上方
+
         let texture_path = get_station_texture(&station.station_type);
 
         commands.spawn((
             Sprite::from_image(asset_server.load(texture_path)),
-            Transform::from_translation(world_pos + Vec3::Z * 1.0),
+            Transform::from_translation(world_pos),
             StationEntity {
                 station_data: station.clone(),
                 current_passengers: 0,
             },
         ));
+
+        info!(
+            "生成站点: {} 位置: {:?} Z={:.1}",
+            station.name, world_pos, STATION_Z
+        );
     }
 
-    // 生成预设路线
+    // 生成预设路线（在地形上方，但在站点下方）
     for preset_route in &level_data.preset_routes {
         for (pos, segment_type, rotation) in &preset_route.segments {
-            let world_pos = pos.to_world_pos(tile_size, width, height);
+            let mut world_pos = pos.to_world_pos(tile_size, width, height);
+            world_pos.z = ROUTE_Z; // 路线段在地形和站点之间
+
             let texture_path = segment_type.get_texture_path();
 
             commands.spawn((
                 Sprite::from_image(asset_server.load(texture_path)),
-                Transform::from_translation(world_pos + Vec3::Z * 0.5).with_rotation(
-                    Quat::from_rotation_z((*rotation as f32) * std::f32::consts::PI / 180.0),
-                ),
+                Transform::from_translation(world_pos).with_rotation(Quat::from_rotation_z(
+                    (*rotation as f32) * std::f32::consts::PI / 180.0,
+                )),
                 RouteSegment {
                     grid_pos: *pos,
                     segment_type: segment_type.clone(),
@@ -432,8 +376,18 @@ pub fn generate_level_map(
                     is_active: true,
                 },
             ));
+
+            info!(
+                "生成预设路线段: {:?} 位置: {:?} Z={:.1}",
+                segment_type, world_pos, ROUTE_Z
+            );
         }
     }
+
+    info!(
+        "地图生成完成，Z层级: 地形={:.1}, 路线={:.1}, 站点={:.1}, 乘客={:.1}",
+        TERRAIN_Z, ROUTE_Z, STATION_Z, PASSENGER_Z
+    );
 }
 
 // ============ 系统函数 ============

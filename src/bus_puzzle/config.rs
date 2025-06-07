@@ -1,25 +1,28 @@
-use bevy::prelude::*;
+// ============ Z 轴渲染层级常量 ============
 
-#[derive(Resource)]
-pub struct GameConfig {
-    pub tile_size: f32,
-    pub camera_speed: f32,
-    pub zoom_sensitivity: f32,
-    pub passenger_speed: f32,
-    pub ui_scale: f32,
-}
+/// 地形层（草地、水面、建筑等背景）
+pub const TERRAIN_Z: f32 = 0.0;
 
-impl Default for GameConfig {
-    fn default() -> Self {
-        Self {
-            tile_size: 64.0,
-            camera_speed: 500.0,
-            zoom_sensitivity: 0.1,
-            passenger_speed: 100.0,
-            ui_scale: 1.0,
-        }
-    }
-}
+/// 路线段层（公交路线、道路等）
+pub const ROUTE_Z: f32 = 1.0;
+
+/// 站点层（公交站、换乘枢纽等）
+pub const STATION_Z: f32 = 2.0;
+
+/// 乘客层（移动的乘客实体）
+pub const PASSENGER_Z: f32 = 3.0;
+
+/// 特效层（粒子效果、动画等）
+pub const EFFECT_Z: f32 = 4.0;
+
+/// UI元素层（游戏内UI，如路径预览等）
+pub const GAME_UI_Z: f32 = 5.0;
+
+/// 菜单UI层（暂停菜单、设置等）
+pub const MENU_UI_Z: f32 = 10.0;
+
+/// 调试层（调试信息显示）
+pub const DEBUG_Z: f32 = 20.0;
 
 // 游戏常量
 pub const GAME_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -38,3 +41,44 @@ pub const BUS_SPEED: f32 = 150.0;
 pub const UI_ANIMATION_DURATION: f32 = 0.5;
 pub const BUTTON_HOVER_SCALE: f32 = 1.1;
 pub const INVENTORY_SLOT_SIZE: f32 = 80.0;
+
+// ============ 渲染层级辅助函数 ============
+
+/// 获取指定层级上方的 Z 坐标（用于临时显示）
+pub fn above_layer(base_z: f32, offset: f32) -> f32 {
+    base_z + offset
+}
+
+/// 获取指定层级下方的 Z 坐标
+pub fn below_layer(base_z: f32, offset: f32) -> f32 {
+    base_z - offset
+}
+
+/// 验证 Z 坐标是否在预期范围内
+pub fn is_valid_z_order(terrain_z: f32, passenger_z: f32) -> bool {
+    passenger_z > terrain_z && passenger_z >= PASSENGER_Z
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_z_layer_ordering() {
+        assert!(TERRAIN_Z < ROUTE_Z);
+        assert!(ROUTE_Z < STATION_Z);
+        assert!(STATION_Z < PASSENGER_Z);
+        assert!(PASSENGER_Z < EFFECT_Z);
+        assert!(EFFECT_Z < GAME_UI_Z);
+        assert!(GAME_UI_Z < MENU_UI_Z);
+        assert!(MENU_UI_Z < DEBUG_Z);
+    }
+
+    #[test]
+    fn test_z_helper_functions() {
+        assert_eq!(above_layer(TERRAIN_Z, 0.1), 0.1);
+        assert_eq!(below_layer(PASSENGER_Z, 0.5), 2.5);
+        assert!(is_valid_z_order(TERRAIN_Z, PASSENGER_Z));
+        assert!(!is_valid_z_order(PASSENGER_Z, TERRAIN_Z));
+    }
+}

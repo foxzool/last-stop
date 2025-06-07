@@ -9,8 +9,9 @@ use std::{
 
 // 使用相对路径引用同模块下的其他文件
 use super::{
-    AgentState, Connection, ConnectionType, GraphNode, GraphNodeType, GridPos, LevelManager,
-    PathfindingAgent, PathfindingGraph, RouteSegment, RouteSegmentType, StationEntity,
+    AgentState, Connection, ConnectionType, GameStateEnum, GraphNode, GraphNodeType, GridPos,
+    LevelManager, PASSENGER_Z, PathfindingAgent, PathfindingGraph, ROUTE_Z, RouteSegment,
+    RouteSegmentType, STATION_Z, StationEntity,
 };
 
 // ============ 寻路相关组件 ============
@@ -90,18 +91,403 @@ impl Plugin for PathfindingPlugin {
             .add_systems(
                 Update,
                 (
-                    update_pathfinding_graph,
-                    find_paths_for_new_passengers,
-                    update_passenger_movement,
+                    update_pathfinding_graph_fixed,
+                    create_basic_pathfinding_graph, // 创建基础寻路图
+                    find_paths_for_new_passengers_fixed,
+                    update_passenger_movement_fixed,
                     handle_passenger_transfers,
                     cleanup_finished_passengers,
+                    debug_pathfinding_status,
                 )
-                    .chain(),
+                    .chain()
+                    .run_if(in_state(GameStateEnum::Playing)),
             );
     }
 }
 
 // ============ 系统实现 ============
+// 创建基础寻路图（即使没有路线段也能让乘客移动）
+fn create_basic_pathfinding_graph(
+    mut pathfinding_graph: ResMut<PathfindingGraph>,
+    stations: Query<&StationEntity>,
+    route_segments: Query<&RouteSegment>,
+    mut graph_created: Local<bool>,
+    time: Res<Time>,
+) {
+    if *graph_created && time.elapsed_secs() as u32 % 10 != 0 {
+        return;
+    }
+
+    if !*graph_created {
+        *graph_created = true;
+        info!("创建基础寻路图...");
+    }
+
+    pathfinding_graph.nodes.clear();
+    pathfinding_graph.connections.clear();
+    pathfinding_graph.station_lookup.clear();
+
+    // 添加所有站点
+    for station_entity in stations.iter() {
+        let station = &station_entity.station_data;
+        let pos = station.position;
+
+        pathfinding_graph.nodes.insert(
+            pos,
+            GraphNode {
+                position: pos,
+                node_type: GraphNodeType::Station,
+                station_name: Some(station.name.clone()),
+                is_accessible: true,
+            },
+        );
+
+        pathfinding_graph
+            .station_lookup
+            .insert(station.name.clone(), pos);
+        info!(
+            "添加站点: {} 位置: {:?} (层级: STATION_Z={:.1})",
+            station.name, pos, STATION_Z
+        );
+    }
+
+    // 添加路线段
+    for segment in route_segments.iter() {
+        if segment.is_active {
+            let pos = segment.grid_pos;
+            pathfinding_graph.nodes.insert(
+                pos,
+                GraphNode {
+                    position: pos,
+                    node_type: GraphNodeType::RouteSegment,
+                    station_name: None,
+                    is_accessible: true,
+                },
+            );
+            info!(
+                "添加路线段: {:?} 位置: {:?} (层级: ROUTE_Z={:.1})",
+                segment.segment_type, pos, ROUTE_Z
+            );
+        }
+    }
+
+    // 创建连接
+    let station_positions: Vec<GridPos> =
+        pathfinding_graph.station_lookup.values().copied().collect();
+
+    if route_segments.is_empty() {
+        info!("没有路线段，创建站点间直接连接");
+        for &from_pos in &station_positions {
+            for &to_pos in &station_positions {
+                if from_pos != to_pos {
+                    pathfinding_graph
+                        .connections
+                        .entry(from_pos)
+                        .or_insert_with(Vec::new)
+                        .push(Connection {
+                            to: to_pos,
+                            cost: manhattan_distance(from_pos, to_pos) as f32,
+                            route_id: Some("direct".to_string()),
+                            connection_type: ConnectionType::Walk,
+                        });
+                }
+            }
+        }
+    }
+
+    info!(
+        "寻路图创建完成: {} 个节点, {} 个连接",
+        pathfinding_graph.nodes.len(),
+        pathfinding_graph.connections.len()
+    );
+}
+
+// 修复的寻路图更新
+fn update_pathfinding_graph_fixed(
+    mut pathfinding_graph: ResMut<PathfindingGraph>,
+    route_segments: Query<&RouteSegment, Changed<RouteSegment>>,
+    stations: Query<&StationEntity, Changed<StationEntity>>,
+) {
+    if route_segments.is_empty() && stations.is_empty() {
+        return;
+    }
+
+    info!("检测到路线段或站点变化，更新寻路图");
+}
+
+// 修复的乘客寻路
+fn find_paths_for_new_passengers_fixed(
+    pathfinding_graph: Res<PathfindingGraph>,
+    mut passengers: Query<(Entity, &mut PathfindingAgent), Added<PathfindingAgent>>,
+) {
+    for (entity, mut agent) in passengers.iter_mut() {
+        if agent.current_path.is_empty() {
+            info!(
+                "为新乘客寻找路径: {:?} {} -> {}",
+                agent.color, agent.origin, agent.destination
+            );
+
+            if let Some(path) =
+                find_optimal_path_fixed(&pathfinding_graph, &agent.origin, &agent.destination)
+            {
+                agent.current_path = path;
+                agent.current_step = 0;
+                agent.state = AgentState::Traveling;
+                agent.waiting_time = 0.0;
+
+                info!(
+                    "为乘客 {:?} 找到路径，共 {} 步，开始移动",
+                    agent.color,
+                    agent.current_path.len()
+                );
+            } else {
+                warn!("无法为乘客 {:?} 找到路径，创建直线路径", agent.color);
+                agent.current_path =
+                    create_direct_path(&agent.origin, &agent.destination, &pathfinding_graph);
+                agent.current_step = 0;
+                agent.state = AgentState::Traveling;
+            }
+        }
+    }
+}
+
+// 修复的乘客移动
+fn update_passenger_movement_fixed(
+    time: Res<Time>,
+    mut passengers: Query<(&mut PathfindingAgent, &mut Transform)>,
+) {
+    let dt = time.delta_secs();
+    let tile_size = 64.0;
+
+    for (mut agent, mut transform) in passengers.iter_mut() {
+        // 确保乘客始终在正确的 Z 层级
+        transform.translation.z = PASSENGER_Z;
+
+        match agent.state {
+            AgentState::WaitingAtStation => {
+                agent.waiting_time += dt;
+                if agent.waiting_time > 0.5 && !agent.current_path.is_empty() {
+                    agent.state = AgentState::Traveling;
+                    agent.waiting_time = 0.0;
+                    info!(
+                        "乘客 {:?} 开始移动，层级: PASSENGER_Z={:.1}",
+                        agent.color, PASSENGER_Z
+                    );
+                }
+            }
+            AgentState::Traveling => {
+                if agent.current_step < agent.current_path.len() {
+                    let current_node = &agent.current_path[agent.current_step];
+
+                    // 计算目标位置，确保在正确的 Z 层
+                    let mut target_pos = current_node.position.to_world_pos(tile_size, 10, 8);
+                    target_pos.z = PASSENGER_Z;
+
+                    let direction = (target_pos - transform.translation).normalize_or_zero();
+                    let speed = 150.0;
+
+                    let distance_to_target = Vec2::new(
+                        target_pos.x - transform.translation.x,
+                        target_pos.y - transform.translation.y,
+                    )
+                    .length();
+
+                    if distance_to_target > 10.0 {
+                        let movement = Vec3::new(direction.x, direction.y, 0.0) * speed * dt;
+                        transform.translation += movement;
+                        transform.translation.z = PASSENGER_Z; // 确保 Z 坐标不变
+
+                        if agent.waiting_time.fract() < dt * 2.0 {
+                            info!(
+                                "乘客 {:?} 移动中: 距离目标 {:.1} 像素, 层级: PASSENGER_Z={:.1}",
+                                agent.color, distance_to_target, PASSENGER_Z
+                            );
+                        }
+                    } else {
+                        transform.translation = target_pos;
+                        transform.translation.z = PASSENGER_Z;
+                        agent.current_step += 1;
+
+                        info!(
+                            "乘客 {:?} 到达节点 {}/{}, 层级: PASSENGER_Z={:.1}",
+                            agent.color,
+                            agent.current_step,
+                            agent.current_path.len(),
+                            PASSENGER_Z
+                        );
+
+                        if agent.current_step >= agent.current_path.len() {
+                            agent.state = AgentState::Arrived;
+                            info!("乘客 {:?} 到达终点！", agent.color);
+                        }
+                    }
+                } else {
+                    agent.state = AgentState::Arrived;
+                }
+
+                agent.waiting_time += dt;
+            }
+            AgentState::Transferring => {
+                agent.waiting_time += dt;
+                if agent.waiting_time > 1.0 {
+                    agent.state = AgentState::Traveling;
+                    agent.waiting_time = 0.0;
+                }
+            }
+            _ => {}
+        }
+
+        agent.patience -= dt * 0.5;
+        if agent.patience <= 0.0 && agent.state != AgentState::Arrived {
+            agent.state = AgentState::GaveUp;
+            warn!("乘客 {:?} 耐心耗尽", agent.color);
+        }
+    }
+}
+
+// 创建直线路径（当找不到正常路径时）
+fn create_direct_path(
+    origin: &str,
+    destination: &str,
+    pathfinding_graph: &PathfindingGraph,
+) -> Vec<PathNode> {
+    let mut path = Vec::new();
+
+    if let (Some(&start_pos), Some(&end_pos)) = (
+        pathfinding_graph.station_lookup.get(origin),
+        pathfinding_graph.station_lookup.get(destination),
+    ) {
+        // 起点
+        path.push(PathNode {
+            position: start_pos,
+            node_type: PathNodeType::Station(origin.to_string()),
+            estimated_wait_time: 0.0,
+            route_id: None,
+        });
+
+        // 中间点（如果需要的话）
+        if start_pos != end_pos {
+            let mid_x = (start_pos.x + end_pos.x) / 2;
+            let mid_y = (start_pos.y + end_pos.y) / 2;
+            let mid_pos = GridPos::new(mid_x, mid_y);
+
+            path.push(PathNode {
+                position: mid_pos,
+                node_type: PathNodeType::RouteSegment,
+                estimated_wait_time: 1.0,
+                route_id: Some("direct".to_string()),
+            });
+        }
+
+        // 终点
+        path.push(PathNode {
+            position: end_pos,
+            node_type: PathNodeType::Station(destination.to_string()),
+            estimated_wait_time: 0.0,
+            route_id: None,
+        });
+
+        info!(
+            "创建直线路径: {} -> {}, {} 步",
+            origin,
+            destination,
+            path.len()
+        );
+    }
+
+    path
+}
+
+// 改进的寻路算法
+fn find_optimal_path_fixed(
+    graph: &PathfindingGraph,
+    origin: &str,
+    destination: &str,
+) -> Option<Vec<PathNode>> {
+    info!("寻找路径: {} -> {}", origin, destination);
+
+    let start_pos = graph.station_lookup.get(origin)?;
+    let end_pos = graph.station_lookup.get(destination)?;
+
+    info!("起点位置: {:?}, 终点位置: {:?}", start_pos, end_pos);
+
+    // 如果起点和终点相同
+    if start_pos == end_pos {
+        return Some(vec![PathNode {
+            position: *start_pos,
+            node_type: PathNodeType::Station(destination.to_string()),
+            estimated_wait_time: 0.0,
+            route_id: None,
+        }]);
+    }
+
+    // 检查是否有连接
+    if let Some(connections) = graph.connections.get(start_pos) {
+        info!("从起点 {:?} 有 {} 个连接", start_pos, connections.len());
+        for conn in connections {
+            info!("  连接到: {:?}, 成本: {}", conn.to, conn.cost);
+        }
+
+        // 如果有直接连接到终点
+        if connections.iter().any(|conn| conn.to == *end_pos) {
+            return Some(vec![
+                PathNode {
+                    position: *start_pos,
+                    node_type: PathNodeType::Station(origin.to_string()),
+                    estimated_wait_time: 0.0,
+                    route_id: None,
+                },
+                PathNode {
+                    position: *end_pos,
+                    node_type: PathNodeType::Station(destination.to_string()),
+                    estimated_wait_time: 0.0,
+                    route_id: None,
+                },
+            ]);
+        }
+    } else {
+        warn!("起点 {:?} 没有任何连接", start_pos);
+    }
+
+    // 使用 A* 算法（简化版本）
+    // ... 这里可以添加更复杂的 A* 实现
+
+    None
+}
+
+// 调试系统
+fn debug_pathfinding_status(
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    pathfinding_graph: Res<PathfindingGraph>,
+    passengers: Query<&PathfindingAgent>,
+) {
+    if keyboard_input.just_pressed(KeyCode::F11) {
+        info!("=== 寻路系统状态 ===");
+        info!("寻路图节点数: {}", pathfinding_graph.nodes.len());
+        info!("寻路图连接数: {}", pathfinding_graph.connections.len());
+        info!("站点查找表: {}", pathfinding_graph.station_lookup.len());
+
+        for (name, pos) in &pathfinding_graph.station_lookup {
+            info!("  站点 {}: {:?}", name, pos);
+        }
+
+        info!("乘客状态:");
+        for agent in passengers.iter() {
+            info!(
+                "  {:?}: 状态 {:?}, 路径长度 {}, 当前步骤 {}",
+                agent.color,
+                agent.state,
+                agent.current_path.len(),
+                agent.current_step
+            );
+        }
+    }
+}
+
+// 辅助函数
+fn manhattan_distance(pos1: GridPos, pos2: GridPos) -> u32 {
+    ((pos1.x - pos2.x).abs() + (pos1.y - pos2.y).abs()) as u32
+}
 
 /// 更新寻路图，基于当前的路线段和站点状态
 fn update_pathfinding_graph(
