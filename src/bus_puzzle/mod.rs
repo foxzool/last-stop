@@ -79,7 +79,8 @@ impl Plugin for BusPuzzleGamePlugin {
                 (
                     update_game_score,
                     check_level_failure_conditions,
-                    debug_level_reset, // 新增调试功能
+                    debug_level_reset,  // 新增调试功能
+                    debug_level_status, // 新增关卡状态调试
                 )
                     .run_if(in_state(GameStateEnum::Playing)),
             );
@@ -162,7 +163,13 @@ fn load_current_level(
     {
         match level_id.as_str() {
             "tutorial_01" => create_tutorial_level(),
-            _ => create_tutorial_level(),
+            "level_02_transfer" => create_transfer_level(),
+            "level_03_multiple_routes" => create_multiple_routes_level(),
+            "level_04_time_pressure" => create_time_pressure_level(),
+            _ => {
+                warn!("未知关卡ID: {}, 使用教学关卡", level_id);
+                create_tutorial_level()
+            }
         }
     } else {
         warn!("无效的关卡索引: {}", level_manager.current_level_index);
@@ -283,6 +290,54 @@ fn debug_level_reset(
         info!("当前库存状态: {:?}", game_state.player_inventory);
 
         next_state.set(GameStateEnum::Loading);
+    }
+}
+
+/// F6 - 调试关卡状态
+fn debug_level_status(
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    level_manager: Res<LevelManager>,
+    game_state: Res<GameState>,
+) {
+    if keyboard_input.just_pressed(KeyCode::F6) {
+        info!("=== 关卡状态调试 ===");
+        info!("当前关卡索引: {}", level_manager.current_level_index);
+        info!("总关卡数: {}", level_manager.available_levels.len());
+
+        for (i, level_id) in level_manager.available_levels.iter().enumerate() {
+            let is_current = i == level_manager.current_level_index;
+            let is_unlocked = level_manager
+                .unlocked_levels
+                .get(i)
+                .copied()
+                .unwrap_or(false);
+            let marker = if is_current { " <- 当前" } else { "" };
+            let status = if is_unlocked {
+                "已解锁"
+            } else {
+                "未解锁"
+            };
+
+            info!("  关卡 {}: {} ({}){}", i, level_id, status, marker);
+        }
+
+        if let Some(level_data) = &game_state.current_level {
+            info!("当前关卡详情:");
+            info!("  ID: {}", level_data.id);
+            info!("  名称: {}", level_data.name);
+            info!("  难度: {}", level_data.difficulty);
+            info!("  目标数: {}", level_data.objectives.len());
+        }
+
+        let next_index = level_manager.current_level_index + 1;
+        if next_index < level_manager.available_levels.len() {
+            info!(
+                "下一关: {} (索引: {})",
+                level_manager.available_levels[next_index], next_index
+            );
+        } else {
+            info!("这是最后一关！");
+        }
     }
 }
 

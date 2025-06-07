@@ -501,6 +501,406 @@ pub fn create_tutorial_level() -> LevelData {
     }
 }
 
+pub fn create_transfer_level() -> LevelData {
+    let mut terrain = HashMap::new();
+
+    for x in 0..12 {
+        for y in 0..10 {
+            terrain.insert(GridPos::new(x, y), TerrainType::Empty);
+        }
+    }
+
+    // 添加一些障碍物
+    terrain.insert(GridPos::new(5, 4), TerrainType::Building);
+    terrain.insert(GridPos::new(5, 5), TerrainType::Building);
+    terrain.insert(GridPos::new(6, 4), TerrainType::Building);
+    terrain.insert(GridPos::new(6, 5), TerrainType::Building);
+
+    LevelData {
+        id: "level_02_transfer".to_string(),
+        name: "学会换乘".to_string(),
+        description: "学习使用换乘系统，通过中转站连接不同的路线".to_string(),
+        difficulty: 2,
+        grid_size: (12, 10),
+        terrain,
+        stations: vec![
+            Station {
+                position: GridPos::new(1, 2),
+                station_type: StationType::Terminal,
+                name: "A站".to_string(),
+                capacity: 15,
+                passenger_types: vec![PassengerColor::Red, PassengerColor::Blue],
+            },
+            Station {
+                position: GridPos::new(5, 7),
+                station_type: StationType::TransferHub,
+                name: "中转站".to_string(),
+                capacity: 20,
+                passenger_types: vec![],
+            },
+            Station {
+                position: GridPos::new(10, 2),
+                station_type: StationType::Terminal,
+                name: "B站".to_string(),
+                capacity: 15,
+                passenger_types: vec![],
+            },
+            Station {
+                position: GridPos::new(10, 8),
+                station_type: StationType::Terminal,
+                name: "C站".to_string(),
+                capacity: 15,
+                passenger_types: vec![],
+            },
+        ],
+        passenger_demands: vec![
+            PassengerDemand {
+                color: PassengerColor::Red,
+                origin: "A站".to_string(),
+                destination: "B站".to_string(),
+                spawn_rate: 0.3,
+                patience: 150.0,
+                spawn_time_range: Some((3.0, 20.0)),
+                total_count: Some(2),
+                spawned_count: 0,
+            },
+            PassengerDemand {
+                color: PassengerColor::Blue,
+                origin: "A站".to_string(),
+                destination: "C站".to_string(),
+                spawn_rate: 0.3,
+                patience: 150.0,
+                spawn_time_range: Some((8.0, 25.0)),
+                total_count: Some(2),
+                spawned_count: 0,
+            },
+        ],
+        available_segments: vec![
+            AvailableSegment {
+                segment_type: RouteSegmentType::Straight,
+                count: 12,
+                cost: 1,
+            },
+            AvailableSegment {
+                segment_type: RouteSegmentType::Curve,
+                count: 6,
+                cost: 2,
+            },
+            AvailableSegment {
+                segment_type: RouteSegmentType::TSplit,
+                count: 2,
+                cost: 3,
+            },
+        ],
+        objectives: vec![
+            ObjectiveCondition {
+                description: "连接所有乘客到目的地".to_string(),
+                condition_type: ObjectiveType::ConnectAllPassengers,
+            },
+            ObjectiveCondition {
+                description: "最多使用2次换乘".to_string(),
+                condition_type: ObjectiveType::MaxTransfers(2),
+            },
+        ],
+        preset_routes: vec![],
+        dynamic_events: vec![],
+        scoring: ScoringConfig {
+            base_points: 200,
+            efficiency_bonus: 100,
+            speed_bonus: 50,
+            cost_bonus: 50,
+        },
+    }
+}
+
+pub fn create_multiple_routes_level() -> LevelData {
+    let mut terrain = HashMap::new();
+
+    for x in 0..14 {
+        for y in 0..12 {
+            terrain.insert(GridPos::new(x, y), TerrainType::Empty);
+        }
+    }
+
+    // 添加河流障碍
+    for y in 4..8 {
+        terrain.insert(GridPos::new(6, y), TerrainType::Water);
+        terrain.insert(GridPos::new(7, y), TerrainType::Water);
+    }
+
+    LevelData {
+        id: "level_03_multiple_routes".to_string(),
+        name: "多条路线".to_string(),
+        description: "管理多条独立路线，优化整个交通网络".to_string(),
+        difficulty: 3,
+        grid_size: (14, 12),
+        terrain,
+        stations: vec![
+            Station {
+                position: GridPos::new(2, 2),
+                station_type: StationType::Terminal,
+                name: "北站".to_string(),
+                capacity: 20,
+                passenger_types: vec![PassengerColor::Red, PassengerColor::Green],
+            },
+            Station {
+                position: GridPos::new(2, 9),
+                station_type: StationType::Terminal,
+                name: "南站".to_string(),
+                capacity: 20,
+                passenger_types: vec![PassengerColor::Blue, PassengerColor::Yellow],
+            },
+            Station {
+                position: GridPos::new(11, 2),
+                station_type: StationType::Terminal,
+                name: "东北站".to_string(),
+                capacity: 20,
+                passenger_types: vec![],
+            },
+            Station {
+                position: GridPos::new(11, 9),
+                station_type: StationType::Terminal,
+                name: "东南站".to_string(),
+                capacity: 20,
+                passenger_types: vec![],
+            },
+            Station {
+                position: GridPos::new(6, 11),
+                station_type: StationType::TransferHub,
+                name: "中央枢纽".to_string(),
+                capacity: 30,
+                passenger_types: vec![],
+            },
+        ],
+        passenger_demands: vec![
+            PassengerDemand {
+                color: PassengerColor::Red,
+                origin: "北站".to_string(),
+                destination: "东北站".to_string(),
+                spawn_rate: 0.4,
+                patience: 180.0,
+                spawn_time_range: Some((5.0, 30.0)),
+                total_count: Some(3),
+                spawned_count: 0,
+            },
+            PassengerDemand {
+                color: PassengerColor::Blue,
+                origin: "南站".to_string(),
+                destination: "东南站".to_string(),
+                spawn_rate: 0.4,
+                patience: 180.0,
+                spawn_time_range: Some((8.0, 35.0)),
+                total_count: Some(3),
+                spawned_count: 0,
+            },
+            PassengerDemand {
+                color: PassengerColor::Green,
+                origin: "北站".to_string(),
+                destination: "东南站".to_string(),
+                spawn_rate: 0.3,
+                patience: 200.0,
+                spawn_time_range: Some((10.0, 40.0)),
+                total_count: Some(2),
+                spawned_count: 0,
+            },
+            PassengerDemand {
+                color: PassengerColor::Yellow,
+                origin: "南站".to_string(),
+                destination: "东北站".to_string(),
+                spawn_rate: 0.3,
+                patience: 200.0,
+                spawn_time_range: Some((12.0, 45.0)),
+                total_count: Some(2),
+                spawned_count: 0,
+            },
+        ],
+        available_segments: vec![
+            AvailableSegment {
+                segment_type: RouteSegmentType::Straight,
+                count: 16,
+                cost: 1,
+            },
+            AvailableSegment {
+                segment_type: RouteSegmentType::Curve,
+                count: 8,
+                cost: 2,
+            },
+            AvailableSegment {
+                segment_type: RouteSegmentType::TSplit,
+                count: 4,
+                cost: 3,
+            },
+            AvailableSegment {
+                segment_type: RouteSegmentType::Cross,
+                count: 2,
+                cost: 4,
+            },
+            AvailableSegment {
+                segment_type: RouteSegmentType::Bridge,
+                count: 2,
+                cost: 5,
+            },
+        ],
+        objectives: vec![
+            ObjectiveCondition {
+                description: "连接所有乘客到目的地".to_string(),
+                condition_type: ObjectiveType::ConnectAllPassengers,
+            },
+            ObjectiveCondition {
+                description: "总成本不超过35".to_string(),
+                condition_type: ObjectiveType::MaxCost(35),
+            },
+            ObjectiveCondition {
+                description: "最多使用20个路线段".to_string(),
+                condition_type: ObjectiveType::MaxSegments(20),
+            },
+        ],
+        preset_routes: vec![],
+        dynamic_events: vec![],
+        scoring: ScoringConfig {
+            base_points: 300,
+            efficiency_bonus: 150,
+            speed_bonus: 75,
+            cost_bonus: 75,
+        },
+    }
+}
+
+pub fn create_time_pressure_level() -> LevelData {
+    let mut terrain = HashMap::new();
+
+    for x in 0..10 {
+        for y in 0..8 {
+            terrain.insert(GridPos::new(x, y), TerrainType::Empty);
+        }
+    }
+
+    // 添加山脉障碍
+    terrain.insert(GridPos::new(4, 2), TerrainType::Mountain);
+    terrain.insert(GridPos::new(4, 3), TerrainType::Mountain);
+    terrain.insert(GridPos::new(5, 2), TerrainType::Mountain);
+    terrain.insert(GridPos::new(5, 3), TerrainType::Mountain);
+
+    LevelData {
+        id: "level_04_time_pressure".to_string(),
+        name: "时间挑战".to_string(),
+        description: "在有限时间内快速建设高效的交通网络".to_string(),
+        difficulty: 4,
+        grid_size: (10, 8),
+        terrain,
+        stations: vec![
+            Station {
+                position: GridPos::new(1, 1),
+                station_type: StationType::Terminal,
+                name: "起点站".to_string(),
+                capacity: 25,
+                passenger_types: vec![
+                    PassengerColor::Red,
+                    PassengerColor::Blue,
+                    PassengerColor::Green,
+                ],
+            },
+            Station {
+                position: GridPos::new(8, 1),
+                station_type: StationType::Terminal,
+                name: "目标站A".to_string(),
+                capacity: 15,
+                passenger_types: vec![],
+            },
+            Station {
+                position: GridPos::new(8, 6),
+                station_type: StationType::Terminal,
+                name: "目标站B".to_string(),
+                capacity: 15,
+                passenger_types: vec![],
+            },
+            Station {
+                position: GridPos::new(1, 6),
+                station_type: StationType::Terminal,
+                name: "目标站C".to_string(),
+                capacity: 15,
+                passenger_types: vec![],
+            },
+        ],
+        passenger_demands: vec![
+            PassengerDemand {
+                color: PassengerColor::Red,
+                origin: "起点站".to_string(),
+                destination: "目标站A".to_string(),
+                spawn_rate: 0.6,
+                patience: 100.0, // 较短的耐心
+                spawn_time_range: Some((2.0, 15.0)),
+                total_count: Some(4),
+                spawned_count: 0,
+            },
+            PassengerDemand {
+                color: PassengerColor::Blue,
+                origin: "起点站".to_string(),
+                destination: "目标站B".to_string(),
+                spawn_rate: 0.6,
+                patience: 100.0,
+                spawn_time_range: Some((5.0, 20.0)),
+                total_count: Some(4),
+                spawned_count: 0,
+            },
+            PassengerDemand {
+                color: PassengerColor::Green,
+                origin: "起点站".to_string(),
+                destination: "目标站C".to_string(),
+                spawn_rate: 0.6,
+                patience: 100.0,
+                spawn_time_range: Some((8.0, 25.0)),
+                total_count: Some(4),
+                spawned_count: 0,
+            },
+        ],
+        available_segments: vec![
+            AvailableSegment {
+                segment_type: RouteSegmentType::Straight,
+                count: 10,
+                cost: 1,
+            },
+            AvailableSegment {
+                segment_type: RouteSegmentType::Curve,
+                count: 6,
+                cost: 2,
+            },
+            AvailableSegment {
+                segment_type: RouteSegmentType::TSplit,
+                count: 3,
+                cost: 3,
+            },
+            AvailableSegment {
+                segment_type: RouteSegmentType::Tunnel,
+                count: 2,
+                cost: 6,
+            },
+        ],
+        objectives: vec![
+            ObjectiveCondition {
+                description: "连接所有乘客到目的地".to_string(),
+                condition_type: ObjectiveType::ConnectAllPassengers,
+            },
+            ObjectiveCondition {
+                description: "在60秒内完成".to_string(),
+                condition_type: ObjectiveType::TimeLimit(60.0),
+            },
+            ObjectiveCondition {
+                description: "乘客满意度达到80%".to_string(),
+                condition_type: ObjectiveType::PassengerSatisfaction(0.8),
+            },
+        ],
+        preset_routes: vec![],
+        dynamic_events: vec![],
+        scoring: ScoringConfig {
+            base_points: 500,
+            efficiency_bonus: 200,
+            speed_bonus: 150,
+            cost_bonus: 100,
+        },
+    }
+}
+
 fn handle_passenger_spawn(
     mut passenger_spawned_event: EventReader<PassengerSpawnedEvent>,
     mut game_state: ResMut<GameState>,

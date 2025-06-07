@@ -98,9 +98,14 @@ impl Default for LevelManager {
         Self {
             current_level: None,
             tile_size: 64.0,
-            available_levels: vec!["tutorial_01".to_string()],
+            available_levels: vec![
+                "tutorial_01".to_string(),
+                "level_02_transfer".to_string(),
+                "level_03_multiple_routes".to_string(),
+                "level_04_time_pressure".to_string(),
+            ],
             current_level_index: 0,
-            unlocked_levels: vec![true],
+            unlocked_levels: vec![true, false, false, false], // 只有第一关解锁
             level_scores: HashMap::new(),
         }
     }

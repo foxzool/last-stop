@@ -703,6 +703,7 @@ fn setup_level_complete_ui(
     mut commands: Commands,
     ui_assets: Res<UIAssets>,
     game_state: Res<GameState>,
+    level_manager: Res<LevelManager>,
 ) {
     let level_complete_entity = commands
         .spawn((
@@ -735,7 +736,16 @@ fn setup_level_complete_ui(
                     ZIndex(2001), // 确保在背景之上
                 ))
                 .with_children(|parent| {
-                    spawn_title_text(parent, &ui_assets, "关卡完成！", 36.0);
+                    // 检查是否是最后一关
+                    let is_final_level = level_manager.current_level_index + 1
+                        >= level_manager.available_levels.len();
+
+                    if is_final_level {
+                        spawn_title_text(parent, &ui_assets, "🎉 恭喜通关！", 36.0);
+                        spawn_score_text(parent, &ui_assets, "您已完成所有关卡！", 18.0);
+                    } else {
+                        spawn_title_text(parent, &ui_assets, "关卡完成！", 36.0);
+                    }
 
                     spawn_score_text(
                         parent,
@@ -756,13 +766,20 @@ fn setup_level_complete_ui(
                         20.0,
                     );
 
-                    spawn_menu_button(
-                        parent,
-                        &ui_assets,
-                        "下一关",
-                        ButtonType::NextLevel,
-                        Color::srgb(0.2, 0.6, 0.2),
-                    );
+                    // 根据是否有下一关显示不同的按钮
+                    if !is_final_level {
+                        spawn_menu_button(
+                            parent,
+                            &ui_assets,
+                            "下一关",
+                            ButtonType::NextLevel,
+                            Color::srgb(0.2, 0.6, 0.2),
+                        );
+                    } else {
+                        // 最后一关完成后显示特殊信息
+                        spawn_score_text(parent, &ui_assets, "感谢游玩！", 18.0);
+                    }
+
                     spawn_menu_button(
                         parent,
                         &ui_assets,
@@ -790,7 +807,16 @@ fn setup_level_complete_ui(
         target_value: 1.0,
     });
 
-    info!("关卡完成UI创建完毕，等待按钮交互");
+    let current_level_name = if let Some(level_data) = &game_state.current_level {
+        &level_data.name
+    } else {
+        "未知关卡"
+    };
+
+    info!(
+        "关卡完成UI创建完毕: {} (索引: {})",
+        current_level_name, level_manager.current_level_index
+    );
 }
 
 // ============ 辅助函数 ============
@@ -1033,17 +1059,36 @@ fn handle_level_complete_buttons(
             info!("关卡完成界面按钮被点击: {:?}", button.button_type);
             match button.button_type {
                 ButtonType::NextLevel => {
-                    level_manager.current_level_index += 1;
-                    if level_manager.current_level_index < level_manager.available_levels.len() {
-                        info!("进入下一关卡，索引: {}", level_manager.current_level_index);
+                    // 解锁下一关
+                    let next_level_index = level_manager.current_level_index + 1;
+                    if next_level_index < level_manager.available_levels.len() {
+                        // 确保下一关被解锁
+                        if next_level_index < level_manager.unlocked_levels.len() {
+                            level_manager.unlocked_levels[next_level_index] = true;
+                            info!(
+                                "解锁关卡: {} ({})",
+                                next_level_index, level_manager.available_levels[next_level_index]
+                            );
+                        }
+
+                        level_manager.current_level_index = next_level_index;
+                        info!(
+                            "进入下一关卡，索引: {} ({})",
+                            level_manager.current_level_index,
+                            level_manager.available_levels[level_manager.current_level_index]
+                        );
                         next_state.set(GameStateEnum::Loading);
                     } else {
-                        info!("所有关卡已完成，返回主菜单");
+                        info!("🎉 所有关卡已完成！恭喜通关！");
+                        // 可以在这里添加一个"游戏完成"状态，或者返回主菜单并显示成就
                         next_state.set(GameStateEnum::MainMenu);
                     }
                 }
                 ButtonType::RestartLevel => {
-                    info!("重新挑战当前关卡");
+                    info!(
+                        "重新挑战当前关卡，索引: {}",
+                        level_manager.current_level_index
+                    );
                     next_state.set(GameStateEnum::Loading);
                 }
                 ButtonType::MainMenu => {
@@ -1095,7 +1140,6 @@ fn update_ui_animations(
 
 fn update_gameplay_ui_values(
     game_state: Res<GameState>,
-    passengers: Query<&PathfindingAgent>,
     mut score_text: Query<
         &mut Text,
         (
