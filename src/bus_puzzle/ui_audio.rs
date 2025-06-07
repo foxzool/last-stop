@@ -2,10 +2,10 @@
 
 // 使用相对路径引用同模块下的其他文件
 use super::{
-    ease_out_back, format_time, AgentState, CostText, GameState, GameStateEnum, InventoryCountText,
-    InventorySlot, LevelCompletedEvent, LevelManager, ObjectiveCompletedEvent, PassengerColor,
-    PassengerCountText, PathfindingAgent, RouteSegmentType, ScoreText, SegmentPlacedEvent,
-    SegmentRemovedEvent, TimerText, UIElement,
+    ease_out_back, format_time, AgentState, AudioAssets, CostText, GameState, GameStateEnum,
+    InventoryCountText, InventorySlot, LevelCompletedEvent, LevelManager, ObjectiveCompletedEvent,
+    PassengerColor, PassengerCountText, PathfindingAgent, RouteSegmentType, ScoreText,
+    SegmentPlacedEvent, SegmentRemovedEvent, TimerText, UIElement,
 };
 use bevy::{
     audio::{PlaybackMode, Volume},
@@ -96,18 +96,6 @@ pub struct UIAssets {
     pub progress_bar_fill: Handle<Image>,
     pub segment_icons: HashMap<RouteSegmentType, Handle<Image>>,
     pub passenger_icons: HashMap<PassengerColor, Handle<Image>>,
-}
-
-#[derive(Resource)]
-pub struct AudioAssets {
-    pub background_music: Handle<AudioSource>,
-    pub segment_place_sound: Handle<AudioSource>,
-    pub segment_remove_sound: Handle<AudioSource>,
-    pub passenger_arrive_sound: Handle<AudioSource>,
-    pub objective_complete_sound: Handle<AudioSource>,
-    pub level_complete_sound: Handle<AudioSource>,
-    pub button_click_sound: Handle<AudioSource>,
-    pub error_sound: Handle<AudioSource>,
 }
 
 #[derive(Resource)]
@@ -958,7 +946,7 @@ fn handle_button_interactions(
             Interaction::Hovered => {
                 button_component.is_hovered = true;
                 button_component.is_pressed = false;
-                // 使用更明显的悬停颜色
+                // 使用更明显地悬停颜色
                 *color = Color::srgb(0.5, 0.5, 0.7).into();
             }
             Interaction::None => {

@@ -8,8 +8,8 @@ use std::{
 };
 
 use super::{
-    get_neighbors, manhattan_distance, AgentState, Connection, ConnectionType, GameState,
-    GameStateEnum, GraphNode, GraphNodeType, GridPos, LevelManager, PathfindingAgent,
+    get_neighbors, manhattan_distance, rotate_offset, AgentState, Connection, ConnectionType,
+    GameState, GameStateEnum, GraphNode, GraphNodeType, GridPos, LevelManager, PathfindingAgent,
     PathfindingGraph, RouteSegment, RouteSegmentType, StationEntity, PASSENGER_Z,
 };
 
@@ -182,12 +182,7 @@ fn update_pathfinding_graph(
             }
 
             // 显示相邻的路线段分析
-            let adjacent_positions = vec![
-                GridPos::new(station_pos.x, station_pos.y - 1),
-                GridPos::new(station_pos.x, station_pos.y + 1),
-                GridPos::new(station_pos.x - 1, station_pos.y),
-                GridPos::new(station_pos.x + 1, station_pos.y),
-            ];
+            let adjacent_positions = get_neighbors(station_pos);
 
             info!("  相邻位置分析:");
             for adj_pos in adjacent_positions {
@@ -374,15 +369,10 @@ pub fn create_station_connections_improved(
         .map(|(name, pos)| (name.clone(), *pos))
         .collect();
     for (station_name, station_pos) in station_lookup {
-        info!("检查站点 {} at {:?} 的连接", station_name, station_pos);
+        trace!("检查站点 {} at {:?} 的连接", station_name, station_pos);
 
         // 只检查站点直接相邻的位置（距离为1）
-        let adjacent_positions = vec![
-            GridPos::new(station_pos.x, station_pos.y - 1), // 上
-            GridPos::new(station_pos.x, station_pos.y + 1), // 下
-            GridPos::new(station_pos.x - 1, station_pos.y), // 左
-            GridPos::new(station_pos.x + 1, station_pos.y), // 右
-        ];
+        let adjacent_positions = get_neighbors(station_pos);
 
         for adj_pos in adjacent_positions {
             if let Some(segment) = route_segments_by_pos.get(&adj_pos) {
@@ -1074,16 +1064,6 @@ pub fn rebuild_pathfinding_graph(
 
         // 重建连接
         rebuild_connections(pathfinding_graph, game_state);
-    }
-}
-
-fn rotate_offset(dx: i32, dy: i32, rotation: u32) -> (i32, i32) {
-    match rotation % 360 {
-        0 => (dx, dy),
-        90 => (-dy, dx),
-        180 => (-dx, -dy),
-        270 => (dy, -dx),
-        _ => (dx, dy),
     }
 }
 

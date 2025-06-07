@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
 /// 旋转偏移量
-fn rotate_offset(dx: i32, dy: i32, rotation: u32) -> (i32, i32) {
+pub fn rotate_offset(dx: i32, dy: i32, rotation: u32) -> (i32, i32) {
     match rotation % 360 {
         0 => (dx, dy),
         90 => (-dy, dx),
@@ -117,10 +117,10 @@ impl RouteSegmentType {
     pub fn get_base_connection_offsets(&self) -> Vec<(i32, i32)> {
         match self {
             RouteSegmentType::Straight => vec![(-1, 0), (1, 0)], // 水平：左右
-            RouteSegmentType::Curve => vec![(-1, 0), (0, -1)], // L型：左和上
+            RouteSegmentType::Curve => vec![(-1, 0), (0, -1)],   // L型：左和上
             RouteSegmentType::TSplit => vec![(0, -1), (0, 1), (1, 0)], // T型：上下右
             RouteSegmentType::Cross => vec![(0, -1), (0, 1), (-1, 0), (1, 0)], // 十字：四方向
-            RouteSegmentType::Bridge | RouteSegmentType::Tunnel => vec![(-1, 0), (1, 0)], // 水平：左右
+            RouteSegmentType::Bridge | RouteSegmentType::Tunnel => vec![(-1, 0), (1, 0)], /* 水平：左右 */
         }
     }
 
@@ -129,9 +129,12 @@ impl RouteSegmentType {
         let base_offsets = self.get_base_connection_offsets();
 
         // 对于直线段、桥梁、隧道，特殊处理旋转
-        if matches!(self, RouteSegmentType::Straight | RouteSegmentType::Bridge | RouteSegmentType::Tunnel) {
+        if matches!(
+            self,
+            RouteSegmentType::Straight | RouteSegmentType::Bridge | RouteSegmentType::Tunnel
+        ) {
             match rotation % 180 {
-                0 => base_offsets, // 水平：左右
+                0 => base_offsets,           // 水平：左右
                 90 => vec![(0, -1), (0, 1)], // 垂直：上下
                 _ => base_offsets,
             }

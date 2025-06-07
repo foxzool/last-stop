@@ -42,23 +42,6 @@ pub const UI_ANIMATION_DURATION: f32 = 0.5;
 pub const BUTTON_HOVER_SCALE: f32 = 1.1;
 pub const INVENTORY_SLOT_SIZE: f32 = 80.0;
 
-// ============ 渲染层级辅助函数 ============
-
-/// 获取指定层级上方的 Z 坐标（用于临时显示）
-pub fn above_layer(base_z: f32, offset: f32) -> f32 {
-    base_z + offset
-}
-
-/// 获取指定层级下方的 Z 坐标
-pub fn below_layer(base_z: f32, offset: f32) -> f32 {
-    base_z - offset
-}
-
-/// 验证 Z 坐标是否在预期范围内
-pub fn is_valid_z_order(terrain_z: f32, passenger_z: f32) -> bool {
-    passenger_z > terrain_z && passenger_z >= PASSENGER_Z
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -72,13 +55,5 @@ mod tests {
         assert!(EFFECT_Z < GAME_UI_Z);
         assert!(GAME_UI_Z < MENU_UI_Z);
         assert!(MENU_UI_Z < DEBUG_Z);
-    }
-
-    #[test]
-    fn test_z_helper_functions() {
-        assert_eq!(above_layer(TERRAIN_Z, 0.1), 0.1);
-        assert_eq!(below_layer(PASSENGER_Z, 0.5), 2.5);
-        assert!(is_valid_z_order(TERRAIN_Z, PASSENGER_Z));
-        assert!(!is_valid_z_order(PASSENGER_Z, TERRAIN_Z));
     }
 }
