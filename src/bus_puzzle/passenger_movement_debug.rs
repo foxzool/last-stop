@@ -1,6 +1,6 @@
 // src/bus_puzzle/passenger_movement_debug.rs - 简化的调试系统
 
-use crate::bus_puzzle::{AgentState, GameStateEnum, PathfindingAgent, PathfindingGraph};
+use crate::bus_puzzle::{GameStateEnum, PathfindingAgent, PathfindingGraph};
 use bevy::prelude::*;
 
 pub struct PassengerMovementDebugPlugin;

@@ -137,7 +137,7 @@ fn sync_level_data(mut level_manager: ResMut<LevelManager>, game_state: Res<Game
         if level_manager
             .current_level
             .as_ref()
-            .map_or(true, |current| current.id != level_data.id)
+            .is_none_or(|current| current.id != level_data.id)
         {
             level_manager.current_level = Some(level_data.clone());
             info!("同步关卡数据: {}", level_data.name);
@@ -287,7 +287,7 @@ fn setup_debug_level(mut level_manager: ResMut<LevelManager>, mut game_state: Re
 
     let mut inventory = HashMap::new();
     for segment in &tutorial_level.available_segments {
-        inventory.insert(segment.segment_type.clone(), segment.count);
+        inventory.insert(segment.segment_type, segment.count);
     }
     game_state.player_inventory = inventory;
     game_state.objectives_completed = vec![false; tutorial_level.objectives.len()];
@@ -396,7 +396,7 @@ pub fn generate_level_map(
                 )),
                 RouteSegment {
                     grid_pos: *pos,
-                    segment_type: segment_type.clone(),
+                    segment_type: *segment_type,
                     rotation: *rotation,
                     is_active: true,
                 },

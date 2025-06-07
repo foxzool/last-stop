@@ -243,7 +243,7 @@ fn create_route_connections_improved(
         }
 
         // 重要：强制添加所有相邻路线段的连接
-        for (other_pos, _other_segment) in route_segments_by_pos {
+        for other_pos in route_segments_by_pos.keys() {
             if *other_pos != *pos {
                 let distance = manhattan_distance(*pos, *other_pos);
                 if distance == 1 {
@@ -295,7 +295,7 @@ fn add_connection_if_not_exists(
     let connections = pathfinding_graph
         .connections
         .entry(from)
-        .or_insert_with(Vec::new);
+        .or_default();
 
     // 检查是否已经存在这个连接
     if !connections.iter().any(|conn| conn.to == to) {
@@ -325,7 +325,7 @@ pub fn create_station_connections_improved(
                     pathfinding_graph
                         .connections
                         .entry(station_pos)
-                        .or_insert_with(Vec::new)
+                        .or_default()
                         .push(Connection {
                             to: *segment_pos,
                             cost: 0.5,
@@ -337,7 +337,7 @@ pub fn create_station_connections_improved(
                     pathfinding_graph
                         .connections
                         .entry(*segment_pos)
-                        .or_insert_with(Vec::new)
+                        .or_default()
                         .push(Connection {
                             to: station_pos,
                             cost: 0.5,
@@ -469,7 +469,7 @@ pub fn enhance_path_with_junction_nodes(
 ) -> Vec<PathNode> {
     let mut enhanced_path = Vec::new();
 
-    for (_i, node) in original_path.iter().enumerate() {
+    for node in original_path.iter() {
         // 添加原始节点
         enhanced_path.push(node.clone());
 
@@ -515,7 +515,7 @@ fn find_junction_at_position(
         if segment.grid_pos == pos && segment.is_active {
             match segment.segment_type {
                 RouteSegmentType::Curve | RouteSegmentType::TSplit | RouteSegmentType::Cross => {
-                    return Some(segment.clone());
+                    return Some(*segment);
                 }
                 _ => {}
             }
@@ -575,12 +575,10 @@ fn update_passenger_movement(
                 agent.waiting_time += dt;
                 agent.patience -= dt * 0.2; // 换乘时耐心消耗稍快
 
-                if agent.waiting_time > 0.8 {
-                    if agent.current_step < agent.current_path.len().saturating_sub(1) {
-                        agent.current_step += 1;
-                        agent.state = AgentState::Traveling;
-                        agent.waiting_time = 0.0;
-                    }
+                if agent.waiting_time > 0.8 && agent.current_step < agent.current_path.len().saturating_sub(1) {
+                    agent.current_step += 1;
+                    agent.state = AgentState::Traveling;
+                    agent.waiting_time = 0.0;
                 }
             }
             AgentState::Traveling => {
@@ -649,12 +647,10 @@ fn update_passenger_movement(
 
 fn handle_passenger_transfers(mut passengers: Query<&mut PathfindingAgent>) {
     for mut agent in passengers.iter_mut() {
-        if agent.state == AgentState::Transferring && agent.waiting_time > 0.8 {
-            if agent.current_step < agent.current_path.len().saturating_sub(1) {
-                agent.current_step += 1;
-                agent.state = AgentState::Traveling;
-                agent.waiting_time = 0.0;
-            }
+        if agent.state == AgentState::Transferring && agent.waiting_time > 0.8 && agent.current_step < agent.current_path.len().saturating_sub(1) {
+            agent.current_step += 1;
+            agent.state = AgentState::Traveling;
+            agent.waiting_time = 0.0;
         }
     }
 }
@@ -740,7 +736,7 @@ fn find_optimal_path(
                 let should_add = open_set
                     .iter()
                     .find(|node| node.position == connection.to)
-                    .map_or(true, |existing| neighbor.f_cost < existing.f_cost);
+                    .is_none_or(|existing| neighbor.f_cost < existing.f_cost);
 
                 if should_add {
                     came_from.insert(connection.to, current.position);
@@ -952,7 +948,7 @@ fn rebuild_connections(pathfinding_graph: &mut PathfindingGraph, game_state: &su
         pathfinding_graph
             .connections
             .entry(from_pos)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(connection);
     }
 
@@ -991,7 +987,7 @@ fn rebuild_connections(pathfinding_graph: &mut PathfindingGraph, game_state: &su
         pathfinding_graph
             .connections
             .entry(from_pos)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(connection);
     }
 }

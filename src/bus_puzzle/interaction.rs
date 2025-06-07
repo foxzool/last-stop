@@ -6,11 +6,9 @@ use bevy::{input::mouse::MouseWheel, prelude::*, window::PrimaryWindow};
 use crate::bus_puzzle::{
     rebuild_pathfinding_graph, world_to_grid, AgentState, ButtonComponent, ButtonType,
     CameraController, DraggableSegment, GameState, GameStateEnum, GridPos, InputState,
-    InventoryCountText, InventorySlot, InventoryUI, InventoryUpdatedEvent, LevelCompletedEvent,
-    LevelData, LevelManager, ObjectiveCompletedEvent, ObjectiveCondition, ObjectiveTracker,
-    ObjectiveType, PassengerColor, PathNode, PathfindingAgent, PathfindingGraph, PlacedSegment,
+    InventoryCountText, InventorySlot, InventoryUpdatedEvent, LevelCompletedEvent, LevelManager, ObjectiveCompletedEvent, ObjectiveCondition, ObjectiveTracker,
+    ObjectiveType, PathNode, PathfindingAgent, PathfindingGraph, PlacedSegment,
     RouteSegment, RouteSegmentType, SegmentPlacedEvent, SegmentPreview, SegmentRemovedEvent,
-    UIElement,
 };
 
 // ============ 插件定义 ============
@@ -178,7 +176,7 @@ fn handle_button_interactions(
                         .unwrap_or(0);
 
                     if available_count > 0 {
-                        input_state.selected_segment = Some(segment_type.clone());
+                        input_state.selected_segment = Some(*segment_type);
                         info!("Selected route segment: {:?}", segment_type);
                     } else {
                         warn!("Insufficient inventory: {:?}", segment_type);
@@ -201,7 +199,7 @@ fn handle_segment_placement(
 ) {
     if mouse_button_input.just_released(MouseButton::Left) {
         if let (Some(segment_type), Some(grid_pos)) = (
-            input_state.selected_segment.clone(),
+            input_state.selected_segment,
             input_state.grid_cursor_pos,
         ) {
             if is_valid_placement(&game_state, grid_pos, &segment_type) {
@@ -214,7 +212,7 @@ fn handle_segment_placement(
                             &mut commands,
                             &asset_server,
                             grid_pos,
-                            segment_type.clone(),
+                            segment_type,
                             rotation,
                             &level_manager,
                         );
@@ -222,7 +220,7 @@ fn handle_segment_placement(
                         game_state.placed_segments.insert(
                             grid_pos,
                             PlacedSegment {
-                                segment_type: segment_type.clone(),
+                                segment_type,
                                 rotation,
                                 entity,
                                 cost,
@@ -234,12 +232,12 @@ fn handle_segment_placement(
 
                         segment_placed_events.write(SegmentPlacedEvent {
                             position: grid_pos,
-                            segment_type: segment_type.clone(),
+                            segment_type,
                             rotation,
                         });
 
                         inventory_updated_events.write(InventoryUpdatedEvent {
-                            segment_type: segment_type.clone(),
+                            segment_type,
                             new_count: game_state.player_inventory[&segment_type],
                         });
 
@@ -298,13 +296,13 @@ fn handle_segment_removal(
 
                 *game_state
                     .player_inventory
-                    .entry(placed_segment.segment_type.clone())
+                    .entry(placed_segment.segment_type)
                     .or_insert(0) += 1;
                 game_state.total_cost -= placed_segment.cost;
 
                 segment_removed_events.write(SegmentRemovedEvent { position: grid_pos });
                 inventory_updated_events.write(InventoryUpdatedEvent {
-                    segment_type: placed_segment.segment_type.clone(),
+                    segment_type: placed_segment.segment_type,
                     new_count: game_state.player_inventory[&placed_segment.segment_type],
                 });
 
@@ -329,7 +327,7 @@ fn update_grid_preview(
 
     // 如果有选中的路线段和有效的网格位置，显示预览
     if let (Some(segment_type), Some(grid_pos)) = (
-        input_state.selected_segment.clone(),
+        input_state.selected_segment,
         input_state.grid_cursor_pos,
     ) {
         let is_valid = is_valid_placement(&game_state, grid_pos, &segment_type);
@@ -403,7 +401,7 @@ fn update_objectives(
                 // Pass an immutable reference to game_state.
                 // Bevy systems auto-deref ResMut<T> to &T or &mut T as needed.
                 // Here, &*game_state explicitly gives &GameState.
-                let is_completed = check_objective_completion(objective, &*game_state, &passengers);
+                let is_completed = check_objective_completion(objective, &game_state, &passengers);
 
                 if is_completed {
                     completed_objective_indices.push(i);

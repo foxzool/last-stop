@@ -21,8 +21,6 @@ use bevy::platform::collections::HashMap;
 // 重新导出主要类型
 pub use components::*;
 pub use config::*;
-pub use connection_debug::*;
-pub use connection_fix::*;
 pub use events::*;
 pub use interaction::*;
 pub use junction_movement::*;
@@ -106,7 +104,7 @@ fn initialize_game(
 
     let mut inventory = HashMap::new();
     for segment in &tutorial_level.available_segments {
-        inventory.insert(segment.segment_type.clone(), segment.count);
+        inventory.insert(segment.segment_type, segment.count);
     }
 
     game_state.current_level = Some(tutorial_level);
@@ -260,7 +258,7 @@ fn reset_game_state(game_state: &mut GameState, level_data: &LevelData, system_t
     // 重置库存
     let mut inventory = HashMap::new();
     for segment in &level_data.available_segments {
-        inventory.insert(segment.segment_type.clone(), segment.count);
+        inventory.insert(segment.segment_type, segment.count);
     }
     game_state.player_inventory = inventory;
 

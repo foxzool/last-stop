@@ -13,7 +13,6 @@ use bevy::{
     prelude::*,
     ui::Val::*,
 };
-use std::time::Instant;
 
 // ============ UI 组件 ============
 
@@ -515,12 +514,12 @@ fn setup_gameplay_ui(mut commands: Commands, ui_assets: Res<UIAssets>, game_stat
                         }),
                         BorderColor(Color::WHITE),
                         ButtonComponent {
-                            button_type: ButtonType::InventorySlot(segment_type.clone()),
+                            button_type: ButtonType::InventorySlot(*segment_type),
                             is_hovered: false,
                             is_pressed: false,
                         },
                         InventorySlot {
-                            segment_type: Some(segment_type.clone()),
+                            segment_type: Some(*segment_type),
                             slot_index: index,
                             available_count,
                         },
@@ -553,7 +552,7 @@ fn setup_gameplay_ui(mut commands: Commands, ui_assets: Res<UIAssets>, game_stat
                                 ..default()
                             },
                             InventoryCountText {
-                                segment_type: segment_type.clone(),
+                                segment_type: *segment_type,
                             },
                         ));
                     });
@@ -1351,18 +1350,16 @@ fn update_background_music(
     // 简化的背景音乐管理
     // 在实际实现中，你可能需要更复杂的音乐状态管理
 
-    if music_query.is_empty() && matches!(current_state.get(), GameStateEnum::Playing) {
-        if !audio_settings.is_muted {
-            commands.spawn((
-                AudioPlayer::new(audio_assets.background_music.clone()),
-                PlaybackSettings {
-                    mode: PlaybackMode::Despawn,
-                    volume: Volume::Linear(
-                        audio_settings.music_volume * audio_settings.master_volume,
-                    ),
-                    ..default()
-                },
-            ));
-        }
+    if music_query.is_empty() && matches!(current_state.get(), GameStateEnum::Playing) && !audio_settings.is_muted {
+        commands.spawn((
+            AudioPlayer::new(audio_assets.background_music.clone()),
+            PlaybackSettings {
+                mode: PlaybackMode::Despawn,
+                volume: Volume::Linear(
+                    audio_settings.music_volume * audio_settings.master_volume,
+                ),
+                ..default()
+            },
+        ));
     }
 }

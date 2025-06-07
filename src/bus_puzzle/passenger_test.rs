@@ -1,8 +1,8 @@
 // src/bus_puzzle/passenger_test.rs - 简化版本，只保留必要的测试功能
 
 use crate::bus_puzzle::{
-    get_passenger_color, AgentState, GameStateEnum, GridPos, PassengerColor, PassengerDemand,
-    PassengerEntity, PassengerSpawnedEvent, PathNode, PathNodeType, PathfindingAgent, PASSENGER_Z,
+    get_passenger_color, AgentState, GameStateEnum, PassengerColor, PassengerDemand,
+    PassengerEntity, PassengerSpawnedEvent, PathfindingAgent, PASSENGER_Z,
 };
 use bevy::prelude::*;
 

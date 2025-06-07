@@ -247,7 +247,7 @@ fn create_segment_connections(
             pathfinding_graph
                 .connections
                 .entry(segment.grid_pos)
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(Connection {
                     to: connection_point,
                     cost: 1.0,
@@ -258,7 +258,7 @@ fn create_segment_connections(
             pathfinding_graph
                 .connections
                 .entry(connection_point)
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(Connection {
                     to: segment.grid_pos,
                     cost: 1.0,
@@ -296,7 +296,7 @@ fn create_station_connections(
                 pathfinding_graph
                     .connections
                     .entry(station_pos)
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(Connection {
                         to: segment_pos,
                         cost: 0.5, // 步行到路线段的成本
@@ -308,7 +308,7 @@ fn create_station_connections(
                 pathfinding_graph
                     .connections
                     .entry(segment_pos)
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(Connection {
                         to: station_pos,
                         cost: 0.5,

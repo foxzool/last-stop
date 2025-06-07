@@ -220,7 +220,7 @@ fn add_bidirectional_connection(
     pathfinding_graph
         .connections
         .entry(pos_a)
-        .or_insert_with(Vec::new)
+        .or_default()
         .push(Connection {
             to: pos_b,
             cost: 1.0,
@@ -232,7 +232,7 @@ fn add_bidirectional_connection(
     pathfinding_graph
         .connections
         .entry(pos_b)
-        .or_insert_with(Vec::new)
+        .or_default()
         .push(Connection {
             to: pos_a,
             cost: 1.0,

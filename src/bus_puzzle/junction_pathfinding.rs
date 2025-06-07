@@ -2,10 +2,9 @@
 
 use crate::bus_puzzle::{
     Connection, ConnectionType, GameStateEnum, GraphNode, GraphNodeType, GridPos, PathNode,
-    PathNodeType, PathfindingGraph, RouteSegment, RouteSegmentType, StationEntity,
+    PathNodeType, PathfindingGraph, RouteSegment, RouteSegmentType,
 };
 use bevy::prelude::*;
-use std::collections::HashMap;
 
 pub struct JunctionPathfindingPlugin;
 
@@ -366,7 +365,7 @@ fn add_connection(
     pathfinding_graph
         .connections
         .entry(from)
-        .or_insert_with(Vec::new)
+        .or_default()
         .push(Connection {
             to,
             cost,
