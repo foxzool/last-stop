@@ -266,7 +266,9 @@ fn handle_segment_rotation(
                 placed_segment.rotation = (placed_segment.rotation + 90) % 360;
 
                 // 同时更新Transform和RouteSegment组件
-                if let Ok((mut transform, mut route_segment)) = route_segments.get_mut(placed_segment.entity) {
+                if let Ok((mut transform, mut route_segment)) =
+                    route_segments.get_mut(placed_segment.entity)
+                {
                     route_segment.rotation = placed_segment.rotation;
                     transform.rotation = Quat::from_rotation_z(
                         (placed_segment.rotation as f32) * std::f32::consts::PI / 180.0,
@@ -456,11 +458,19 @@ fn handle_level_completion(
             .all(|&completed| completed);
 
         if all_completed && !game_state.objectives_completed.is_empty() {
-            let final_score = calculate_final_score(&game_state);
+            // 在关卡完成时重新计算最终分数，确保使用最新的分数
+            let final_score = game_state.score.total_score;
+
+            // 发送关卡完成事件，使用计算好的最终分数
             level_completed_events.write(LevelCompletedEvent {
                 final_score,
                 completion_time: game_state.game_time,
             });
+
+            info!(
+                "关卡完成！最终分数: {}, 用时: {:.1}s",
+                final_score, game_state.game_time
+            );
         }
     }
 }
@@ -645,20 +655,49 @@ pub fn calculate_network_efficiency(
         return 0.0;
     }
 
-    let total_travel_time: f32 = passengers
+    // 计算乘客完成率
+    let total_passengers = passengers.iter().count() as f32;
+    let arrived_passengers = passengers
         .iter()
         .filter(|agent| matches!(agent.state, AgentState::Arrived))
-        .map(|agent| agent.max_patience - agent.patience)
-        .sum();
+        .count() as f32;
 
-    let average_travel_time = total_travel_time / passengers.iter().count() as f32;
-    let total_segments = game_state.placed_segments.len() as f32;
-
-    if average_travel_time > 0.0 && total_segments > 0.0 {
-        1.0 / (average_travel_time * total_segments * 0.1)
+    let completion_rate = if total_passengers > 0.0 {
+        arrived_passengers / total_passengers
     } else {
         0.0
-    }
+    };
+
+    // 计算平均路径长度效率
+    let path_efficiency = if arrived_passengers > 0.0 {
+        let total_path_length: f32 = passengers
+            .iter()
+            .filter(|agent| matches!(agent.state, AgentState::Arrived))
+            .map(|agent| agent.current_path.len() as f32)
+            .sum();
+
+        let average_path_length = total_path_length / arrived_passengers;
+        // 路径长度越短，效率越高（最小长度设为2，避免除零）
+        1.0 / (average_path_length.max(2.0) / 2.0)
+    } else {
+        0.0
+    };
+
+    // 计算成本效率
+    let total_segments = game_state.placed_segments.len() as f32;
+    let cost_efficiency = if total_segments > 0.0 {
+        // 段数越少，效率越高
+        1.0 / (total_segments / 10.0).max(0.1)
+    } else {
+        0.0
+    };
+
+    // 综合效率评分（权重：完成率60%，路径效率25%，成本效率15%）
+    let overall_efficiency =
+        completion_rate * 0.6 + path_efficiency * 0.25 + cost_efficiency * 0.15;
+
+    // 返回0-10范围内的效率分数
+    overall_efficiency * 10.0
 }
 
 fn calculate_passenger_satisfaction(passengers: &Query<&PathfindingAgent>) -> f32 {
@@ -675,14 +714,6 @@ fn calculate_passenger_satisfaction(passengers: &Query<&PathfindingAgent>) -> f3
 }
 
 fn calculate_final_score(game_state: &GameState) -> u32 {
-    let base_score = if let Some(level_data) = &game_state.current_level {
-        level_data.scoring.base_points
-    } else {
-        100
-    };
-
-    let time_bonus = if game_state.game_time < 120.0 { 50 } else { 0 };
-    let cost_bonus = if game_state.total_cost < 20 { 30 } else { 0 };
-
-    base_score + time_bonus + cost_bonus
+    // 直接使用已经计算好的总分数，避免重复计算
+    game_state.score.total_score
 }

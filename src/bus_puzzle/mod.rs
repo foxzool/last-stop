@@ -4,7 +4,6 @@ pub mod config;
 pub mod connection_system;
 pub mod events;
 pub mod interaction;
-pub mod junction_movement;
 pub mod level_system;
 pub mod passenger_movement_debug;
 pub mod passenger_test;
@@ -28,7 +27,9 @@ pub use resources::*;
 pub use ui_audio::*;
 pub use utils::*;
 
-use crate::bus_puzzle::{connection_system::FixedConnectionSystemPlugin, splash::SplashPlugin};
+use crate::bus_puzzle::{
+    connection_system::FixedConnectionSystemPlugin, splash::SplashPlugin, LevelCompleteData,
+};
 use bevy::prelude::*;
 
 // ============ 游戏主循环集成 ============
@@ -45,7 +46,6 @@ impl Plugin for BusPuzzleGamePlugin {
             GameUIPlugin,
             PassengerTestPlugin,
             PassengerMovementDebugPlugin,
-            // JunctionPathfindingPlugin,
             FixedConnectionSystemPlugin,
         ));
 
@@ -68,8 +68,9 @@ impl Plugin for BusPuzzleGamePlugin {
                 (
                     update_game_score,
                     check_level_failure_conditions,
-                    debug_level_reset,  // 新增调试功能
-                    debug_level_status, // 新增关卡状态调试
+                    debug_level_reset,       // 新增调试功能
+                    debug_level_status,      // 新增关卡状态调试
+                    debug_score_calculation, // 新增分数计算调试
                 )
                     .run_if(in_state(GameStateEnum::Playing)),
             );
@@ -116,6 +117,7 @@ fn load_current_level(
     mut next_state: ResMut<NextState<GameStateEnum>>,
     asset_server: Res<AssetServer>,
     mut pathfinding_graph: ResMut<PathfindingGraph>,
+    mut level_complete_data: ResMut<LevelCompleteData>, // 添加LevelCompleteData
     time: Res<Time>,
     // 清理现有的游戏实体
     existing_tiles: Query<Entity, With<GridTile>>,
@@ -129,7 +131,11 @@ fn load_current_level(
         level_manager.current_level_index
     );
 
-    // 第一步：清理所有现有的游戏实体
+    // 第一步：重置关卡完成数据
+    level_complete_data.final_score = 0;
+    level_complete_data.completion_time = 0.0;
+
+    // 第二步：清理所有现有的游戏实体
     cleanup_game_world(
         &mut commands,
         existing_tiles,
@@ -139,13 +145,13 @@ fn load_current_level(
         existing_previews,
     );
 
-    // 第二步：重置寻路图
+    // 第三步：重置寻路图
     pathfinding_graph.connections.clear();
     pathfinding_graph.nodes.clear();
     pathfinding_graph.station_lookup.clear();
     pathfinding_graph.route_network.clear();
 
-    // 第三步：获取关卡数据
+    // 第四步：获取关卡数据
     let level_data = if let Some(level_id) = level_manager
         .available_levels
         .get(level_manager.current_level_index)
@@ -165,10 +171,10 @@ fn load_current_level(
         return;
     };
 
-    // 第四步：重置游戏状态
+    // 第五步：重置游戏状态
     reset_game_state(&mut game_state, &level_data, time.elapsed_secs());
 
-    // 第五步：重新生成关卡地图
+    // 第六步：重新生成关卡地图
     generate_level_map(
         &mut commands,
         &asset_server,
@@ -287,6 +293,7 @@ fn debug_level_status(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     level_manager: Res<LevelManager>,
     game_state: Res<GameState>,
+    passengers: Query<&PathfindingAgent>,
 ) {
     if keyboard_input.just_pressed(KeyCode::F6) {
         info!("=== 关卡状态调试 ===");
@@ -316,6 +323,37 @@ fn debug_level_status(
             info!("  名称: {}", level_data.name);
             info!("  难度: {}", level_data.difficulty);
             info!("  目标数: {}", level_data.objectives.len());
+
+            // 详细分数调试信息
+            info!("=== 分数系统调试 ===");
+            info!("当前分数: {}", game_state.score.total_score);
+            info!("  基础分: {}", game_state.score.base_points);
+            info!("  效率奖励: {}", game_state.score.efficiency_bonus);
+            info!("  速度奖励: {}", game_state.score.speed_bonus);
+            info!("  成本奖励: {}", game_state.score.cost_bonus);
+
+            // 分数计算详情
+            let network_efficiency = calculate_network_efficiency(&game_state, &passengers);
+            info!("网络效率评分: {:.2}", network_efficiency);
+            info!("游戏时间: {:.1}秒", game_state.game_time);
+            info!("总成本: {}", game_state.total_cost);
+            info!("已放置路段数: {}", game_state.placed_segments.len());
+
+            // 乘客状态统计
+            let total_passengers = passengers.iter().count();
+            let arrived_count = passengers
+                .iter()
+                .filter(|agent| matches!(agent.state, AgentState::Arrived))
+                .count();
+            let gave_up_count = passengers
+                .iter()
+                .filter(|agent| matches!(agent.state, AgentState::GaveUp))
+                .count();
+
+            info!(
+                "乘客状态: 总计={}, 到达={}, 放弃={}",
+                total_passengers, arrived_count, gave_up_count
+            );
         }
 
         let next_index = level_manager.current_level_index + 1;
@@ -334,22 +372,34 @@ fn update_game_score(mut game_state: ResMut<GameState>, passengers: Query<&Pathf
     if let Some(level_data) = &game_state.current_level {
         let base_points = level_data.scoring.base_points;
 
+        // 网络效率奖励：基于乘客到达率和路径效率
         let network_efficiency = calculate_network_efficiency(&game_state, &passengers);
         let efficiency_bonus =
             (network_efficiency * level_data.scoring.efficiency_bonus as f32) as u32;
 
+        // 速度奖励：根据关卡配置的时间阈值
         let speed_bonus = if game_state.game_time < 60.0 {
             level_data.scoring.speed_bonus
         } else {
             0
         };
 
-        let cost_bonus = if game_state.total_cost < 15 {
+        // 成本奖励：根据关卡配置的成本阈值
+        let cost_threshold = match level_data.id.as_str() {
+            "tutorial_01" => 10, // 教学关卡：更宽松的成本要求
+            "level_02_transfer" => 15,
+            "level_03_multiple_routes" => 25,
+            "level_04_time_pressure" => 20,
+            _ => 15, // 默认值
+        };
+
+        let cost_bonus = if game_state.total_cost <= cost_threshold {
             level_data.scoring.cost_bonus
         } else {
             0
         };
 
+        // 更新分数结构
         game_state.score = GameScore {
             base_points,
             efficiency_bonus,
@@ -357,6 +407,91 @@ fn update_game_score(mut game_state: ResMut<GameState>, passengers: Query<&Pathf
             cost_bonus,
             total_score: base_points + efficiency_bonus + speed_bonus + cost_bonus,
         };
+    }
+}
+
+/// F9 - 调试分数计算
+fn debug_score_calculation(
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    game_state: Res<GameState>,
+    passengers: Query<&PathfindingAgent>,
+) {
+    if keyboard_input.just_pressed(KeyCode::F9) {
+        info!("=== 分数计算详细调试 ===");
+
+        if let Some(level_data) = &game_state.current_level {
+            info!("关卡: {} ({})", level_data.name, level_data.id);
+            info!("当前游戏时间: {:.1}秒", game_state.game_time);
+            info!("当前总成本: {}", game_state.total_cost);
+            info!("已放置路段数: {}", game_state.placed_segments.len());
+
+            // 分数组成部分
+            let base_points = level_data.scoring.base_points;
+            info!("基础分数: {}", base_points);
+
+            // 网络效率计算
+            let network_efficiency = calculate_network_efficiency(&game_state, &passengers);
+            let efficiency_bonus =
+                (network_efficiency * level_data.scoring.efficiency_bonus as f32) as u32;
+            info!(
+                "网络效率: {:.2} -> 效率奖励: {}",
+                network_efficiency, efficiency_bonus
+            );
+
+            // 速度奖励
+            let speed_bonus = if game_state.game_time < 60.0 {
+                level_data.scoring.speed_bonus
+            } else {
+                0
+            };
+            info!(
+                "速度奖励: {} (条件: <60秒, 当前: {:.1}秒)",
+                speed_bonus, game_state.game_time
+            );
+
+            // 成本奖励
+            let cost_threshold = match level_data.id.as_str() {
+                "tutorial_01" => 10,
+                "level_02_transfer" => 15,
+                "level_03_multiple_routes" => 25,
+                "level_04_time_pressure" => 20,
+                _ => 15,
+            };
+            let cost_bonus = if game_state.total_cost <= cost_threshold {
+                level_data.scoring.cost_bonus
+            } else {
+                0
+            };
+            info!(
+                "成本奖励: {} (条件: ≤{}, 当前: {})",
+                cost_bonus, cost_threshold, game_state.total_cost
+            );
+
+            // 总分
+            let total_calculated = base_points + efficiency_bonus + speed_bonus + cost_bonus;
+            info!(
+                "计算总分: {} + {} + {} + {} = {}",
+                base_points, efficiency_bonus, speed_bonus, cost_bonus, total_calculated
+            );
+            info!("当前实际总分: {}", game_state.score.total_score);
+
+            // 乘客统计
+            let total_passengers = passengers.iter().count();
+            let arrived_count = passengers
+                .iter()
+                .filter(|agent| matches!(agent.state, AgentState::Arrived))
+                .count();
+            let gave_up_count = passengers
+                .iter()
+                .filter(|agent| matches!(agent.state, AgentState::GaveUp))
+                .count();
+
+            info!(
+                "乘客统计: 总计={}, 到达={}, 放弃={}",
+                total_passengers, arrived_count, gave_up_count
+            );
+            info!("目标完成情况: {:?}", game_state.objectives_completed);
+        }
     }
 }
 

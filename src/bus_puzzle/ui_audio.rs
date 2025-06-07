@@ -98,6 +98,12 @@ pub struct UIAssets {
     pub passenger_icons: HashMap<PassengerColor, Handle<Image>>,
 }
 
+#[derive(Resource, Default)]
+pub struct LevelCompleteData {
+    pub final_score: u32,
+    pub completion_time: f32,
+}
+
 #[derive(Resource)]
 pub struct AudioSettings {
     pub master_volume: f32,
@@ -118,6 +124,7 @@ impl Plugin for GameUIPlugin {
             sfx_volume: 0.8,
             is_muted: false,
         })
+            .insert_resource(LevelCompleteData::default())
             .add_systems(Startup, (load_ui_assets, load_audio_assets))
             .add_systems(OnEnter(GameStateEnum::MainMenu), setup_main_menu)
             .add_systems(OnEnter(GameStateEnum::Playing), setup_gameplay_ui)
@@ -142,6 +149,7 @@ impl Plugin for GameUIPlugin {
                     update_progress_bars,
                     handle_audio_events,
                     update_background_music,
+                    capture_level_complete_data, // 新增：捕获关卡完成数据
                 )
                     .run_if(in_state(GameStateEnum::Playing)),
             )
@@ -691,6 +699,7 @@ fn setup_level_complete_ui(
     ui_assets: Res<UIAssets>,
     game_state: Res<GameState>,
     level_manager: Res<LevelManager>,
+    level_complete_data: Res<LevelCompleteData>,
 ) {
     let level_complete_entity = commands
         .spawn((
@@ -734,16 +743,46 @@ fn setup_level_complete_ui(
                         spawn_title_text(parent, &ui_assets, "关卡完成！", 36.0);
                     }
 
+                    // 使用捕获的最终分数，如果为0则使用当前分数
+                    let final_score = if level_complete_data.final_score > 0 {
+                        level_complete_data.final_score
+                    } else {
+                        game_state.score.total_score
+                    };
+
                     spawn_score_text(
                         parent,
                         &ui_assets,
-                        &format!("最终得分: {}", game_state.score.total_score),
+                        &format!("最终得分: {}", final_score),
                         24.0,
                     );
+
+                    // 显示分数详细分解
+                    let score = &game_state.score;
                     spawn_score_text(
                         parent,
                         &ui_assets,
-                        &format!("用时: {}", format_time(game_state.game_time)),
+                        &format!(
+                            "分数明细: 基础:{} 效率:+{} 速度:+{} 成本:+{}",
+                            score.base_points,
+                            score.efficiency_bonus,
+                            score.speed_bonus,
+                            score.cost_bonus
+                        ),
+                        16.0,
+                    );
+
+                    // 使用捕获的完成时间，如果为0则使用当前时间
+                    let completion_time = if level_complete_data.completion_time > 0.0 {
+                        level_complete_data.completion_time
+                    } else {
+                        game_state.game_time
+                    };
+
+                    spawn_score_text(
+                        parent,
+                        &ui_assets,
+                        &format!("用时: {}", format_time(completion_time)),
                         20.0,
                     );
                     spawn_score_text(
@@ -804,6 +843,21 @@ fn setup_level_complete_ui(
         "关卡完成UI创建完毕: {} (索引: {})",
         current_level_name, level_manager.current_level_index
     );
+}
+
+// 新增：捕获关卡完成数据的系统
+fn capture_level_complete_data(
+    mut level_completed_events: EventReader<LevelCompletedEvent>,
+    mut level_complete_data: ResMut<LevelCompleteData>,
+) {
+    for event in level_completed_events.read() {
+        level_complete_data.final_score = event.final_score;
+        level_complete_data.completion_time = event.completion_time;
+        info!(
+            "捕获关卡完成数据: 分数={}, 时间={:.1}s",
+            event.final_score, event.completion_time
+        );
+    }
 }
 
 // ============ 辅助函数 ============
@@ -1165,11 +1219,20 @@ fn update_gameplay_ui_values(
     >,
 ) {
     if let Ok(mut text) = score_text.single_mut() {
-        *text = Text::new(format!("分数: {}", game_state.score.total_score));
+        // 显示详细的分数分解
+        let score = &game_state.score;
+        *text = Text::new(format!(
+            "分数: {} (基础:{} 效率:+{} 速度:+{} 成本:+{})",
+            score.total_score,
+            score.base_points,
+            score.efficiency_bonus,
+            score.speed_bonus,
+            score.cost_bonus
+        ));
     }
 
     if let Ok(mut text) = timer_text.single_mut() {
-        *text = Text::new(format_time(game_state.game_time));
+        *text = Text::new(format!("时间: {}", format_time(game_state.game_time)));
     }
 
     if let Ok(mut text) = cost_text.single_mut() {
