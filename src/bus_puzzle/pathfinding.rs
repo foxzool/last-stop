@@ -107,6 +107,7 @@ fn update_pathfinding_graph(
     mut pathfinding_graph: ResMut<PathfindingGraph>,
     route_segments: Query<&RouteSegment>,
     stations: Query<&StationEntity>,
+    keyboard_input: Res<ButtonInput<KeyCode>>, // 添加键盘输入以便调试
 ) {
     // 简化：每次都重建整个图
     pathfinding_graph.connections.clear();
@@ -160,6 +161,58 @@ fn update_pathfinding_graph(
     // 建立连接关系
     create_route_connections_improved(&mut pathfinding_graph, &route_segments_by_pos);
     create_station_connections_improved(&mut pathfinding_graph, &route_segments_by_pos);
+
+    // 按F8显示详细的连接调试信息
+    if keyboard_input.just_pressed(KeyCode::F8) {
+        info!("=== 详细连接调试 ===");
+
+        // 显示每个站点的连接信息
+        for (station_name, &station_pos) in &pathfinding_graph.station_lookup {
+            info!("站点: {} at {:?}", station_name, station_pos);
+
+            if let Some(connections) = pathfinding_graph.connections.get(&station_pos) {
+                for conn in connections {
+                    info!(
+                        "  -> {:?} (类型: {:?}, 成本: {:.1})",
+                        conn.to, conn.connection_type, conn.cost
+                    );
+                }
+            } else {
+                warn!("  没有连接！");
+            }
+
+            // 显示相邻的路线段分析
+            let adjacent_positions = vec![
+                GridPos::new(station_pos.x, station_pos.y - 1),
+                GridPos::new(station_pos.x, station_pos.y + 1),
+                GridPos::new(station_pos.x - 1, station_pos.y),
+                GridPos::new(station_pos.x + 1, station_pos.y),
+            ];
+
+            info!("  相邻位置分析:");
+            for adj_pos in adjacent_positions {
+                if let Some(segment) = route_segments_by_pos.get(&adj_pos) {
+                    let can_connect = segment_can_connect_to_station(segment, station_pos);
+                    let connection_points =
+                        get_segment_connections(adj_pos, &segment.segment_type, segment.rotation);
+                    info!(
+                        "    {:?}: {:?} 旋转{}° - {} (连接点: {:?})",
+                        adj_pos,
+                        segment.segment_type,
+                        segment.rotation,
+                        if can_connect {
+                            "✅可连接"
+                        } else {
+                            "❌不可连接"
+                        },
+                        connection_points
+                    );
+                } else {
+                    info!("    {:?}: 空位置", adj_pos);
+                }
+            }
+        }
+    }
 
     // 只在图结构发生变化时输出日志
     static mut LAST_NODE_COUNT: usize = 0;
@@ -219,9 +272,9 @@ fn create_route_connections_improved(
         for connection_pos in theoretical_connections {
             if route_segments_by_pos.contains_key(&connection_pos)
                 || pathfinding_graph
-                    .station_lookup
-                    .values()
-                    .any(|&station_pos| station_pos == connection_pos)
+                .station_lookup
+                .values()
+                .any(|&station_pos| station_pos == connection_pos)
             {
                 // 创建双向连接
                 add_connection_if_not_exists(
@@ -292,16 +345,19 @@ fn add_connection_if_not_exists(
     to: GridPos,
     connection_type: ConnectionType,
 ) {
-    let connections = pathfinding_graph
-        .connections
-        .entry(from)
-        .or_default();
+    let connections = pathfinding_graph.connections.entry(from).or_default();
 
     // 检查是否已经存在这个连接
     if !connections.iter().any(|conn| conn.to == to) {
+        let cost = match connection_type {
+            ConnectionType::Walk => 0.5,
+            ConnectionType::BusRoute => 1.0,
+            ConnectionType::Transfer => 2.0,
+        };
+
         connections.push(Connection {
             to,
-            cost: 1.0,
+            cost,
             route_id: Some(format!("route_{}", from.x + from.y)),
             connection_type,
         });
@@ -312,49 +368,65 @@ pub fn create_station_connections_improved(
     pathfinding_graph: &mut PathfindingGraph,
     route_segments_by_pos: &HashMap<GridPos, &RouteSegment>,
 ) {
-    for (_station_name, &station_pos) in &pathfinding_graph.station_lookup {
-        // 扩大搜索范围 - 检查站点周围2格内的所有路线段
-        for (segment_pos, segment) in route_segments_by_pos {
-            let distance = manhattan_distance(station_pos, *segment_pos);
+    let station_lookup: Vec<_> = pathfinding_graph
+        .station_lookup
+        .iter()
+        .map(|(name, pos)| (name.clone(), *pos))
+        .collect();
+    for (station_name, station_pos) in station_lookup {
+        info!("检查站点 {} at {:?} 的连接", station_name, station_pos);
 
-            // 允许更远的连接距离
-            if distance <= 2 {
-                // 检查更灵活的连接条件
-                if can_connect_station_to_segment(station_pos, *segment_pos, segment) {
+        // 只检查站点直接相邻的位置（距离为1）
+        let adjacent_positions = vec![
+            GridPos::new(station_pos.x, station_pos.y - 1), // 上
+            GridPos::new(station_pos.x, station_pos.y + 1), // 下
+            GridPos::new(station_pos.x - 1, station_pos.y), // 左
+            GridPos::new(station_pos.x + 1, station_pos.y), // 右
+        ];
+
+        for adj_pos in adjacent_positions {
+            if let Some(segment) = route_segments_by_pos.get(&adj_pos) {
+                // 检查路线段是否有朝向站点的连接点
+                if segment_can_connect_to_station(segment, station_pos) {
                     // 站点到路线段
-                    pathfinding_graph
-                        .connections
-                        .entry(station_pos)
-                        .or_default()
-                        .push(Connection {
-                            to: *segment_pos,
-                            cost: 0.5,
-                            route_id: None,
-                            connection_type: ConnectionType::Walk,
-                        });
+                    add_connection_if_not_exists(
+                        pathfinding_graph,
+                        station_pos,
+                        adj_pos,
+                        ConnectionType::Walk,
+                    );
 
                     // 路线段到站点
-                    pathfinding_graph
-                        .connections
-                        .entry(*segment_pos)
-                        .or_default()
-                        .push(Connection {
-                            to: station_pos,
-                            cost: 0.5,
-                            route_id: None,
-                            connection_type: ConnectionType::Walk,
-                        });
-
-                    trace!(
-                        "建立连接: 站点{:?} <-> 路线段{:?} (距离:{})",
+                    add_connection_if_not_exists(
+                        pathfinding_graph,
+                        adj_pos,
                         station_pos,
-                        segment_pos,
-                        distance
+                        ConnectionType::Walk,
+                    );
+
+                    info!(
+                        "建立连接: 站点 {} {:?} <-> 路线段 {:?} {:?}",
+                        station_name, station_pos, segment.segment_type, adj_pos
+                    );
+                } else {
+                    info!(
+                        "跳过连接: 站点 {} {:?} -> 路线段 {:?} {:?} (路线段没有朝向站点的端口)",
+                        station_name, station_pos, segment.segment_type, adj_pos
                     );
                 }
             }
         }
     }
+}
+
+/// 检查路线段是否能连接到站点（检查路线段是否有朝向站点的端口）
+fn segment_can_connect_to_station(segment: &RouteSegment, station_pos: GridPos) -> bool {
+    let segment_pos = segment.grid_pos;
+    let connection_points =
+        get_segment_connections(segment_pos, &segment.segment_type, segment.rotation);
+
+    // 检查站点是否在路线段的连接点列表中
+    connection_points.contains(&station_pos)
 }
 
 /// 检查站点是否可以连接到路线段
@@ -575,7 +647,9 @@ fn update_passenger_movement(
                 agent.waiting_time += dt;
                 agent.patience -= dt * 0.2; // 换乘时耐心消耗稍快
 
-                if agent.waiting_time > 0.8 && agent.current_step < agent.current_path.len().saturating_sub(1) {
+                if agent.waiting_time > 0.8
+                    && agent.current_step < agent.current_path.len().saturating_sub(1)
+                {
                     agent.current_step += 1;
                     agent.state = AgentState::Traveling;
                     agent.waiting_time = 0.0;
@@ -647,7 +721,10 @@ fn update_passenger_movement(
 
 fn handle_passenger_transfers(mut passengers: Query<&mut PathfindingAgent>) {
     for mut agent in passengers.iter_mut() {
-        if agent.state == AgentState::Transferring && agent.waiting_time > 0.8 && agent.current_step < agent.current_path.len().saturating_sub(1) {
+        if agent.state == AgentState::Transferring
+            && agent.waiting_time > 0.8
+            && agent.current_step < agent.current_path.len().saturating_sub(1)
+        {
             agent.current_step += 1;
             agent.state = AgentState::Traveling;
             agent.waiting_time = 0.0;
@@ -927,9 +1004,9 @@ fn rebuild_connections(pathfinding_graph: &mut PathfindingGraph, game_state: &su
         for connection_pos in connections {
             if game_state.placed_segments.contains_key(&connection_pos)
                 || pathfinding_graph
-                    .station_lookup
-                    .values()
-                    .any(|&station_pos| station_pos == connection_pos)
+                .station_lookup
+                .values()
+                .any(|&station_pos| station_pos == connection_pos)
             {
                 new_connections.push((
                     *pos,

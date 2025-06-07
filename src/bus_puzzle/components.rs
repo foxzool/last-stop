@@ -1,4 +1,4 @@
-use crate::bus_puzzle::{LevelData, PathNode, Station};
+use crate::bus_puzzle::{PathNode, Station};
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -24,11 +24,6 @@ impl GridPos {
             self.y as f32 * tile_size - center_offset_y,
             0.0,
         )
-    }
-
-    /// 便捷方法：从LevelData获取网格尺寸
-    pub fn to_world_pos_with_level(&self, tile_size: f32, level_data: &LevelData) -> Vec3 {
-        self.to_world_pos(tile_size, level_data.grid_size.0, level_data.grid_size.1)
     }
 }
 

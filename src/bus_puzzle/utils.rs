@@ -25,11 +25,6 @@ pub fn manhattan_distance(pos1: GridPos, pos2: GridPos) -> u32 {
     ((pos1.x - pos2.x).abs() + (pos1.y - pos2.y).abs()) as u32
 }
 
-/// 检查网格位置是否在边界内
-pub fn is_within_bounds(pos: GridPos, grid_size: (u32, u32)) -> bool {
-    pos.x >= 0 && pos.y >= 0 && pos.x < grid_size.0 as i32 && pos.y < grid_size.1 as i32
-}
-
 /// 获取网格位置的相邻位置（四个方向）
 pub fn get_neighbors(pos: GridPos) -> Vec<GridPos> {
     vec![

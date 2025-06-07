@@ -71,7 +71,10 @@ fn debug_connections_with_directions(
         info!("\n站点连接分析:");
         for station_entity in stations.iter() {
             let station_pos = station_entity.station_data.position;
-            info!("📍 {} at {:?}", station_entity.station_data.name, station_pos);
+            info!(
+                "📍 {} at {:?}",
+                station_entity.station_data.name, station_pos
+            );
 
             // 分析周围的路线段
             for segment in route_segments.iter() {
@@ -81,10 +84,8 @@ fn debug_connections_with_directions(
 
                 let distance = manhattan_distance(station_pos, segment.grid_pos);
                 if distance <= 2 {
-                    let can_connect = can_station_connect_to_segment_directional(
-                        station_pos,
-                        segment,
-                    );
+                    let can_connect =
+                        can_station_connect_to_segment_directional(station_pos, segment);
 
                     let direction = get_direction_between(station_pos, segment.grid_pos);
                     info!(
@@ -93,7 +94,11 @@ fn debug_connections_with_directions(
                         segment.segment_type,
                         segment.grid_pos,
                         direction,
-                        if can_connect { "✅可连接" } else { "❌不可连接" }
+                        if can_connect {
+                            "✅可连接"
+                        } else {
+                            "❌不可连接"
+                        }
                     );
 
                     if can_connect {
@@ -229,17 +234,14 @@ fn create_segment_connections_directional(
     let active_segments: Vec<_> = route_segments.iter().filter(|s| s.is_active).collect();
 
     for segment in &active_segments {
-        let connection_ports = get_segment_connection_ports(
-            segment.grid_pos,
-            &segment.segment_type,
-            segment.rotation,
-        );
+        let connection_ports =
+            get_segment_connection_ports(segment.grid_pos, &segment.segment_type, segment.rotation);
 
         for (direction, port_pos) in connection_ports {
             // 检查该端口位置是否有其他路线段或站点
-            let target_segment = active_segments.iter().find(|other| {
-                other.grid_pos == port_pos
-            });
+            let target_segment = active_segments
+                .iter()
+                .find(|other| other.grid_pos == port_pos);
 
             let has_station = pathfinding_graph
                 .station_lookup
@@ -258,7 +260,9 @@ fn create_segment_connections_directional(
 
                     trace!(
                         "路线段连接: {:?} <-> {:?} (方向: {:?})",
-                        segment.grid_pos, target_segment.grid_pos, direction
+                        segment.grid_pos,
+                        target_segment.grid_pos,
+                        direction
                     );
                 }
             } else if has_station {
@@ -309,6 +313,7 @@ enum Direction {
 }
 
 impl Direction {
+    #[allow(dead_code)]
     fn opposite(self) -> Self {
         match self {
             Direction::North => Direction::South,
@@ -349,8 +354,15 @@ fn get_segment_connection_ports(
         RouteSegmentType::Straight => vec![Direction::North, Direction::South],
         RouteSegmentType::Curve => vec![Direction::North, Direction::East],
         RouteSegmentType::TSplit => vec![Direction::North, Direction::South, Direction::East],
-        RouteSegmentType::Cross => vec![Direction::North, Direction::South, Direction::East, Direction::West],
-        RouteSegmentType::Bridge | RouteSegmentType::Tunnel => vec![Direction::North, Direction::South],
+        RouteSegmentType::Cross => vec![
+            Direction::North,
+            Direction::South,
+            Direction::East,
+            Direction::West,
+        ],
+        RouteSegmentType::Bridge | RouteSegmentType::Tunnel => {
+            vec![Direction::North, Direction::South]
+        }
     };
 
     // 应用旋转
@@ -387,13 +399,12 @@ fn segment_has_port_facing(segment: &RouteSegment, target_pos: GridPos) -> bool 
     let direction_to_target = get_direction_between(segment.grid_pos, target_pos);
 
     if let Some(direction) = direction_to_target {
-        let connection_ports = get_segment_connection_ports(
-            segment.grid_pos,
-            &segment.segment_type,
-            segment.rotation,
-        );
+        let connection_ports =
+            get_segment_connection_ports(segment.grid_pos, &segment.segment_type, segment.rotation);
 
-        connection_ports.iter().any(|(port_dir, _)| *port_dir == direction)
+        connection_ports
+            .iter()
+            .any(|(port_dir, _)| *port_dir == direction)
     } else {
         false
     }
@@ -430,7 +441,9 @@ fn can_station_connect_to_segment_directional(
                 segment.rotation,
             );
 
-            connection_ports.iter().any(|(_, port_pos)| *port_pos == station_pos)
+            connection_ports
+                .iter()
+                .any(|(_, port_pos)| *port_pos == station_pos)
         }
     }
 }
@@ -455,7 +468,10 @@ fn get_connection_reason(station_pos: GridPos, segment: &RouteSegment) -> String
                 segment.rotation,
             );
 
-            if connection_ports.iter().any(|(_, port_pos)| *port_pos == station_pos) {
+            if connection_ports
+                .iter()
+                .any(|(_, port_pos)| *port_pos == station_pos)
+            {
                 "站点位于路线段的端口位置".to_string()
             } else {
                 "距离过远且不在端口位置".to_string()
@@ -515,15 +531,14 @@ fn visualize_segment_ports(
         (10, 8)
     };
 
-    let connection_ports = get_segment_connection_ports(
-        segment.grid_pos,
-        &segment.segment_type,
-        segment.rotation,
-    );
+    let connection_ports =
+        get_segment_connection_ports(segment.grid_pos, &segment.segment_type, segment.rotation);
 
     // 为每个端口创建箭头指示器
     for (direction, port_pos) in connection_ports {
-        let center_world = segment.grid_pos.to_world_pos(tile_size, grid_width, grid_height);
+        let center_world = segment
+            .grid_pos
+            .to_world_pos(tile_size, grid_width, grid_height);
         let port_world = port_pos.to_world_pos(tile_size, grid_width, grid_height);
 
         // 计算箭头位置（在路线段中心和端口之间）
@@ -531,10 +546,10 @@ fn visualize_segment_ports(
 
         // 根据方向选择箭头颜色
         let color = match direction {
-            Direction::North => Color::srgb(1.0, 0.0, 0.0),  // 红色 - 北
-            Direction::South => Color::srgb(0.0, 1.0, 0.0),  // 绿色 - 南
-            Direction::East => Color::srgb(0.0, 0.0, 1.0),   // 蓝色 - 东
-            Direction::West => Color::srgb(1.0, 1.0, 0.0),   // 黄色 - 西
+            Direction::North => Color::srgb(1.0, 0.0, 0.0), // 红色 - 北
+            Direction::South => Color::srgb(0.0, 1.0, 0.0), // 绿色 - 南
+            Direction::East => Color::srgb(0.0, 0.0, 1.0),  // 蓝色 - 东
+            Direction::West => Color::srgb(1.0, 1.0, 0.0),  // 黄色 - 西
         };
 
         commands.spawn((
@@ -545,7 +560,10 @@ fn visualize_segment_ports(
             },
             Transform::from_translation(arrow_pos + Vec3::Z * 15.0),
             DirectionVisualization,
-            Name::new(format!("Port {:?} for {:?}", direction, segment.segment_type)),
+            Name::new(format!(
+                "Port {:?} for {:?}",
+                direction, segment.segment_type
+            )),
         ));
     }
 }
