@@ -33,8 +33,8 @@ pub use ui_audio::*;
 pub use utils::*;
 
 use crate::bus_puzzle::{
-    connection_system::ConnectionSystemPlugin, junction_pathfinding::JunctionPathfindingPlugin,
-    splash::SplashPlugin,
+    connection_system::FixedConnectionSystemPlugin,
+    junction_pathfinding::JunctionPathfindingPlugin, splash::SplashPlugin,
 };
 use bevy::prelude::*;
 // ============ 游戏主循环集成 ============
@@ -51,11 +51,9 @@ impl Plugin for BusPuzzleGamePlugin {
             GameUIPlugin,
             PassengerTestPlugin,
             PassengerMovementDebugPlugin,
-            // ConnectionDebugPlugin,
-            // ConnectionFixPlugin,
             JunctionPathfindingPlugin,
             JunctionMovementPlugin,
-            ConnectionSystemPlugin,
+            FixedConnectionSystemPlugin,
         ));
 
         app.init_resource::<GameState>()
