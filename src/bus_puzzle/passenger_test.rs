@@ -55,7 +55,7 @@ fn force_spawn_passenger(
                     color: passenger_color,
                     origin: "A站".to_string(),
                     destination: "B站".to_string(),
-                    current_patience: 60.0,
+                    current_patience: 120.0, // 增加耐心值
                     path: Vec::new(),
                 },
                 PathfindingAgent {
@@ -65,8 +65,8 @@ fn force_spawn_passenger(
                     current_path: Vec::new(),
                     current_step: 0,
                     state: AgentState::WaitingAtStation,
-                    patience: 60.0,
-                    max_patience: 60.0,
+                    patience: 120.0, // 增加耐心值
+                    max_patience: 120.0,
                     waiting_time: 0.0,
                 },
             ))

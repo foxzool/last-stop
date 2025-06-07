@@ -160,6 +160,26 @@ fn update_pathfinding_graph(
     // 建立连接关系
     create_route_connections(&mut pathfinding_graph, &route_segments_by_pos);
     create_station_connections(&mut pathfinding_graph, &route_segments_by_pos);
+
+    // 只在图结构发生变化时输出日志
+    static mut LAST_NODE_COUNT: usize = 0;
+    static mut LAST_CONNECTION_COUNT: usize = 0;
+
+    unsafe {
+        let current_nodes = pathfinding_graph.nodes.len();
+        let current_connections = pathfinding_graph.connections.len();
+
+        if current_nodes != LAST_NODE_COUNT || current_connections != LAST_CONNECTION_COUNT {
+            info!("寻路图更新: {} 个节点, {} 个连接", current_nodes, current_connections);
+
+            for (name, pos) in &pathfinding_graph.station_lookup {
+                info!("  站点: {} 位置: {:?}", name, pos);
+            }
+
+            LAST_NODE_COUNT = current_nodes;
+            LAST_CONNECTION_COUNT = current_connections;
+        }
+    }
 }
 
 
@@ -235,11 +255,26 @@ fn find_paths_for_new_passengers(
     mut passengers: Query<&mut PathfindingAgent, Added<PathfindingAgent>>,
 ) {
     for mut agent in passengers.iter_mut() {
+        // 检查寻路图是否有必要的站点
+        if !pathfinding_graph.station_lookup.contains_key(&agent.origin) {
+            warn!("找不到起点站: {}", agent.origin);
+            agent.state = AgentState::GaveUp;
+            continue;
+        }
+
+        if !pathfinding_graph.station_lookup.contains_key(&agent.destination) {
+            warn!("找不到终点站: {}", agent.destination);
+            agent.state = AgentState::GaveUp;
+            continue;
+        }
+
         if let Some(path) = find_optimal_path(&pathfinding_graph, &agent.origin, &agent.destination)
         {
             agent.current_path = path;
             agent.current_step = 0;
             agent.state = AgentState::WaitingAtStation;
+            // 重置等待时间，避免立即开始移动
+            agent.waiting_time = 0.0;
 
             info!(
                 "为乘客 {:?} 找到路径，共 {} 步",
@@ -247,11 +282,14 @@ fn find_paths_for_new_passengers(
                 agent.current_path.len()
             );
         } else {
-            warn!(
-                "无法为乘客 {:?} 找到从 {} 到 {} 的路径",
-                agent.color, agent.origin, agent.destination
+            // 如果没有路线段连接，创建一个直接等待路径
+            info!(
+                "暂时无法为乘客 {:?} 找到路径，设置为等待状态",
+                agent.color
             );
-            agent.state = AgentState::GaveUp;
+            agent.state = AgentState::WaitingAtStation;
+            agent.waiting_time = 0.0;
+            // 不立即放弃，等待玩家建设路线
         }
     }
 }
@@ -260,6 +298,7 @@ fn update_passenger_movement(
     time: Res<Time>,
     mut passengers: Query<(&mut PathfindingAgent, &mut Transform)>,
     level_manager: Res<LevelManager>,
+    pathfinding_graph: Res<PathfindingGraph>,
 ) {
     let dt = time.delta_secs();
     let tile_size = level_manager.tile_size;
@@ -275,20 +314,46 @@ fn update_passenger_movement(
         transform.translation.z = PASSENGER_Z;
 
         match agent.state {
-            AgentState::WaitingAtStation | AgentState::Transferring => {
+            AgentState::WaitingAtStation => {
                 agent.waiting_time += dt;
-                agent.patience -= dt;
+                // 减缓耐心消耗速度，避免过快放弃
+                agent.patience -= dt * 0.1; // 原来是dt，现在减慢10倍
 
-                // 等待一定时间后开始移动
-                if agent.waiting_time > 1.0
-                    && agent.current_step < agent.current_path.len().saturating_sub(1)
-                {
-                    agent.current_step += 1;
+                // 如果有路径，等待一段时间后开始移动
+                if !agent.current_path.is_empty() && agent.waiting_time > 1.0 {
                     agent.state = AgentState::Traveling;
                     agent.waiting_time = 0.0;
+                    info!("乘客 {:?} 开始移动", agent.color);
+                } else if agent.current_path.is_empty() {
+                    // 尝试重新寻路（也许玩家建设了新的路线）
+                    if agent.waiting_time > 3.0 { // 每3秒尝试一次重新寻路
+                        if let Some(path) = find_optimal_path(&pathfinding_graph, &agent.origin, &agent.destination) {
+                            agent.current_path = path;
+                            agent.current_step = 0;
+                            agent.waiting_time = 0.0;
+                            info!("乘客 {:?} 找到新路径，准备出发", agent.color);
+                        } else {
+                            agent.waiting_time = 0.0; // 重置等待时间，继续等待
+                        }
+                    }
+                }
+            }
+            AgentState::Transferring => {
+                agent.waiting_time += dt;
+                agent.patience -= dt * 0.2; // 换乘时耐心消耗稍快
+
+                if agent.waiting_time > 0.8 {
+                    if agent.current_step < agent.current_path.len().saturating_sub(1) {
+                        agent.current_step += 1;
+                        agent.state = AgentState::Traveling;
+                        agent.waiting_time = 0.0;
+                    }
                 }
             }
             AgentState::Traveling => {
+                // 移动时不消耗耐心，或者消耗很少
+                agent.patience -= dt * 0.05;
+
                 if agent.current_step < agent.current_path.len() {
                     let current_node = &agent.current_path[agent.current_step];
                     let target_pos =
@@ -314,6 +379,7 @@ fn update_passenger_movement(
                             PathNodeType::Station(station_name) => {
                                 if station_name == &agent.destination {
                                     agent.state = AgentState::Arrived;
+                                    info!("乘客 {:?} 到达目的地", agent.color);
                                 } else {
                                     agent.state = AgentState::Transferring;
                                 }
@@ -326,6 +392,7 @@ fn update_passenger_movement(
                                 agent.current_step += 1;
                                 if agent.current_step >= agent.current_path.len() {
                                     agent.state = AgentState::Arrived;
+                                    info!("乘客 {:?} 到达路径终点", agent.color);
                                 }
                             }
                         }
@@ -335,9 +402,10 @@ fn update_passenger_movement(
             _ => {}
         }
 
-        // 检查耐心值
+        // 检查耐心值 - 给更多的耐心时间
         if agent.patience <= 0.0 && agent.state != AgentState::Arrived {
             agent.state = AgentState::GaveUp;
+            warn!("乘客 {:?} 耐心耗尽，等待了 {:.1} 秒", agent.color, agent.max_patience - agent.patience);
         }
     }
 }

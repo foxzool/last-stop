@@ -409,8 +409,8 @@ pub fn create_tutorial_level() -> LevelData {
             color: PassengerColor::Red,
             origin: "A站".to_string(),
             destination: "B站".to_string(),
-            spawn_rate: 0.5,
-            patience: 30.0,
+            spawn_rate: 0.3, // 降低生成速度
+            patience: 120.0, // 增加耐心值到2分钟
             spawn_time_range: None,
         }],
         available_segments: vec![
