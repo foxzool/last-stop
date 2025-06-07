@@ -1,4 +1,4 @@
-use crate::bus_puzzle::{GridPos, LevelData, PassengerColor, RouteSegmentType};
+use crate::bus_puzzle::{GridPos, LevelData, RouteSegmentType};
 use bevy::{platform::collections::HashMap, prelude::*};
 
 // 游戏状态
@@ -157,16 +157,6 @@ pub struct RouteInfo {
     pub frequency: f32,
     pub capacity: u32,
     pub is_active: bool,
-}
-
-// UI 资源
-#[derive(Resource)]
-pub struct UIAssets {
-    pub font: Handle<Font>,
-    pub button_texture: Handle<Image>,
-    pub panel_texture: Handle<Image>,
-    pub segment_icons: HashMap<RouteSegmentType, Handle<Image>>,
-    pub passenger_icons: HashMap<PassengerColor, Handle<Image>>,
 }
 
 #[derive(Resource)]

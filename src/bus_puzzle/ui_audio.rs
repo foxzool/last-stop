@@ -3,9 +3,10 @@
 // 使用相对路径引用同模块下的其他文件
 use super::{
     ease_out_back, format_time, AgentState, AudioAssets, CostText, GameState, GameStateEnum,
-    InventoryCountText, InventorySlot, LevelCompletedEvent, LevelManager, ObjectiveCompletedEvent,
-    PassengerColor, PassengerCountText, PathfindingAgent, RouteSegmentType, ScoreText,
-    SegmentPlacedEvent, SegmentRemovedEvent, TimerText, UIElement,
+    InventoryCountText, InventorySlot, LevelCompletedEvent, LevelData, LevelManager,
+    ObjectiveCompletedEvent, ObjectiveCondition, ObjectiveType, PassengerColor, PassengerCountText,
+    PathfindingAgent, RouteSegmentType, ScoreText, SegmentPlacedEvent, SegmentRemovedEvent,
+    TimerText, UIElement,
 };
 use bevy::{
     audio::{PlaybackMode, Volume},
@@ -47,6 +48,23 @@ pub enum ProgressBarType {
     BudgetUsed,
 }
 
+// 新增：乘客统计相关组件
+#[derive(Component)]
+pub struct PassengerStatsPanel;
+
+#[derive(Component)]
+pub struct PassengerColorCountText {
+    pub color: PassengerColor,
+}
+
+#[derive(Component)]
+pub struct PassengerColorIcon {
+    pub color: PassengerColor,
+}
+
+#[derive(Component)]
+pub struct ProgressBarFill;
+
 #[derive(Component)]
 pub struct AnimatedUI {
     pub animation_type: UIAnimation,
@@ -57,6 +75,7 @@ pub struct AnimatedUI {
 }
 
 #[derive(Clone)]
+#[allow(dead_code)]
 pub enum UIAnimation {
     FadeIn,
     FadeOut,
@@ -147,6 +166,7 @@ impl Plugin for GameUIPlugin {
                     update_ui_animations,
                     update_gameplay_ui_values,
                     update_progress_bars,
+                    update_passenger_stats_ui, // 新增：更新乘客统计UI
                     handle_audio_events,
                     update_background_music,
                     capture_level_complete_data, // 新增：捕获关卡完成数据
@@ -226,12 +246,20 @@ fn load_ui_assets(mut commands: Commands, asset_server: Res<AssetServer>) {
         asset_server.load("textures/passengers/orange.png"),
     );
 
+    // 尝试加载UI纹理，如果不存在会加载失败但不会崩溃
+    let button_texture = asset_server.load("ui/button.png");
+    let panel_texture = asset_server.load("ui/panel.png");
+    let progress_bar_bg = asset_server.load("ui/progress_bg.png");
+    let progress_bar_fill = asset_server.load("ui/progress_fill.png");
+
+    info!("UI纹理加载完成（如果文件不存在会显示错误但不影响游戏运行）");
+
     commands.insert_resource(UIAssets {
         font: asset_server.load("fonts/quan.ttf"),
-        button_texture: asset_server.load("ui/button.png"),
-        panel_texture: asset_server.load("ui/panel.png"),
-        progress_bar_bg: asset_server.load("ui/progress_bg.png"),
-        progress_bar_fill: asset_server.load("ui/progress_fill.png"),
+        button_texture,
+        panel_texture,
+        progress_bar_bg,
+        progress_bar_fill,
         segment_icons,
         passenger_icons,
     });
@@ -292,6 +320,7 @@ fn setup_main_menu(mut commands: Commands, ui_assets: Res<UIAssets>) {
                         margin: UiRect::all(Px(10.0)),
                         ..default()
                     },
+                    // 临时回退到背景色
                     BackgroundColor(Color::srgb(0.2, 0.6, 0.2)),
                     ButtonComponent {
                         button_type: ButtonType::StartGame,
@@ -322,6 +351,7 @@ fn setup_main_menu(mut commands: Commands, ui_assets: Res<UIAssets>) {
                         margin: UiRect::all(Px(10.0)),
                         ..default()
                     },
+                    // 临时回退到背景色
                     BackgroundColor(Color::srgb(0.6, 0.2, 0.2)),
                     ButtonComponent {
                         button_type: ButtonType::QuitGame,
@@ -415,6 +445,60 @@ fn setup_gameplay_ui(mut commands: Commands, ui_assets: Res<UIAssets>, game_stat
                         TextColor(Color::WHITE),
                         PassengerCountText,
                     ));
+
+                    // 新增：目标完成进度条
+                    parent
+                        .spawn((Node {
+                            width: Px(120.0),
+                            height: Px(20.0),
+                            justify_content: JustifyContent::FlexStart,
+                            align_items: AlignItems::Center,
+                            ..default()
+                        },))
+                        .with_children(|parent| {
+                            // 进度条背景（临时使用背景色）
+                            parent
+                                .spawn((
+                                    Node {
+                                        width: Px(120.0),
+                                        height: Px(8.0),
+                                        ..default()
+                                    },
+                                    BackgroundColor(Color::srgb(0.3, 0.3, 0.3)),
+                                ))
+                                .with_children(|parent| {
+                                    // 进度条填充（临时使用背景色）
+                                    parent.spawn((
+                                        Node {
+                                            width: Percent(0.0), // 初始为0%
+                                            height: Percent(100.0),
+                                            ..default()
+                                        },
+                                        BackgroundColor(Color::srgb(0.0, 0.8, 0.0)),
+                                        ProgressBar {
+                                            current_value: 0.0,
+                                            max_value: 100.0,
+                                            bar_type: ProgressBarType::ObjectiveProgress,
+                                        },
+                                        ProgressBarFill,
+                                    ));
+                                });
+
+                            // 进度条标签
+                            parent.spawn((
+                                Text::new("目标"),
+                                TextFont {
+                                    font: ui_assets.font.clone(),
+                                    font_size: 12.0,
+                                    ..default()
+                                },
+                                TextColor(Color::WHITE),
+                                Node {
+                                    margin: UiRect::left(Px(8.0)),
+                                    ..default()
+                                },
+                            ));
+                        });
                 });
 
             parent
@@ -461,6 +545,7 @@ fn setup_gameplay_ui(mut commands: Commands, ui_assets: Res<UIAssets>, game_stat
                 row_gap: Px(10.0),
                 ..default()
             },
+            // 临时回退到背景色
             BackgroundColor(Color::srgba(0.2, 0.2, 0.2, 0.7)),
             ZIndex(50),
             GameplayUI,
@@ -618,6 +703,25 @@ fn setup_gameplay_ui(mut commands: Commands, ui_assets: Res<UIAssets>, game_stat
                                 }),
                             ));
 
+                            // 如果目标涉及特定乘客，显示相应图标
+                            if let Some(passenger_colors) =
+                                get_objective_passenger_colors(objective)
+                            {
+                                for color in passenger_colors {
+                                    if let Some(icon) = ui_assets.passenger_icons.get(&color) {
+                                        parent.spawn((
+                                            ImageNode::new(icon.clone()),
+                                            Node {
+                                                width: Px(16.0),
+                                                height: Px(16.0),
+                                                margin: UiRect::right(Px(4.0)),
+                                                ..default()
+                                            },
+                                        ));
+                                    }
+                                }
+                            }
+
                             parent.spawn((
                                 Text::new(&objective.description),
                                 TextFont {
@@ -630,6 +734,106 @@ fn setup_gameplay_ui(mut commands: Commands, ui_assets: Res<UIAssets>, game_stat
                                 } else {
                                     Color::WHITE
                                 }),
+                            ));
+                        });
+                }
+            });
+
+        // 新增：乘客统计面板
+        commands
+            .spawn((
+                Node {
+                    width: Px(250.0),
+                    height: Px(180.0),
+                    position_type: PositionType::Absolute,
+                    right: Px(10.0),
+                    top: Px(300.0), // 在目标面板下方
+                    flex_direction: FlexDirection::Column,
+                    padding: UiRect::all(Px(15.0)),
+                    row_gap: Px(8.0),
+                    ..default()
+                },
+                BackgroundColor(Color::srgba(0.2, 0.2, 0.2, 0.7)),
+                ZIndex(50),
+                GameplayUI,
+                PassengerStatsPanel,
+            ))
+            .with_children(|parent| {
+                parent.spawn((
+                    Text::new("乘客状态"),
+                    TextFont {
+                        font: ui_assets.font.clone(),
+                        font_size: 16.0,
+                        ..default()
+                    },
+                    TextColor(Color::WHITE),
+                ));
+
+                // 为每种在关卡中出现的乘客颜色创建状态行
+                let passenger_colors = get_level_passenger_colors(level_data);
+                for color in passenger_colors {
+                    parent
+                        .spawn((Node {
+                            flex_direction: FlexDirection::Row,
+                            align_items: AlignItems::Center,
+                            column_gap: Px(8.0),
+                            ..default()
+                        },))
+                        .with_children(|parent| {
+                            // 乘客图标
+                            if let Some(icon) = ui_assets.passenger_icons.get(&color) {
+                                parent.spawn((
+                                    ImageNode::new(icon.clone()),
+                                    Node {
+                                        width: Px(20.0),
+                                        height: Px(20.0),
+                                        ..default()
+                                    },
+                                    PassengerColorIcon { color },
+                                ));
+                            }
+
+                            // 状态标签
+                            parent.spawn((
+                                Text::new(format!("{:?}:", color)),
+                                TextFont {
+                                    font: ui_assets.font.clone(),
+                                    font_size: 12.0,
+                                    ..default()
+                                },
+                                TextColor(Color::srgb(0.9, 0.9, 0.9)),
+                                Node {
+                                    width: Px(50.0),
+                                    ..default()
+                                },
+                            ));
+
+                            // 等待数量
+                            parent.spawn((
+                                Text::new("等待:0"),
+                                TextFont {
+                                    font: ui_assets.font.clone(),
+                                    font_size: 12.0,
+                                    ..default()
+                                },
+                                TextColor(Color::srgb(1.0, 1.0, 0.0)),
+                                PassengerColorCountText { color },
+                                Node {
+                                    width: Px(50.0),
+                                    ..default()
+                                },
+                            ));
+
+                            // 到达数量
+                            parent.spawn((
+                                Text::new("到达:0"),
+                                TextFont {
+                                    font: ui_assets.font.clone(),
+                                    font_size: 12.0,
+                                    ..default()
+                                },
+                                TextColor(Color::srgb(0.0, 1.0, 0.0)),
+                                PassengerColorCountText { color },
                             ));
                         });
                 }
@@ -845,7 +1049,67 @@ fn setup_level_complete_ui(
     );
 }
 
-// 新增：捕获关卡完成数据的系统
+// 新增：更新乘客统计UI的系统
+fn update_passenger_stats_ui(
+    passengers: Query<&PathfindingAgent>,
+    mut passenger_count_texts: Query<(&PassengerColorCountText, &mut Text)>,
+) {
+    // 统计每种颜色的乘客状态
+    let mut waiting_counts = HashMap::new();
+    let mut arrived_counts = HashMap::new();
+
+    for agent in passengers.iter() {
+        let waiting_entry = waiting_counts.entry(agent.color).or_insert(0);
+        let arrived_entry = arrived_counts.entry(agent.color).or_insert(0);
+
+        match agent.state {
+            AgentState::WaitingAtStation | AgentState::Traveling | AgentState::Transferring => {
+                *waiting_entry += 1;
+            }
+            AgentState::Arrived => {
+                *arrived_entry += 1;
+            }
+            _ => {}
+        }
+    }
+
+    // 更新UI文本
+    for (count_component, mut text) in passenger_count_texts.iter_mut() {
+        let waiting_count = waiting_counts.get(&count_component.color).unwrap_or(&0);
+        let arrived_count = arrived_counts.get(&count_component.color).unwrap_or(&0);
+
+        // 根据文本内容判断是等待还是到达的计数器
+        if text.0.starts_with("等待:") {
+            *text = Text::new(format!("等待:{}", waiting_count));
+        } else if text.0.starts_with("到达:") {
+            *text = Text::new(format!("到达:{}", arrived_count));
+        }
+    }
+}
+
+// 辅助函数：获取目标中涉及的乘客颜色
+fn get_objective_passenger_colors(objective: &ObjectiveCondition) -> Option<Vec<PassengerColor>> {
+    match &objective.condition_type {
+        ObjectiveType::ConnectAllPassengers => {
+            // 如果是连接所有乘客的目标，可以显示所有颜色
+            // 这里返回None，表示不显示特定颜色图标
+            None
+        }
+        // 可以扩展其他目标类型的颜色识别
+        _ => None,
+    }
+}
+
+// 辅助函数：获取关卡中出现的所有乘客颜色
+fn get_level_passenger_colors(level_data: &LevelData) -> Vec<PassengerColor> {
+    let mut colors = Vec::new();
+    for demand in &level_data.passenger_demands {
+        if !colors.contains(&demand.color) {
+            colors.push(demand.color);
+        }
+    }
+    colors
+}
 fn capture_level_complete_data(
     mut level_completed_events: EventReader<LevelCompletedEvent>,
     mut level_complete_data: ResMut<LevelCompleteData>,
@@ -914,7 +1178,10 @@ fn spawn_menu_button(
                 margin: UiRect::all(Px(5.0)),
                 ..default()
             },
+            // 临时回退到背景色，等纹理文件准备好后可以切换
             BackgroundColor(color),
+            // TODO: 当ui/button.png可用时，可以改为：
+            // ImageNode::new(ui_assets.button_texture.clone()),
             ButtonComponent {
                 button_type,
                 is_hovered: false,
@@ -971,18 +1238,30 @@ fn cleanup_level_complete_ui(
 
 fn handle_button_interactions(
     mut button_query: Query<
-        (&Interaction, &mut ButtonComponent, &mut BackgroundColor),
+        (
+            &Interaction,
+            &mut ButtonComponent,
+            Option<&mut BackgroundColor>,
+            Option<&mut ImageNode>,
+        ),
         (Changed<Interaction>, With<Button>),
     >,
     audio_assets: Res<AudioAssets>,
     audio_settings: Res<AudioSettings>,
     mut commands: Commands,
 ) {
-    for (interaction, mut button_component, mut color) in button_query.iter_mut() {
+    for (interaction, mut button_component, mut bg_color, mut image_node) in button_query.iter_mut()
+    {
         match *interaction {
             Interaction::Pressed => {
                 button_component.is_pressed = true;
-                *color = Color::srgb(0.1, 0.1, 0.1).into();
+
+                // 根据按钮类型（背景色或纹理）应用交互效果
+                if let Some(ref mut color) = bg_color {
+                    **color = Color::srgb(0.1, 0.1, 0.1).into();
+                } else if let Some(ref mut image) = image_node {
+                    image.color = Color::srgb(0.7, 0.7, 0.7); // 纹理按钮按下时变暗
+                }
 
                 if !audio_settings.is_muted {
                     commands.spawn((
@@ -1000,19 +1279,29 @@ fn handle_button_interactions(
             Interaction::Hovered => {
                 button_component.is_hovered = true;
                 button_component.is_pressed = false;
-                // 使用更明显地悬停颜色
-                *color = Color::srgb(0.5, 0.5, 0.7).into();
+
+                // 悬停效果
+                if let Some(ref mut color) = bg_color {
+                    **color = Color::srgb(0.5, 0.5, 0.7).into();
+                } else if let Some(ref mut image) = image_node {
+                    image.color = Color::srgb(1.1, 1.1, 1.1); // 纹理按钮悬停时稍微变亮
+                }
             }
             Interaction::None => {
                 button_component.is_hovered = false;
                 button_component.is_pressed = false;
-                // 重置为按钮的原始颜色（这里使用默认色，实际应该存储原始颜色）
-                // 暂时使用一个通用的默认颜色
-                if color.0 != Color::srgb(0.2, 0.6, 0.2)
-                    && color.0 != Color::srgb(0.6, 0.6, 0.2)
-                    && color.0 != Color::srgb(0.6, 0.2, 0.2)
-                {
-                    *color = Color::srgb(0.3, 0.3, 0.5).into();
+
+                // 重置为正常状态
+                if let Some(ref mut color) = bg_color {
+                    // 对于背景色按钮，重置为原始颜色
+                    if color.0 != Color::srgb(0.2, 0.6, 0.2)
+                        && color.0 != Color::srgb(0.6, 0.6, 0.2)
+                        && color.0 != Color::srgb(0.6, 0.2, 0.2)
+                    {
+                        **color = Color::srgb(0.3, 0.3, 0.5).into();
+                    }
+                } else if let Some(ref mut image) = image_node {
+                    image.color = Color::WHITE; // 纹理按钮重置为正常白色
                 }
             }
         }
@@ -1272,7 +1561,7 @@ fn update_progress_bars(
                             .objectives
                             .iter()
                             .find_map(|obj| match &obj.condition_type {
-                                super::ObjectiveType::TimeLimit(limit) => Some(*limit),
+                                ObjectiveType::TimeLimit(limit) => Some(*limit),
                                 _ => None,
                             })
                     {
@@ -1291,7 +1580,7 @@ fn update_progress_bars(
                             .objectives
                             .iter()
                             .find_map(|obj| match &obj.condition_type {
-                                super::ObjectiveType::MaxCost(limit) => Some(*limit as f32),
+                                ObjectiveType::MaxCost(limit) => Some(*limit as f32),
                                 _ => None,
                             })
                     {
