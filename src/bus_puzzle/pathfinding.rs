@@ -200,7 +200,7 @@ fn create_route_connections_improved(
     pathfinding_graph: &mut PathfindingGraph,
     route_segments_by_pos: &HashMap<GridPos, &RouteSegment>,
 ) {
-    info!(
+    trace!(
         "开始创建路线段连接，共 {} 个路线段",
         route_segments_by_pos.len()
     );
@@ -208,9 +208,12 @@ fn create_route_connections_improved(
     for (pos, segment) in route_segments_by_pos {
         let theoretical_connections =
             get_segment_connections(*pos, &segment.segment_type, segment.rotation);
-        info!(
+        trace!(
             "路线段 {:?} at {:?} 旋转{}° 理论连接: {:?}",
-            segment.segment_type, pos, segment.rotation, theoretical_connections
+            segment.segment_type,
+            pos,
+            segment.rotation,
+            theoretical_connections
         );
 
         for connection_pos in theoretical_connections {
@@ -235,7 +238,7 @@ fn create_route_connections_improved(
                     ConnectionType::BusRoute,
                 );
 
-                info!("理论连接: {:?} <-> {:?}", pos, connection_pos);
+                trace!("理论连接: {:?} <-> {:?}", pos, connection_pos);
             }
         }
 
@@ -258,7 +261,7 @@ fn create_route_connections_improved(
                             *pos,
                             ConnectionType::BusRoute,
                         );
-                        info!("强制水平连接: {:?} <-> {:?}", pos, other_pos);
+                        trace!("强制水平连接: {:?} <-> {:?}", pos, other_pos);
                     }
                     // 检查是否在同一列（垂直连接）
                     else if pos.x == other_pos.x {
@@ -274,7 +277,7 @@ fn create_route_connections_improved(
                             *pos,
                             ConnectionType::BusRoute,
                         );
-                        info!("强制垂直连接: {:?} <-> {:?}", pos, other_pos);
+                        trace!("强制垂直连接: {:?} <-> {:?}", pos, other_pos);
                     }
                 }
             }

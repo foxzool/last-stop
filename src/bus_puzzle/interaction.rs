@@ -5,8 +5,8 @@ use bevy::{input::mouse::MouseWheel, prelude::*, window::PrimaryWindow};
 // 使用相对路径引用同模块下的其他文件
 use crate::bus_puzzle::{
     rebuild_pathfinding_graph, world_to_grid, AgentState, ButtonComponent, ButtonType,
-    CameraController, DraggableSegment, GameScore, GameState, GameStateEnum, GridHighlight,
-    GridPos, InputState, InventoryCountText, InventorySlot, InventoryUI, InventoryUpdatedEvent,
+    CameraController, DraggableSegment, GameState, GameStateEnum, GridHighlight, GridPos,
+    InputState, InventoryCountText, InventorySlot, InventoryUI, InventoryUpdatedEvent,
     LevelCompletedEvent, LevelData, LevelManager, ObjectiveCompletedEvent, ObjectiveCondition,
     ObjectiveTracker, ObjectiveType, PassengerColor, PathNode, PathfindingAgent, PathfindingGraph,
     PlacedSegment, RouteSegment, RouteSegmentType, SegmentPlacedEvent, SegmentPreview,
@@ -35,7 +35,8 @@ impl Plugin for PuzzleInteractionPlugin {
                     update_game_timer,
                     handle_level_completion,
                 )
-                    .chain(),
+                    .chain()
+                    .run_if(in_state(GameStateEnum::Playing)),
             )
             .add_systems(
                 PostUpdate,
@@ -43,7 +44,8 @@ impl Plugin for PuzzleInteractionPlugin {
                     update_inventory_ui,
                     update_objectives_ui,
                     update_score_display,
-                ),
+                )
+                    .run_if(in_state(GameStateEnum::Playing)),
             );
     }
 }

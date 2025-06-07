@@ -1,8 +1,8 @@
 // src/bus_puzzle/passenger_test.rs - 简化版本，只保留必要的测试功能
 
 use crate::bus_puzzle::{
-    AgentState, GameStateEnum, GridPos, PASSENGER_Z, PassengerColor, PassengerDemand,
-    PassengerEntity, PathNode, PathNodeType, PathfindingAgent, get_passenger_color,
+    get_passenger_color, AgentState, GameStateEnum, GridPos, PassengerColor, PassengerDemand,
+    PassengerEntity, PathNode, PathNodeType, PathfindingAgent, PASSENGER_Z,
 };
 use bevy::prelude::*;
 
@@ -12,10 +12,7 @@ impl Plugin for PassengerTestPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            (
-                passenger_counter,
-                force_spawn_passenger,
-            ).run_if(in_state(GameStateEnum::Playing)),
+            (passenger_counter, force_spawn_passenger).run_if(in_state(GameStateEnum::Playing)),
         );
     }
 }

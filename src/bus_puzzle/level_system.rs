@@ -1,10 +1,9 @@
 // src/bus_puzzle/level_system.rs
 
 use crate::bus_puzzle::{
-    GameState, GameStateEnum, GridPos, GridTile, LevelManager, PASSENGER_Z, PassengerColor,
-    PassengerEntity, PathfindingAgent, ROUTE_Z, RouteSegment, RouteSegmentType, STATION_Z,
-    StationEntity, StationType, TERRAIN_Z, TerrainType, get_passenger_color,
-    spawn_passenger_no_texture,
+    spawn_passenger_no_texture, GameState, GameStateEnum, GridPos, GridTile, LevelManager,
+    PassengerColor, PathfindingAgent, RouteSegment, RouteSegmentType, StationEntity, StationType,
+    TerrainType, ROUTE_Z, STATION_Z, TERRAIN_Z,
 };
 use bevy::{platform::collections::HashMap, prelude::*};
 use rand::Rng;
@@ -28,7 +27,12 @@ pub struct PassengerDemand {
     pub destination: String,
     pub spawn_rate: f32,
     pub patience: f32,
+    // 生成时间范围
     pub spawn_time_range: Option<(f32, f32)>,
+    // 总生成数量限制
+    pub total_count: Option<u32>,
+    // 已生成数量
+    pub spawned_count: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -141,13 +145,22 @@ fn update_passenger_spawning(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
-    game_state: Res<GameState>,
+    mut game_state: ResMut<GameState>,
 ) {
-    if let Some(level_data) = &game_state.current_level {
+    if let Some(level_data) = &mut game_state.current_level {
         let mut rng = rand::rng();
         let current_time = time.elapsed_secs();
 
-        for demand in level_data.passenger_demands.iter() {
+        // 提前获取不可变借用的数据
+        let level_data_ref = level_data.clone();
+
+        for demand in level_data.passenger_demands.iter_mut() {
+            // 检查是否达到生成上限
+            if let Some(total_count) = demand.total_count {
+                if demand.spawned_count >= total_count {
+                    continue; // 跳过这个需求
+                }
+            }
             // 检查时间窗口
             if let Some((start, end)) = demand.spawn_time_range {
                 if current_time < start || current_time > end {
@@ -165,8 +178,10 @@ fn update_passenger_spawning(
                     &mut meshes,
                     &mut materials,
                     demand,
-                    level_data,
+                    &level_data_ref,
                 );
+
+                demand.spawned_count += 1;
             }
         }
     }
@@ -409,9 +424,11 @@ pub fn create_tutorial_level() -> LevelData {
             color: PassengerColor::Red,
             origin: "A站".to_string(),
             destination: "B站".to_string(),
-            spawn_rate: 0.3, // 降低生成速度
+            spawn_rate: 0.5,
             patience: 120.0, // 增加耐心值到2分钟
-            spawn_time_range: None,
+            spawn_time_range: Some((5.0, 25.0)),
+            total_count: Some(3),
+            spawned_count: 0,
         }],
         available_segments: vec![
             AvailableSegment {
