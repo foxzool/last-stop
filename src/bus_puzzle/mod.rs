@@ -28,6 +28,7 @@ pub use utils::*;
 
 use crate::bus_puzzle::splash::SplashPlugin;
 use bevy::prelude::*;
+
 // ============ 游戏主循环集成 ============
 
 pub struct BusPuzzleGamePlugin;
@@ -71,10 +72,8 @@ fn initialize_game(
     mut game_state: ResMut<GameState>,
     asset_server: Res<AssetServer>,
 ) {
-    // 初始化第一个关卡
     level_manager.current_level_index = 0;
 
-    // 创建教学关卡
     let tutorial_level = create_tutorial_level();
     generate_level_map(
         &mut commands,
@@ -83,7 +82,6 @@ fn initialize_game(
         level_manager.tile_size,
     );
 
-    // 初始化库存
     let mut inventory = HashMap::new();
     for segment in &tutorial_level.available_segments {
         inventory.insert(segment.segment_type.clone(), segment.count);
@@ -91,7 +89,7 @@ fn initialize_game(
 
     game_state.current_level = Some(tutorial_level);
     game_state.player_inventory = inventory;
-    game_state.objectives_completed = vec![false; 1]; // 教学关卡只有一个目标
+    game_state.objectives_completed = vec![false; 1];
 
     info!("游戏初始化完成");
 }
@@ -105,14 +103,11 @@ fn load_current_level(
         .available_levels
         .get(level_manager.current_level_index)
     {
-        // 这里应该从文件或数据库加载关卡
-        // 现在使用示例关卡
         let level_data = match level_id.as_str() {
             "tutorial_01" => create_tutorial_level(),
-            _ => create_tutorial_level(), // 回退到教学关卡
+            _ => create_tutorial_level(),
         };
 
-        // 重置游戏状态
         game_state.current_level = Some(level_data.clone());
         game_state.placed_segments.clear();
         game_state.total_cost = 0;
@@ -121,7 +116,6 @@ fn load_current_level(
         game_state.objectives_completed = vec![false; level_data.objectives.len()];
         game_state.score = GameScore::default();
 
-        // 重置库存
         let mut inventory = HashMap::new();
         for segment in &level_data.available_segments {
             inventory.insert(segment.segment_type.clone(), segment.count);
@@ -137,19 +131,16 @@ fn update_game_score(mut game_state: ResMut<GameState>, passengers: Query<&Pathf
     if let Some(level_data) = &game_state.current_level {
         let base_points = level_data.scoring.base_points;
 
-        // 计算效率奖励
         let network_efficiency = calculate_network_efficiency(&game_state, &passengers);
         let efficiency_bonus =
             (network_efficiency * level_data.scoring.efficiency_bonus as f32) as u32;
 
-        // 计算速度奖励（基于剩余时间）
         let speed_bonus = if game_state.game_time < 60.0 {
             level_data.scoring.speed_bonus
         } else {
             0
         };
 
-        // 计算成本奖励（基于节约的成本）
         let cost_bonus = if game_state.total_cost < 15 {
             level_data.scoring.cost_bonus
         } else {
@@ -171,19 +162,16 @@ fn check_level_failure_conditions(
     passengers: Query<&PathfindingAgent>,
     mut next_state: ResMut<NextState<GameStateEnum>>,
 ) {
-    // 检查是否有乘客因为耐心耗尽而放弃
     let gave_up_count = passengers
         .iter()
         .filter(|agent| matches!(agent.state, AgentState::GaveUp))
         .count();
 
-    // 如果太多乘客放弃，游戏失败
     if gave_up_count > 3 {
         next_state.set(GameStateEnum::GameOver);
         warn!("太多乘客放弃了行程，游戏失败");
     }
 
-    // 检查时间限制
     if let Some(level_data) = &game_state.current_level {
         for objective in &level_data.objectives {
             if let ObjectiveType::TimeLimit(time_limit) = &objective.condition_type {

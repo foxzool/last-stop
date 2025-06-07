@@ -8,7 +8,15 @@ use bevy::{
 
 
 // 使用相对路径引用同模块下的其他文件
-use super::{AgentState, AvailableSegment, ButtonComponent, ButtonType, CameraController, DraggableSegment, GameScore, GameState, GameStateEnum, GridHighlight, GridPos, InputState, InventorySlot, InventoryUI, InventoryUpdatedEvent, LevelCompletedEvent, LevelData, LevelManager, ObjectiveCompletedEvent, ObjectiveCondition, ObjectiveTracker, ObjectiveType, PassengerColor, PathNode, PathfindingAgent, PathfindingGraph, PlacedSegment, RouteSegment, RouteSegmentType, SegmentPlacedEvent, SegmentPreview, SegmentRemovedEvent, UIElement, rebuild_pathfinding_graph, world_to_grid, InventoryCountText};
+use crate::bus_puzzle::{
+    AgentState, AvailableSegment, ButtonComponent, ButtonType, CameraController, DraggableSegment,
+    GameScore, GameState, GameStateEnum, GridHighlight, GridPos, InputState, InventorySlot,
+    InventoryUI, InventoryUpdatedEvent, LevelCompletedEvent, LevelData, LevelManager,
+    ObjectiveCompletedEvent, ObjectiveCondition, ObjectiveTracker, ObjectiveType, PassengerColor,
+    PathNode, PathfindingAgent, PathfindingGraph, PlacedSegment, RouteSegment, RouteSegmentType,
+    SegmentPlacedEvent, SegmentPreview, SegmentRemovedEvent, UIElement, rebuild_pathfinding_graph,
+    world_to_grid, InventoryCountText,
+};
 
 // ============ 插件定义 ============
 
