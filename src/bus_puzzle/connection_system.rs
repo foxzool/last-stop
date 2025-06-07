@@ -556,7 +556,6 @@ fn visualize_segment_ports(
         // 计算箭头位置（从路线段中心向外延伸）
         let (dx, dy) = direction.to_offset();
         let arrow_offset = Vec3::new(dx as f32 * 20.0, dy as f32 * 20.0, 0.0);
-        let arrow_pos = center_world + arrow_offset;
 
         // 计算箭头旋转角度（基础方向 + 路线段旋转）
         let base_rotation = match direction {
