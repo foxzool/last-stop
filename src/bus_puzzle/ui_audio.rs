@@ -1146,11 +1146,8 @@ fn update_gameplay_ui_values(
     }
 
     if let Ok(mut text) = passenger_text.single_mut() {
-        let total_passengers = passengers.iter().count();
-        let arrived_passengers = passengers
-            .iter()
-            .filter(|agent| matches!(agent.state, AgentState::Arrived))
-            .count();
+        let arrived_passengers = game_state.passenger_stats.total_arrived;
+        let total_passengers = game_state.passenger_stats.total_spawned;
         *text = Text::new(format!("乘客: {}/{}", arrived_passengers, total_passengers));
     }
 }
