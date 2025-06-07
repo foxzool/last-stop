@@ -218,6 +218,11 @@ pub struct InventorySlot {
 }
 
 #[derive(Component)]
+pub struct InventoryCountText {
+    pub segment_type: RouteSegmentType,
+}
+
+#[derive(Component)]
 pub struct ObjectiveTracker {
     pub objective_index: usize,
     pub is_completed: bool,

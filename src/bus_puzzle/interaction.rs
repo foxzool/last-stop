@@ -8,15 +8,7 @@ use bevy::{
 use std::collections::{HashMap, VecDeque};
 
 // 使用相对路径引用同模块下的其他文件
-use super::{
-    AgentState, AvailableSegment, ButtonComponent, ButtonType, CameraController, DraggableSegment,
-    GameScore, GameState, GameStateEnum, GridHighlight, GridPos, InputState, InventorySlot,
-    InventoryUI, InventoryUpdatedEvent, LevelCompletedEvent, LevelData, LevelManager,
-    ObjectiveCompletedEvent, ObjectiveCondition, ObjectiveTracker, ObjectiveType, PassengerColor,
-    PathNode, PathfindingAgent, PathfindingGraph, PlacedSegment, RouteSegment, RouteSegmentType,
-    SegmentPlacedEvent, SegmentPreview, SegmentRemovedEvent, UIElement, rebuild_pathfinding_graph,
-    world_to_grid,
-};
+use super::{AgentState, AvailableSegment, ButtonComponent, ButtonType, CameraController, DraggableSegment, GameScore, GameState, GameStateEnum, GridHighlight, GridPos, InputState, InventorySlot, InventoryUI, InventoryUpdatedEvent, LevelCompletedEvent, LevelData, LevelManager, ObjectiveCompletedEvent, ObjectiveCondition, ObjectiveTracker, ObjectiveType, PassengerColor, PathNode, PathfindingAgent, PathfindingGraph, PlacedSegment, RouteSegment, RouteSegmentType, SegmentPlacedEvent, SegmentPreview, SegmentRemovedEvent, UIElement, rebuild_pathfinding_graph, world_to_grid, InventoryCountText};
 
 // ============ 插件定义 ============
 
@@ -476,9 +468,11 @@ fn handle_level_completion(
 fn update_inventory_ui(
     game_state: Res<GameState>,
     mut inventory_slots: Query<(&mut InventorySlot, &mut Sprite)>,
+    mut inventory_count_text: Query<(&InventoryCountText, &mut Text)>,
     mut inventory_updated_events: EventReader<InventoryUpdatedEvent>,
 ) {
     for event in inventory_updated_events.read() {
+        // 更新库存槽位
         for (mut slot, mut sprite) in inventory_slots.iter_mut() {
             if slot.segment_type.as_ref() == Some(&event.segment_type) {
                 slot.available_count = event.new_count;
@@ -488,6 +482,13 @@ fn update_inventory_ui(
                 } else {
                     Color::srgb(0.5, 0.5, 0.5)
                 };
+            }
+        }
+
+        // 更新数量文本
+        for (count_text, mut text) in inventory_count_text.iter_mut() {
+            if count_text.segment_type == event.segment_type {
+                *text = Text::new(format!("{}", event.new_count));
             }
         }
     }

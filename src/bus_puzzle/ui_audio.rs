@@ -9,7 +9,7 @@ use std::collections::HashMap;
 
 // 使用相对路径引用同模块下的其他文件
 use super::{
-    AgentState, CostText, GameState, GameStateEnum, InventorySlot, LevelCompletedEvent,
+    AgentState, CostText, GameState, GameStateEnum, InventoryCountText, InventorySlot, LevelCompletedEvent,
     LevelManager, ObjectiveCompletedEvent, PassengerColor, PassengerCountText, PathfindingAgent,
     RouteSegmentType, ScoreText, SegmentPlacedEvent, SegmentRemovedEvent, TimerText, UIElement,
     format_time,
@@ -546,6 +546,9 @@ fn setup_gameplay_ui(mut commands: Commands, ui_assets: Res<UIAssets>, game_stat
                                 bottom: Px(5.0),
                                 right: Px(5.0),
                                 ..default()
+                            },
+                            InventoryCountText {
+                                segment_type: segment_type.clone(),
                             },
                         ));
                     });
