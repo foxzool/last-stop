@@ -1,12 +1,12 @@
 //! A splash screen that plays briefly at startup.
 
+use crate::{bus_puzzle::GameStateEnum, AppSystems};
 use bevy::{
     image::{ImageLoaderSettings, ImageSampler},
     input::common_conditions::input_just_pressed,
     prelude::*,
+    ui::Val::{Percent, Px},
 };
-
-use crate::{AppSystems, bus_puzzle::GameStateEnum, theme::prelude::*};
 
 pub struct SplashPlugin;
 
@@ -54,7 +54,19 @@ const SPLASH_FADE_DURATION_SECS: f32 = 0.6;
 
 fn spawn_splash_screen(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn((
-        widget::ui_root("Splash Screen"),
+        Name::new("Splash Screen"),
+        Node {
+            position_type: PositionType::Absolute,
+            width: Percent(100.0),
+            height: Percent(100.0),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            flex_direction: FlexDirection::Column,
+            row_gap: Px(20.0),
+            ..default()
+        },
+        // Don't block picking events for other UI roots.
+        Pickable::IGNORE,
         BackgroundColor(SPLASH_BACKGROUND_COLOR),
         StateScoped(GameStateEnum::Splash),
         children![(

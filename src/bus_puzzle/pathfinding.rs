@@ -8,9 +8,9 @@ use std::{
 };
 
 use super::{
-    AgentState, Connection, ConnectionType, GameStateEnum, GraphNode, GraphNodeType, GridPos,
-    LevelManager, PASSENGER_Z, PathfindingAgent, PathfindingGraph, RouteSegment, RouteSegmentType,
-    StationEntity,
+    manhattan_distance, AgentState, Connection, ConnectionType, GameStateEnum, GraphNode,
+    GraphNodeType, GridPos, LevelManager, PathfindingAgent, PathfindingGraph, RouteSegment,
+    RouteSegmentType, StationEntity, PASSENGER_Z,
 };
 
 // ============ 寻路相关组件 ============
@@ -216,9 +216,9 @@ fn create_route_connections_improved(
         for connection_pos in theoretical_connections {
             if route_segments_by_pos.contains_key(&connection_pos)
                 || pathfinding_graph
-                    .station_lookup
-                    .values()
-                    .any(|&station_pos| station_pos == connection_pos)
+                .station_lookup
+                .values()
+                .any(|&station_pos| station_pos == connection_pos)
             {
                 // 创建双向连接
                 add_connection_if_not_exists(
@@ -242,7 +242,7 @@ fn create_route_connections_improved(
         // 重要：强制添加所有相邻路线段的连接
         for (other_pos, other_segment) in route_segments_by_pos {
             if *other_pos != *pos {
-                let distance = manhattan_distance_internal(*pos, *other_pos);
+                let distance = manhattan_distance(*pos, *other_pos);
                 if distance == 1 {
                     // 检查是否在同一行（水平连接）
                     if pos.y == other_pos.y {
@@ -312,7 +312,7 @@ pub fn create_station_connections_improved(
     for (_station_name, &station_pos) in &pathfinding_graph.station_lookup {
         // 扩大搜索范围 - 检查站点周围2格内的所有路线段
         for (segment_pos, segment) in route_segments_by_pos {
-            let distance = manhattan_distance_internal(station_pos, *segment_pos);
+            let distance = manhattan_distance(station_pos, *segment_pos);
 
             // 允许更远的连接距离
             if distance <= 2 {
@@ -344,7 +344,9 @@ pub fn create_station_connections_improved(
 
                     trace!(
                         "建立连接: 站点{:?} <-> 路线段{:?} (距离:{})",
-                        station_pos, segment_pos, distance
+                        station_pos,
+                        segment_pos,
+                        distance
                     );
                 }
             }
@@ -358,7 +360,7 @@ fn can_connect_station_to_segment(
     segment_pos: GridPos,
     segment: &RouteSegment,
 ) -> bool {
-    let distance = manhattan_distance_internal(station_pos, segment_pos);
+    let distance = manhattan_distance(station_pos, segment_pos);
 
     // 直接相邻
     if distance == 1 {
@@ -369,7 +371,7 @@ fn can_connect_station_to_segment(
     let connection_points =
         get_segment_connections(segment_pos, &segment.segment_type, segment.rotation);
     for connection_point in connection_points {
-        if manhattan_distance_internal(station_pos, connection_point) <= 1 {
+        if manhattan_distance(station_pos, connection_point) <= 1 {
             return true;
         }
     }
@@ -384,10 +386,6 @@ fn can_connect_station_to_segment(
     }
 
     false
-}
-
-fn manhattan_distance_internal(pos1: GridPos, pos2: GridPos) -> u32 {
-    ((pos1.x - pos2.x).abs() + (pos1.y - pos2.y).abs()) as u32
 }
 
 fn find_paths_for_new_passengers(
@@ -412,12 +410,19 @@ fn find_paths_for_new_passengers(
             continue;
         }
 
-        if let Some(basic_path) = find_optimal_path(&pathfinding_graph, &agent.origin, &agent.destination) {
+        if let Some(basic_path) =
+            find_optimal_path(&pathfinding_graph, &agent.origin, &agent.destination)
+        {
             // 检查路径是否经过路口，如果是则增强路径
             let enhanced_path = if path_needs_junction_enhancement(&basic_path, &route_segments) {
-                let enhanced = enhance_path_with_junction_nodes(basic_path.clone(), &route_segments);
-                info!("为乘客 {:?} 增强路径，从 {} 步增加到 {} 步",
-                    agent.color, enhanced.len() - (enhanced.len() - basic_path.len()), enhanced.len());
+                let enhanced =
+                    enhance_path_with_junction_nodes(basic_path.clone(), &route_segments);
+                info!(
+                    "为乘客 {:?} 增强路径，从 {} 步增加到 {} 步",
+                    agent.color,
+                    enhanced.len() - (enhanced.len() - basic_path.len()),
+                    enhanced.len()
+                );
                 enhanced
             } else {
                 basic_path
@@ -442,7 +447,10 @@ fn find_paths_for_new_passengers(
 }
 
 /// 检查路径是否需要路口增强
-pub fn path_needs_junction_enhancement(path: &[PathNode], route_segments: &Query<&RouteSegment>) -> bool {
+pub fn path_needs_junction_enhancement(
+    path: &[PathNode],
+    route_segments: &Query<&RouteSegment>,
+) -> bool {
     for node in path {
         if find_junction_at_position(node.position, route_segments).is_some() {
             return true;
@@ -496,7 +504,10 @@ pub fn enhance_path_with_junction_nodes(
 }
 
 /// 查找指定位置的路口
-fn find_junction_at_position(pos: GridPos, route_segments: &Query<&RouteSegment>) -> Option<RouteSegment> {
+fn find_junction_at_position(
+    pos: GridPos,
+    route_segments: &Query<&RouteSegment>,
+) -> Option<RouteSegment> {
     for segment in route_segments.iter() {
         if segment.grid_pos == pos && segment.is_active {
             match segment.segment_type {
@@ -914,9 +925,9 @@ fn rebuild_connections(pathfinding_graph: &mut PathfindingGraph, game_state: &su
         for connection_pos in connections {
             if game_state.placed_segments.contains_key(&connection_pos)
                 || pathfinding_graph
-                    .station_lookup
-                    .values()
-                    .any(|&station_pos| station_pos == connection_pos)
+                .station_lookup
+                .values()
+                .any(|&station_pos| station_pos == connection_pos)
             {
                 new_connections.push((
                     *pos,

@@ -1,8 +1,8 @@
 // src/bus_puzzle/connection_fix.rs - 连接系统修复
 
 use crate::bus_puzzle::{
-    Connection, ConnectionType, GameState, GameStateEnum, GraphNode, GraphNodeType, GridPos,
-    PathfindingGraph, RouteSegment, RouteSegmentType, StationEntity,
+    manhattan_distance, Connection, ConnectionType, GameStateEnum, GridPos, PathfindingGraph,
+    RouteSegment, RouteSegmentType,
 };
 use bevy::prelude::*;
 
@@ -239,8 +239,4 @@ fn add_bidirectional_connection(
             route_id: Some(format!("fixed_{}", pos_b.x + pos_b.y)),
             connection_type: connection_type.clone(),
         });
-}
-
-fn manhattan_distance(pos1: GridPos, pos2: GridPos) -> u32 {
-    ((pos1.x - pos2.x).abs() + (pos1.y - pos2.y).abs()) as u32
 }

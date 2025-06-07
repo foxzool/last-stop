@@ -1,21 +1,24 @@
 // src/bus_puzzle/connection_system.rs
 
-use bevy::prelude::*;
 use crate::bus_puzzle::{
-    GridPos, RouteSegmentType, PathfindingGraph, GraphNode, GraphNodeType,
-    Connection, ConnectionType, GameState, StationEntity, RouteSegment
+    manhattan_distance, Connection, ConnectionType, GameState, GraphNode, GraphNodeType, GridPos,
+    PathfindingGraph, RouteSegment, RouteSegmentType, StationEntity,
 };
+use bevy::prelude::*;
 
 /// 改进的连接系统 - 解决站点和路线段连接问题
 pub struct ConnectionSystemPlugin;
 
 impl Plugin for ConnectionSystemPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (
-            debug_connections,
-            visualize_connections,
-            force_rebuild_connections,
-        ));
+        app.add_systems(
+            Update,
+            (
+                debug_connections,
+                visualize_connections,
+                force_rebuild_connections,
+            ),
+        );
     }
 }
 
@@ -39,8 +42,10 @@ fn debug_connections(
             if let Some(connections) = pathfinding_graph.connections.get(&station.position) {
                 info!("    连接到 {} 个位置:", connections.len());
                 for conn in connections {
-                    info!("      -> {:?} (成本: {:.1}, 类型: {:?})",
-                        conn.to, conn.cost, conn.connection_type);
+                    info!(
+                        "      -> {:?} (成本: {:.1}, 类型: {:?})",
+                        conn.to, conn.cost, conn.connection_type
+                    );
                 }
             } else {
                 warn!("    ❌ 没有任何连接！");
@@ -50,14 +55,16 @@ fn debug_connections(
         // 显示所有路线段
         info!("路线段列表:");
         for segment in route_segments.iter() {
-            info!("  {:?} 位置: {:?} 旋转: {}°",
-                segment.segment_type, segment.grid_pos, segment.rotation);
+            info!(
+                "  {:?} 位置: {:?} 旋转: {}°",
+                segment.segment_type, segment.grid_pos, segment.rotation
+            );
 
             // 显示该路线段的理论连接点
             let connection_points = get_segment_connection_points(
                 segment.grid_pos,
                 &segment.segment_type,
-                segment.rotation
+                segment.rotation,
             );
             info!("    理论连接点: {:?}", connection_points);
 
@@ -76,28 +83,36 @@ fn debug_connections(
         info!("站点-路线段连接分析:");
         for station_entity in stations.iter() {
             let station_pos = station_entity.station_data.position;
-            info!("  检查 {} ({:?}) 周围的路线段:",
-                station_entity.station_data.name, station_pos);
+            info!(
+                "  检查 {} ({:?}) 周围的路线段:",
+                station_entity.station_data.name, station_pos
+            );
 
             for segment in route_segments.iter() {
                 let distance = manhattan_distance(station_pos, segment.grid_pos);
-                if distance <= 2 { // 检查距离2格内的路线段
+                if distance <= 2 {
+                    // 检查距离2格内的路线段
                     let connection_points = get_segment_connection_points(
                         segment.grid_pos,
                         &segment.segment_type,
-                        segment.rotation
+                        segment.rotation,
                     );
 
                     let can_connect = can_station_connect_to_segment(
                         station_pos,
                         segment.grid_pos,
-                        &connection_points
+                        &connection_points,
                     );
 
-                    info!("    距离 {} 的 {:?}: {} {}",
+                    info!(
+                        "    距离 {} 的 {:?}: {} {}",
                         distance,
                         segment.segment_type,
-                        if can_connect { "✅ 可连接" } else { "❌ 不可连接" },
+                        if can_connect {
+                            "✅ 可连接"
+                        } else {
+                            "❌ 不可连接"
+                        },
                         format!("连接点: {:?}", connection_points)
                     );
                 }
@@ -123,7 +138,12 @@ fn force_rebuild_connections(
         pathfinding_graph.station_lookup.clear();
 
         // 重新构建
-        rebuild_pathfinding_graph_improved(&mut pathfinding_graph, &game_state, &stations, &route_segments);
+        rebuild_pathfinding_graph_improved(
+            &mut pathfinding_graph,
+            &game_state,
+            &stations,
+            &route_segments,
+        );
 
         info!("连接图重建完成！");
         info!("  节点数: {}", pathfinding_graph.nodes.len());
@@ -145,14 +165,19 @@ pub fn rebuild_pathfinding_graph_improved(
         let station = &station_entity.station_data;
         let pos = station.position;
 
-        pathfinding_graph.nodes.insert(pos, GraphNode {
-            position: pos,
-            node_type: GraphNodeType::Station,
-            station_name: Some(station.name.clone()),
-            is_accessible: true,
-        });
+        pathfinding_graph.nodes.insert(
+            pos,
+            GraphNode {
+                position: pos,
+                node_type: GraphNodeType::Station,
+                station_name: Some(station.name.clone()),
+                is_accessible: true,
+            },
+        );
 
-        pathfinding_graph.station_lookup.insert(station.name.clone(), pos);
+        pathfinding_graph
+            .station_lookup
+            .insert(station.name.clone(), pos);
         info!("  添加站点: {} at {:?}", station.name, pos);
     }
 
@@ -162,15 +187,20 @@ pub fn rebuild_pathfinding_graph_improved(
         if segment.is_active {
             let pos = segment.grid_pos;
 
-            pathfinding_graph.nodes.insert(pos, GraphNode {
-                position: pos,
-                node_type: match segment.segment_type {
-                    RouteSegmentType::Cross | RouteSegmentType::TSplit => GraphNodeType::Intersection,
-                    _ => GraphNodeType::RouteSegment,
+            pathfinding_graph.nodes.insert(
+                pos,
+                GraphNode {
+                    position: pos,
+                    node_type: match segment.segment_type {
+                        RouteSegmentType::Cross | RouteSegmentType::TSplit => {
+                            GraphNodeType::Intersection
+                        }
+                        _ => GraphNodeType::RouteSegment,
+                    },
+                    station_name: None,
+                    is_accessible: true,
                 },
-                station_name: None,
-                is_accessible: true,
-            });
+            );
             info!("  添加路线段: {:?} at {:?}", segment.segment_type, pos);
         }
     }
@@ -198,24 +228,24 @@ fn create_segment_connections(
     segment: &RouteSegment,
     all_segments: &Query<&RouteSegment>,
 ) {
-    let connection_points = get_segment_connection_points(
-        segment.grid_pos,
-        &segment.segment_type,
-        segment.rotation
-    );
+    let connection_points =
+        get_segment_connection_points(segment.grid_pos, &segment.segment_type, segment.rotation);
 
     for connection_point in connection_points {
         // 检查连接点是否有其他路线段或站点
-        let has_segment = all_segments.iter().any(|other_segment|
+        let has_segment = all_segments.iter().any(|other_segment| {
             other_segment.is_active && other_segment.grid_pos == connection_point
-        );
+        });
 
-        let has_station = pathfinding_graph.station_lookup.values()
+        let has_station = pathfinding_graph
+            .station_lookup
+            .values()
             .any(|&station_pos| station_pos == connection_point);
 
         if has_segment || has_station {
             // 创建双向连接
-            pathfinding_graph.connections
+            pathfinding_graph
+                .connections
                 .entry(segment.grid_pos)
                 .or_insert_with(Vec::new)
                 .push(Connection {
@@ -225,7 +255,8 @@ fn create_segment_connections(
                     connection_type: ConnectionType::BusRoute,
                 });
 
-            pathfinding_graph.connections
+            pathfinding_graph
+                .connections
                 .entry(connection_point)
                 .or_insert_with(Vec::new)
                 .push(Connection {
@@ -257,15 +288,13 @@ fn create_station_connections(
 
         // 扩大连接检测范围到2格
         if distance <= 2 {
-            let connection_points = get_segment_connection_points(
-                segment_pos,
-                &segment.segment_type,
-                segment.rotation
-            );
+            let connection_points =
+                get_segment_connection_points(segment_pos, &segment.segment_type, segment.rotation);
 
             if can_station_connect_to_segment(station_pos, segment_pos, &connection_points) {
                 // 创建站点到路线段的连接
-                pathfinding_graph.connections
+                pathfinding_graph
+                    .connections
                     .entry(station_pos)
                     .or_insert_with(Vec::new)
                     .push(Connection {
@@ -276,7 +305,8 @@ fn create_station_connections(
                     });
 
                 // 创建路线段到站点的连接
-                pathfinding_graph.connections
+                pathfinding_graph
+                    .connections
                     .entry(segment_pos)
                     .or_insert_with(Vec::new)
                     .push(Connection {
@@ -286,8 +316,10 @@ fn create_station_connections(
                         connection_type: ConnectionType::Walk,
                     });
 
-                info!("✅ 连接建立: {} <-> {:?} (距离: {})",
-                    station_entity.station_data.name, segment.segment_type, distance);
+                info!(
+                    "✅ 连接建立: {} <-> {:?} (距离: {})",
+                    station_entity.station_data.name, segment.segment_type, distance
+                );
             }
         }
     }
@@ -297,7 +329,7 @@ fn create_station_connections(
 pub fn get_segment_connection_points(
     pos: GridPos,
     segment_type: &RouteSegmentType,
-    rotation: u32
+    rotation: u32,
 ) -> Vec<GridPos> {
     let base_offsets = match segment_type {
         RouteSegmentType::Straight => vec![(0, -1), (0, 1)], // 上下
@@ -307,7 +339,8 @@ pub fn get_segment_connection_points(
         RouteSegmentType::Bridge | RouteSegmentType::Tunnel => vec![(0, -1), (0, 1)], // 上下
     };
 
-    base_offsets.into_iter()
+    base_offsets
+        .into_iter()
         .map(|(dx, dy)| {
             let (rotated_dx, rotated_dy) = rotate_offset(dx, dy, rotation);
             GridPos::new(pos.x + rotated_dx, pos.y + rotated_dy)
@@ -330,7 +363,7 @@ fn rotate_offset(dx: i32, dy: i32, rotation: u32) -> (i32, i32) {
 fn can_station_connect_to_segment(
     station_pos: GridPos,
     segment_pos: GridPos,
-    connection_points: &[GridPos]
+    connection_points: &[GridPos],
 ) -> bool {
     // 方式1：站点直接与路线段相邻
     let distance = manhattan_distance(station_pos, segment_pos);
@@ -351,11 +384,6 @@ fn can_station_connect_to_segment(
     }
 
     false
-}
-
-/// 计算曼哈顿距离
-fn manhattan_distance(pos1: GridPos, pos2: GridPos) -> u32 {
-    ((pos1.x - pos2.x).abs() + (pos1.y - pos2.y).abs()) as u32
 }
 
 /// F10 - 可视化连接（在游戏中显示连接线）
@@ -382,7 +410,7 @@ fn visualize_connections(
                     *from_pos,
                     connection.to,
                     &connection.connection_type,
-                    &level_manager
+                    &level_manager,
                 );
             }
         }

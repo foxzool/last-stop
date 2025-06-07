@@ -1,21 +1,16 @@
 // src/bus_puzzle/interaction.rs
 
-use bevy::{
-    input::mouse::{MouseButtonInput, MouseWheel},
-    prelude::*,
-    window::PrimaryWindow,
-};
-
+use bevy::{input::mouse::MouseWheel, prelude::*, window::PrimaryWindow};
 
 // 使用相对路径引用同模块下的其他文件
 use crate::bus_puzzle::{
-    AgentState, AvailableSegment, ButtonComponent, ButtonType, CameraController, DraggableSegment,
-    GameScore, GameState, GameStateEnum, GridHighlight, GridPos, InputState, InventorySlot,
-    InventoryUI, InventoryUpdatedEvent, LevelCompletedEvent, LevelData, LevelManager,
-    ObjectiveCompletedEvent, ObjectiveCondition, ObjectiveTracker, ObjectiveType, PassengerColor,
-    PathNode, PathfindingAgent, PathfindingGraph, PlacedSegment, RouteSegment, RouteSegmentType,
-    SegmentPlacedEvent, SegmentPreview, SegmentRemovedEvent, UIElement, rebuild_pathfinding_graph,
-    world_to_grid, InventoryCountText,
+    rebuild_pathfinding_graph, world_to_grid, AgentState, ButtonComponent, ButtonType,
+    CameraController, DraggableSegment, GameScore, GameState, GameStateEnum, GridHighlight,
+    GridPos, InputState, InventoryCountText, InventorySlot, InventoryUI, InventoryUpdatedEvent,
+    LevelCompletedEvent, LevelData, LevelManager, ObjectiveCompletedEvent, ObjectiveCondition,
+    ObjectiveTracker, ObjectiveType, PassengerColor, PathNode, PathfindingAgent, PathfindingGraph,
+    PlacedSegment, RouteSegment, RouteSegmentType, SegmentPlacedEvent, SegmentPreview,
+    SegmentRemovedEvent, UIElement,
 };
 
 // ============ 插件定义 ============
@@ -141,7 +136,6 @@ fn handle_button_interactions(
     mut app_exit_events: EventWriter<bevy::app::AppExit>,
     mut level_manager: ResMut<LevelManager>,
     game_state: Res<GameState>,
-    mut commands: Commands,
 ) {
     for (interaction, button_component) in button_query.iter() {
         if matches!(*interaction, Interaction::Pressed) {
@@ -194,7 +188,7 @@ fn handle_button_interactions(
 
 fn handle_segment_placement(
     mut commands: Commands,
-    mut input_state: ResMut<InputState>,
+    input_state: ResMut<InputState>,
     mut game_state: ResMut<GameState>,
     mouse_button_input: Res<ButtonInput<MouseButton>>,
     asset_server: Res<AssetServer>,

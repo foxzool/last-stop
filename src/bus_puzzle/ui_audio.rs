@@ -1,17 +1,17 @@
 // src/bus_puzzle/ui_audio.rs
 
+// 使用相对路径引用同模块下的其他文件
+use super::{
+    ease_out_back, format_time, AgentState, CostText, GameState, GameStateEnum, InventoryCountText,
+    InventorySlot, LevelCompletedEvent, LevelManager, ObjectiveCompletedEvent, PassengerColor,
+    PassengerCountText, PathfindingAgent, RouteSegmentType, ScoreText, SegmentPlacedEvent,
+    SegmentRemovedEvent, TimerText, UIElement,
+};
 use bevy::{
     audio::{PlaybackMode, Volume},
     platform::collections::HashMap,
     prelude::*,
     ui::Val::*,
-};
-// 使用相对路径引用同模块下的其他文件
-use super::{
-    AgentState, CostText, GameState, GameStateEnum, InventoryCountText, InventorySlot,
-    LevelCompletedEvent, LevelManager, ObjectiveCompletedEvent, PassengerColor, PassengerCountText,
-    PathfindingAgent, RouteSegmentType, ScoreText, SegmentPlacedEvent, SegmentRemovedEvent,
-    TimerText, UIElement, format_time,
 };
 
 // ============ UI 组件 ============
@@ -130,42 +130,42 @@ impl Plugin for GameUIPlugin {
             sfx_volume: 0.8,
             is_muted: false,
         })
-        .add_systems(Startup, (load_ui_assets, load_audio_assets))
-        .add_systems(OnEnter(GameStateEnum::MainMenu), setup_main_menu)
-        .add_systems(OnEnter(GameStateEnum::Playing), setup_gameplay_ui)
-        .add_systems(OnEnter(GameStateEnum::Paused), setup_pause_menu)
-        .add_systems(
-            OnEnter(GameStateEnum::LevelComplete),
-            setup_level_complete_ui,
-        )
-        .add_systems(OnExit(GameStateEnum::MainMenu), cleanup_main_menu)
-        .add_systems(OnExit(GameStateEnum::Playing), cleanup_gameplay_ui)
-        .add_systems(OnExit(GameStateEnum::Paused), cleanup_pause_menu)
-        .add_systems(
-            OnExit(GameStateEnum::LevelComplete),
-            cleanup_level_complete_ui,
-        )
-        .add_systems(
-            Update,
-            (
-                handle_button_interactions,
-                update_ui_animations,
-                update_gameplay_ui_values,
-                update_progress_bars,
-                handle_audio_events,
-                update_background_music,
+            .add_systems(Startup, (load_ui_assets, load_audio_assets))
+            .add_systems(OnEnter(GameStateEnum::MainMenu), setup_main_menu)
+            .add_systems(OnEnter(GameStateEnum::Playing), setup_gameplay_ui)
+            .add_systems(OnEnter(GameStateEnum::Paused), setup_pause_menu)
+            .add_systems(
+                OnEnter(GameStateEnum::LevelComplete),
+                setup_level_complete_ui,
             )
-                .run_if(in_state(GameStateEnum::Playing)),
-        )
-        .add_systems(
-            Update,
-            (handle_menu_buttons, handle_button_interactions)
-                .run_if(in_state(GameStateEnum::MainMenu)),
-        )
-        .add_systems(
-            Update,
-            (handle_pause_input, handle_pause_buttons).run_if(in_state(GameStateEnum::Paused)),
-        );
+            .add_systems(OnExit(GameStateEnum::MainMenu), cleanup_main_menu)
+            .add_systems(OnExit(GameStateEnum::Playing), cleanup_gameplay_ui)
+            .add_systems(OnExit(GameStateEnum::Paused), cleanup_pause_menu)
+            .add_systems(
+                OnExit(GameStateEnum::LevelComplete),
+                cleanup_level_complete_ui,
+            )
+            .add_systems(
+                Update,
+                (
+                    handle_button_interactions,
+                    update_ui_animations,
+                    update_gameplay_ui_values,
+                    update_progress_bars,
+                    handle_audio_events,
+                    update_background_music,
+                )
+                    .run_if(in_state(GameStateEnum::Playing)),
+            )
+            .add_systems(
+                Update,
+                (handle_menu_buttons, handle_button_interactions)
+                    .run_if(in_state(GameStateEnum::MainMenu)),
+            )
+            .add_systems(
+                Update,
+                (handle_pause_input, handle_pause_buttons).run_if(in_state(GameStateEnum::Paused)),
+            );
     }
 }
 
@@ -1101,7 +1101,6 @@ fn update_gameplay_ui_values(
 fn update_progress_bars(
     mut progress_bars: Query<(&mut ProgressBar, &mut Node)>,
     game_state: Res<GameState>,
-    passengers: Query<&PathfindingAgent>,
 ) {
     for (mut progress_bar, mut node) in progress_bars.iter_mut() {
         let progress = match progress_bar.bar_type {
@@ -1268,12 +1267,4 @@ fn update_background_music(
             ));
         }
     }
-}
-
-// ============ 辅助函数 ============
-
-fn ease_out_back(t: f32) -> f32 {
-    let c1 = 1.70158;
-    let c3 = c1 + 1.0;
-    1.0 + c3 * (t - 1.0).powi(3) + c1 * (t - 1.0).powi(2)
 }

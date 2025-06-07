@@ -40,11 +40,6 @@ pub fn get_neighbors(pos: GridPos) -> Vec<GridPos> {
     ]
 }
 
-/// 线性插值
-pub fn lerp(a: f32, b: f32, t: f32) -> f32 {
-    a + (b - a) * t
-}
-
 /// 缓动函数 - ease out back
 pub fn ease_out_back(t: f32) -> f32 {
     let c1 = 1.70158;

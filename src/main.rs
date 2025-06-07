@@ -3,19 +3,14 @@
 // 在Windows非开发版本中禁用控制台。
 #![cfg_attr(not(feature = "dev"), windows_subsystem = "windows")]
 
-mod asset_tracking;
-mod audio;
 mod bus_puzzle;
 #[cfg(feature = "dev")]
 mod dev_tools;
-mod menus;
-mod screens;
-mod theme;
 
 use bevy::{
     asset::AssetMetaCheck,
     prelude::*,
-    render::view::screenshot::{Screenshot, save_to_disk},
+    render::view::screenshot::{save_to_disk, Screenshot},
 };
 
 fn main() -> AppExit {
@@ -42,7 +37,7 @@ impl Plugin for AppPlugin {
                         fit_canvas_to_parent: true,
                         ..default()
                     }
-                    .into(),
+                        .into(),
                     ..default()
                 })
                 .set(ImagePlugin::default_nearest()),
@@ -51,8 +46,8 @@ impl Plugin for AppPlugin {
         // 添加其他插件。
         app.add_plugins((
             bus_puzzle::BusPuzzleGamePlugin,
-            // #[cfg(feature = "dev")]
-            // dev_tools::plugin,
+            #[cfg(feature = "dev")]
+            dev_tools::plugin,
         ));
         // .add_plugins(bevy_inspector_egui::bevy_egui::EguiPlugin {
         //     enable_multipass_for_primary_context: true,
@@ -175,11 +170,7 @@ fn debug_state_switch(
     }
 }
 
-fn screenshot_system(
-    keyboard_input: Res<ButtonInput<KeyCode>>,
-    mut commands: Commands,
-    main_window: Query<Entity, With<bevy::window::PrimaryWindow>>,
-) {
+fn screenshot_system(keyboard_input: Res<ButtonInput<KeyCode>>, mut commands: Commands) {
     if keyboard_input.just_pressed(KeyCode::F12) {
         let path = format!(
             "screenshot_{}.png",
