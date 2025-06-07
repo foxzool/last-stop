@@ -4,3 +4,5 @@
 .cargo/config.toml
 .windsurf
 .cursor
+.DS_Store
+.claude

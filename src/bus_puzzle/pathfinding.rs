@@ -386,6 +386,31 @@ pub fn create_station_connections_improved(
 
         for adj_pos in adjacent_positions {
             if let Some(segment) = route_segments_by_pos.get(&adj_pos) {
+                // 详细调试特定情况
+                if station_name == "B站" && matches!(segment.segment_type, RouteSegmentType::Curve)
+                {
+                    info!("=== 详细调试 B站 -> Curve ===");
+                    info!("  站点位置: {:?}", station_pos);
+                    info!("  Curve位置: {:?}", segment.grid_pos);
+                    info!("  Curve旋转: {}°", segment.rotation);
+
+                    let connection_points = get_segment_connections(
+                        segment.grid_pos,
+                        &segment.segment_type,
+                        segment.rotation,
+                    );
+                    info!("  Curve连接点: {:?}", connection_points);
+                    info!(
+                        "  站点是否在连接点中: {}",
+                        connection_points.contains(&station_pos)
+                    );
+
+                    // 显示方向分析
+                    let dx = station_pos.x - segment.grid_pos.x;
+                    let dy = station_pos.y - segment.grid_pos.y;
+                    info!("  相对方向: dx={}, dy={} (站点相对于Curve的位置)", dx, dy);
+                }
+
                 // 检查路线段是否有朝向站点的连接点
                 if segment_can_connect_to_station(segment, station_pos) {
                     // 站点到路线段
@@ -956,25 +981,25 @@ pub fn get_segment_connections(
     segment_type: &RouteSegmentType,
     rotation: u32,
 ) -> Vec<GridPos> {
-    // 直线段的特殊处理：水平放置时应该有水平连接
+    // 直线段的特殊处理：假设纹理默认是水平方向
     let base_connections = match segment_type {
         RouteSegmentType::Straight => {
-            // 根据旋转决定连接方向
+            // 假设直线段纹理默认是水平方向，所以基础连接是左右
             match rotation % 180 {
-                0 => vec![(0, -1), (0, 1)],  // 垂直：上下连接
-                90 => vec![(-1, 0), (1, 0)], // 水平：左右连接
-                _ => vec![(0, -1), (0, 1)],  // 默认垂直
+                0 => vec![(-1, 0), (1, 0)],  // 水平：左右连接 (纹理默认方向)
+                90 => vec![(0, -1), (0, 1)], // 垂直：上下连接 (旋转90度后)
+                _ => vec![(-1, 0), (1, 0)],  // 默认水平
             }
         }
-        RouteSegmentType::Curve => vec![(0, -1), (1, 0)], // L型：上和右
+        RouteSegmentType::Curve => vec![(-1, 0), (0, 1)],
         RouteSegmentType::TSplit => vec![(0, -1), (0, 1), (1, 0)], // T型：上下右
         RouteSegmentType::Cross => vec![(0, -1), (0, 1), (-1, 0), (1, 0)], // 十字：四方向
         RouteSegmentType::Bridge | RouteSegmentType::Tunnel => {
             // 和直线段一样处理
             match rotation % 180 {
-                0 => vec![(0, -1), (0, 1)],  // 垂直
-                90 => vec![(-1, 0), (1, 0)], // 水平
-                _ => vec![(0, -1), (0, 1)],  // 默认垂直
+                0 => vec![(-1, 0), (1, 0)],  // 水平：左右连接
+                90 => vec![(0, -1), (0, 1)], // 垂直：上下连接
+                _ => vec![(-1, 0), (1, 0)],  // 默认水平
             }
         }
     };

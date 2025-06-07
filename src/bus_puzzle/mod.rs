@@ -5,7 +5,6 @@ pub mod connection_system;
 pub mod events;
 pub mod interaction;
 pub mod junction_movement;
-pub mod junction_pathfinding;
 pub mod level_system;
 pub mod passenger_movement_debug;
 pub mod passenger_test;
@@ -29,11 +28,9 @@ pub use resources::*;
 pub use ui_audio::*;
 pub use utils::*;
 
-use crate::bus_puzzle::{
-    connection_system::FixedConnectionSystemPlugin,
-    junction_pathfinding::JunctionPathfindingPlugin, splash::SplashPlugin,
-};
+use crate::bus_puzzle::{connection_system::FixedConnectionSystemPlugin, splash::SplashPlugin};
 use bevy::prelude::*;
+
 // ============ 游戏主循环集成 ============
 
 pub struct BusPuzzleGamePlugin;
@@ -48,7 +45,7 @@ impl Plugin for BusPuzzleGamePlugin {
             GameUIPlugin,
             PassengerTestPlugin,
             PassengerMovementDebugPlugin,
-            JunctionPathfindingPlugin,
+            // JunctionPathfindingPlugin,
             FixedConnectionSystemPlugin,
         ));
 

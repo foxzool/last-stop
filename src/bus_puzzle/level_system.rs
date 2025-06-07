@@ -485,6 +485,16 @@ pub fn create_tutorial_level() -> LevelData {
                 count: 4,
                 cost: 2,
             },
+            AvailableSegment {
+                segment_type: RouteSegmentType::TSplit,
+                count: 4,
+                cost: 3,
+            },
+            AvailableSegment {
+                segment_type: RouteSegmentType::Cross,
+                count: 4,
+                cost: 4,
+            },
         ],
         objectives: vec![ObjectiveCondition {
             description: "连接所有乘客到目的地".to_string(),

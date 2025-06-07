@@ -256,7 +256,7 @@ fn handle_segment_placement(
 
 fn handle_segment_rotation(
     mut game_state: ResMut<GameState>,
-    mut route_segments: Query<&mut Transform, With<RouteSegment>>,
+    mut route_segments: Query<(&mut Transform, &mut RouteSegment)>,
     mouse_button_input: Res<ButtonInput<MouseButton>>,
     input_state: Res<InputState>,
 ) {
@@ -265,15 +265,17 @@ fn handle_segment_rotation(
             if let Some(placed_segment) = game_state.placed_segments.get_mut(&grid_pos) {
                 placed_segment.rotation = (placed_segment.rotation + 90) % 360;
 
-                if let Ok(mut transform) = route_segments.get_mut(placed_segment.entity) {
+                // 同时更新Transform和RouteSegment组件
+                if let Ok((mut transform, mut route_segment)) = route_segments.get_mut(placed_segment.entity) {
+                    route_segment.rotation = placed_segment.rotation;
                     transform.rotation = Quat::from_rotation_z(
                         (placed_segment.rotation as f32) * std::f32::consts::PI / 180.0,
                     );
                 }
 
                 info!(
-                    "Rotated route segment to {} degrees",
-                    placed_segment.rotation
+                    "Rotated route segment to {} degrees at {:?}",
+                    placed_segment.rotation, grid_pos
                 );
             }
         }

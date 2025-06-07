@@ -351,8 +351,8 @@ fn get_segment_connection_ports(
 ) -> Vec<(Direction, GridPos)> {
     // 定义基础方向（未旋转时）
     let base_directions = match segment_type {
-        RouteSegmentType::Straight => vec![Direction::North, Direction::South],
-        RouteSegmentType::Curve => vec![Direction::North, Direction::East],
+        RouteSegmentType::Straight => vec![Direction::West, Direction::East], // 水平：左右连接
+        RouteSegmentType::Curve => vec![Direction::West, Direction::North],   // L型：左和下
         RouteSegmentType::TSplit => vec![Direction::North, Direction::South, Direction::East],
         RouteSegmentType::Cross => vec![
             Direction::North,
@@ -361,7 +361,7 @@ fn get_segment_connection_ports(
             Direction::West,
         ],
         RouteSegmentType::Bridge | RouteSegmentType::Tunnel => {
-            vec![Direction::North, Direction::South]
+            vec![Direction::West, Direction::East] // 和直线段一样
         }
     };
 
@@ -531,38 +531,75 @@ fn visualize_segment_ports(
         (10, 8)
     };
 
-    let connection_ports =
-        get_segment_connection_ports(segment.grid_pos, &segment.segment_type, segment.rotation);
+    // 获取基础连接方向（未旋转的）
+    let base_directions = match segment.segment_type {
+        RouteSegmentType::Straight => vec![Direction::West, Direction::East], // 水平：左右连接
+        RouteSegmentType::Curve => vec![Direction::West, Direction::North],   // L型：左和上
+        RouteSegmentType::TSplit => vec![Direction::North, Direction::South, Direction::East],
+        RouteSegmentType::Cross => vec![
+            Direction::North,
+            Direction::South,
+            Direction::East,
+            Direction::West,
+        ],
+        RouteSegmentType::Bridge | RouteSegmentType::Tunnel => {
+            vec![Direction::West, Direction::East] // 和直线段一样，水平连接
+        }
+    };
 
-    // 为每个端口创建箭头指示器
-    for (direction, port_pos) in connection_ports {
-        let center_world = segment
-            .grid_pos
-            .to_world_pos(tile_size, grid_width, grid_height);
-        let port_world = port_pos.to_world_pos(tile_size, grid_width, grid_height);
+    let center_world = segment
+        .grid_pos
+        .to_world_pos(tile_size, grid_width, grid_height);
 
-        // 计算箭头位置（在路线段中心和端口之间）
-        let arrow_pos = center_world + (port_world - center_world) * 0.6;
+    // 为每个基础连接方向创建箭头指示器
+    for (index, direction) in base_directions.iter().enumerate() {
+        // 计算箭头位置（从路线段中心向外延伸）
+        let (dx, dy) = direction.to_offset();
+        let arrow_offset = Vec3::new(dx as f32 * 20.0, dy as f32 * 20.0, 0.0);
+        let arrow_pos = center_world + arrow_offset;
 
-        // 根据方向选择箭头颜色
-        let color = match direction {
-            Direction::North => Color::srgb(1.0, 0.0, 0.0), // 红色 - 北
-            Direction::South => Color::srgb(0.0, 1.0, 0.0), // 绿色 - 南
-            Direction::East => Color::srgb(0.0, 0.0, 1.0),  // 蓝色 - 东
-            Direction::West => Color::srgb(1.0, 1.0, 0.0),  // 黄色 - 西
+        // 计算箭头旋转角度（基础方向 + 路线段旋转）
+        let base_rotation = match direction {
+            Direction::North => 0.0,                        // 向上
+            Direction::East => -std::f32::consts::PI / 2.0, // 向右
+            Direction::South => std::f32::consts::PI,       // 向下
+            Direction::West => std::f32::consts::PI / 2.0,  // 向左
         };
 
+        // 添加路线段的旋转
+        let segment_rotation = (segment.rotation as f32) * std::f32::consts::PI / 180.0;
+        let final_rotation = base_rotation + segment_rotation;
+
+        // 为每个连接方向使用不同颜色
+        let color = match index % 4 {
+            0 => Color::srgb(1.0, 0.0, 0.0), // 红色 - 第一个连接
+            1 => Color::srgb(0.0, 1.0, 0.0), // 绿色 - 第二个连接
+            2 => Color::srgb(0.0, 0.0, 1.0), // 蓝色 - 第三个连接
+            3 => Color::srgb(1.0, 1.0, 0.0), // 黄色 - 第四个连接
+            _ => Color::WHITE,
+        };
+
+        // 同时旋转箭头位置
+        let rotated_offset = Vec3::new(
+            arrow_offset.x * segment_rotation.cos() - arrow_offset.y * segment_rotation.sin(),
+            arrow_offset.x * segment_rotation.sin() + arrow_offset.y * segment_rotation.cos(),
+            arrow_offset.z,
+        );
+        let final_arrow_pos = center_world + rotated_offset;
+
+        // 创建箭头形状（三角形指向连接方向）
         commands.spawn((
             Sprite {
                 color,
-                custom_size: Some(Vec2::new(16.0, 16.0)),
+                custom_size: Some(Vec2::new(12.0, 16.0)), // 稍小一点的箭头
                 ..default()
             },
-            Transform::from_translation(arrow_pos + Vec3::Z * 15.0),
+            Transform::from_translation(final_arrow_pos + Vec3::Z * 15.0)
+                .with_rotation(Quat::from_rotation_z(final_rotation)),
             DirectionVisualization,
             Name::new(format!(
-                "Port {:?} for {:?}",
-                direction, segment.segment_type
+                "Connection {:?} for {:?} (rot: {}°)",
+                direction, segment.segment_type, segment.rotation
             )),
         ));
     }
