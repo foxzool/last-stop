@@ -1,6 +1,8 @@
 // 模块声明
 pub mod components;
 pub mod config;
+pub mod connection_debug;
+pub mod connection_fix;
 pub mod events;
 pub mod interaction;
 pub mod level_system;
@@ -16,6 +18,8 @@ use bevy::platform::collections::HashMap;
 // 重新导出主要类型
 pub use components::*;
 pub use config::*;
+pub use connection_debug::*;
+pub use connection_fix::*;
 pub use events::*;
 pub use interaction::*;
 pub use level_system::*;
@@ -43,6 +47,8 @@ impl Plugin for BusPuzzleGamePlugin {
             GameUIPlugin,
             PassengerTestPlugin,
             PassengerMovementDebugPlugin,
+            ConnectionDebugPlugin,
+            ConnectionFixPlugin,
         ));
 
         app.init_resource::<GameState>()
