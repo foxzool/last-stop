@@ -10,7 +10,7 @@ pub mod splash;
 pub mod ui_audio;
 pub mod utils;
 
-use std::collections::HashMap;
+use bevy::platform::collections::HashMap;
 // 重新导出主要类型
 pub use components::*;
 pub use config::*;

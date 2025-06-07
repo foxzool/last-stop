@@ -4,7 +4,6 @@ mod gameplay;
 mod level;
 mod loading;
 mod splash;
-mod title;
 
 use bevy::prelude::*;
 
@@ -15,7 +14,6 @@ pub(super) fn plugin(app: &mut App) {
         gameplay::plugin,
         loading::plugin,
         splash::plugin,
-        title::plugin,
         level::plugin,
     ));
 }

@@ -1,10 +1,12 @@
 // src/bus_puzzle/level_system.rs
 
 use crate::bus_puzzle::{
-    GridPos, GridTile, LevelManager, PassengerColor, PassengerEntity, RouteSegment,
-    RouteSegmentType, StationEntity, StationType, TerrainType,
+    AgentState, GameState, GameStateEnum, GridPos, GridTile, LevelManager, PassengerColor,
+    PassengerEntity, PathfindingAgent, RouteSegment, RouteSegmentType, StationEntity, StationType,
+    TerrainType, get_passenger_color,
 };
 use bevy::{platform::collections::HashMap, prelude::*};
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 // ============ 关卡数据结构 ============
 
@@ -120,15 +122,245 @@ pub struct LevelGenerationPlugin;
 
 impl Plugin for LevelGenerationPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<LevelManager>().add_systems(
-            Update,
-            (
-                handle_level_load,
-                update_passenger_spawning,
-                handle_dynamic_events,
-            ),
+        app.init_resource::<LevelManager>()
+            .add_systems(Startup, setup_debug_level)
+            .add_systems(
+                Update,
+                (
+                    sync_level_data,
+                    update_passenger_spawning_no_texture.run_if(in_state(GameStateEnum::Playing)),
+                    handle_dynamic_events.run_if(in_state(GameStateEnum::Playing)),
+                    debug_passenger_spawning,
+                    manual_spawn_passenger_debug_no_texture
+                        .run_if(in_state(GameStateEnum::Playing)),
+                )
+                    .chain(),
+            );
+    }
+}
+
+// 添加数据同步系统
+fn sync_level_data(mut level_manager: ResMut<LevelManager>, game_state: Res<GameState>) {
+    if let Some(level_data) = &game_state.current_level {
+        if level_manager
+            .current_level
+            .as_ref()
+            .map_or(true, |current| current.id != level_data.id)
+        {
+            level_manager.current_level = Some(level_data.clone());
+            info!("同步关卡数据: {}", level_data.name);
+        }
+    }
+}
+
+// 无纹理的乘客生成系统
+fn update_passenger_spawning_no_texture(
+    time: Res<Time>,
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    game_state: Res<GameState>,
+    mut stations: Query<&mut StationEntity>,
+) {
+    if let Some(level_data) = &game_state.current_level {
+        let mut rng = rand::rng();
+        let current_time = time.elapsed_secs();
+
+        for (demand_index, demand) in level_data.passenger_demands.iter().enumerate() {
+            // 检查时间窗口
+            if let Some((start, end)) = demand.spawn_time_range {
+                if current_time < start || current_time > end {
+                    continue;
+                }
+            }
+
+            // 计算生成概率
+            let spawn_chance = demand.spawn_rate * time.delta_secs();
+            let random_value = rng.random::<f32>();
+
+            if random_value < spawn_chance {
+                spawn_passenger_no_texture(
+                    &mut commands,
+                    &mut meshes,
+                    &mut materials,
+                    demand,
+                    level_data,
+                );
+                info!(
+                    "生成乘客概率检查: {} < {} = 成功",
+                    random_value, spawn_chance
+                );
+            } else if demand_index == 0 && time.elapsed_secs() as u32 % 2 == 0 {
+                // 每2秒输出一次调试信息（只对第一个需求）
+                info!(
+                    "生成乘客概率检查: {} >= {} = 失败",
+                    random_value, spawn_chance
+                );
+            }
+        }
+    } else {
+        // 每5秒警告一次没有关卡数据
+        if time.elapsed_secs() as u32 % 5 == 0 {
+            warn!("update_passenger_spawning_no_texture: 没有关卡数据");
+        }
+    }
+}
+
+// 无纹理的乘客生成函数
+fn spawn_passenger_no_texture(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<ColorMaterial>>,
+    demand: &PassengerDemand,
+    level_data: &crate::bus_puzzle::LevelData,
+) {
+    // 找到起点站的位置
+    if let Some(origin_station) = level_data.stations.iter().find(|s| s.name == demand.origin) {
+        let tile_size = 64.0;
+        let (grid_width, grid_height) = level_data.grid_size;
+        let world_pos = origin_station
+            .position
+            .to_world_pos(tile_size, grid_width, grid_height);
+
+        let bevy_color = get_passenger_color(demand.color);
+
+        // 创建乘客实体（使用圆形网格而不是纹理）
+        let entity = commands
+            .spawn((
+                Name::new(format!(
+                    "Passenger {:?} {} -> {}",
+                    demand.color, demand.origin, demand.destination
+                )),
+                Mesh2d(meshes.add(Circle::new(16.0))), // 16像素半径的圆形
+                MeshMaterial2d(materials.add(bevy_color)), // 使用对应颜色
+                Transform::from_translation(world_pos + Vec3::Z * 2.0),
+                // 基础乘客信息
+                PassengerEntity {
+                    color: demand.color,
+                    origin: demand.origin.clone(),
+                    destination: demand.destination.clone(),
+                    current_patience: demand.patience,
+                    path: Vec::new(),
+                },
+                // 寻路代理信息
+                PathfindingAgent {
+                    color: demand.color,
+                    origin: demand.origin.clone(),
+                    destination: demand.destination.clone(),
+                    current_path: Vec::new(),
+                    current_step: 0,
+                    state: AgentState::WaitingAtStation,
+                    patience: demand.patience,
+                    max_patience: demand.patience,
+                    waiting_time: 0.0,
+                },
+            ))
+            .id();
+
+        info!(
+            "成功生成乘客 (Entity: {:?}): {:?} {} -> {} 位置: {:?}",
+            entity, demand.color, demand.origin, demand.destination, world_pos
+        );
+    } else {
+        error!(
+            "找不到起点站: {} (可用站点: {:?})",
+            demand.origin,
+            level_data
+                .stations
+                .iter()
+                .map(|s| &s.name)
+                .collect::<Vec<_>>()
         );
     }
+}
+
+// 调试系统（保持不变）
+fn debug_passenger_spawning(
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    game_state: Res<GameState>,
+    passengers: Query<&PathfindingAgent>,
+    time: Res<Time>,
+) {
+    if keyboard_input.just_pressed(KeyCode::F2) {
+        info!("=== 乘客生成调试信息 ===");
+        info!("当前游戏时间: {:.1}秒", time.elapsed_secs());
+        info!("当前乘客数量: {}", passengers.iter().count());
+
+        if let Some(level_data) = &game_state.current_level {
+            info!("关卡名称: {}", level_data.name);
+            info!("乘客需求数量: {}", level_data.passenger_demands.len());
+
+            for (i, demand) in level_data.passenger_demands.iter().enumerate() {
+                info!(
+                    "需求 {}: {:?} {} -> {}, 生成率: {}/秒",
+                    i, demand.color, demand.origin, demand.destination, demand.spawn_rate
+                );
+
+                if let Some((start, end)) = demand.spawn_time_range {
+                    info!("  时间窗口: {:.1}s - {:.1}s", start, end);
+                } else {
+                    info!("  无时间限制");
+                }
+
+                let spawn_chance_per_second = demand.spawn_rate;
+                info!("  每秒生成概率: {:.1}%", spawn_chance_per_second * 100.0);
+            }
+
+            info!("站点数量: {}", level_data.stations.len());
+            for station in &level_data.stations {
+                info!("站点: {} 位置: {:?}", station.name, station.position);
+            }
+        } else {
+            error!("GameState 中没有关卡数据！");
+        }
+    }
+}
+
+// 手动生成测试乘客（无纹理版本）
+fn manual_spawn_passenger_debug_no_texture(
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    game_state: Res<GameState>,
+) {
+    if keyboard_input.just_pressed(KeyCode::F3) {
+        info!("手动生成测试乘客");
+
+        if let Some(level_data) = &game_state.current_level {
+            if let Some(demand) = level_data.passenger_demands.first() {
+                spawn_passenger_no_texture(
+                    &mut commands,
+                    &mut meshes,
+                    &mut materials,
+                    demand,
+                    level_data,
+                );
+                info!("成功手动生成测试乘客: {:?}", demand.color);
+            } else {
+                warn!("没有乘客需求数据可以生成测试乘客");
+            }
+        } else {
+            error!("GameState 中没有关卡数据，无法生成测试乘客");
+        }
+    }
+}
+
+// 其他函数保持不变
+fn setup_debug_level(mut level_manager: ResMut<LevelManager>, mut game_state: ResMut<GameState>) {
+    let tutorial_level = create_tutorial_level();
+
+    level_manager.current_level = Some(tutorial_level.clone());
+    game_state.current_level = Some(tutorial_level.clone());
+
+    let mut inventory = HashMap::new();
+    for segment in &tutorial_level.available_segments {
+        inventory.insert(segment.segment_type.clone(), segment.count);
+    }
+    game_state.player_inventory = inventory;
+    game_state.objectives_completed = vec![false; tutorial_level.objectives.len()];
+
+    info!("设置了教学关卡作为默认关卡");
 }
 
 // ============ 地图生成系统 ============

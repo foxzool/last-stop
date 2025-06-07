@@ -2,17 +2,16 @@
 
 use bevy::{
     audio::{PlaybackMode, Volume},
+    platform::collections::HashMap,
     prelude::*,
     ui::Val::*,
 };
-use std::collections::HashMap;
-
 // 使用相对路径引用同模块下的其他文件
 use super::{
-    AgentState, CostText, GameState, GameStateEnum, InventoryCountText, InventorySlot, LevelCompletedEvent,
-    LevelManager, ObjectiveCompletedEvent, PassengerColor, PassengerCountText, PathfindingAgent,
-    RouteSegmentType, ScoreText, SegmentPlacedEvent, SegmentRemovedEvent, TimerText, UIElement,
-    format_time,
+    AgentState, CostText, GameState, GameStateEnum, InventoryCountText, InventorySlot,
+    LevelCompletedEvent, LevelManager, ObjectiveCompletedEvent, PassengerColor, PassengerCountText,
+    PathfindingAgent, RouteSegmentType, ScoreText, SegmentPlacedEvent, SegmentRemovedEvent,
+    TimerText, UIElement, format_time,
 };
 
 // ============ UI 组件 ============
