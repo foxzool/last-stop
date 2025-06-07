@@ -4,10 +4,10 @@ use bevy::{input::mouse::MouseWheel, prelude::*, window::PrimaryWindow};
 
 // 使用相对路径引用同模块下的其他文件
 use crate::bus_puzzle::{
-    rebuild_pathfinding_graph, world_to_grid, AgentState, ButtonComponent, ButtonType,
-    CameraController, DraggableSegment, GameState, GameStateEnum, GridPos, InputState,
-    InventoryCountText, InventorySlot, InventoryUpdatedEvent, LevelCompletedEvent, LevelManager, ObjectiveCompletedEvent, ObjectiveCondition, ObjectiveTracker,
-    ObjectiveType, PathNode, PathfindingAgent, PathfindingGraph, PlacedSegment,
+    world_to_grid, AgentState, ButtonComponent, ButtonType, CameraController, DraggableSegment,
+    GameState, GameStateEnum, GridPos, InputState, InventoryCountText, InventorySlot,
+    InventoryUpdatedEvent, LevelCompletedEvent, LevelManager, ObjectiveCompletedEvent,
+    ObjectiveCondition, ObjectiveTracker, ObjectiveType, PathNode, PathfindingAgent, PlacedSegment,
     RouteSegment, RouteSegmentType, SegmentPlacedEvent, SegmentPreview, SegmentRemovedEvent,
 };
 
@@ -133,7 +133,7 @@ fn handle_button_interactions(
     button_query: Query<(&Interaction, &ButtonComponent), (Changed<Interaction>, With<Button>)>,
     mut input_state: ResMut<InputState>,
     mut next_state: ResMut<NextState<GameStateEnum>>,
-    mut app_exit_events: EventWriter<bevy::app::AppExit>,
+    mut app_exit_events: EventWriter<AppExit>,
     mut level_manager: ResMut<LevelManager>,
     game_state: Res<GameState>,
 ) {
@@ -198,10 +198,9 @@ fn handle_segment_placement(
     level_manager: Res<LevelManager>,
 ) {
     if mouse_button_input.just_released(MouseButton::Left) {
-        if let (Some(segment_type), Some(grid_pos)) = (
-            input_state.selected_segment,
-            input_state.grid_cursor_pos,
-        ) {
+        if let (Some(segment_type), Some(grid_pos)) =
+            (input_state.selected_segment, input_state.grid_cursor_pos)
+        {
             if is_valid_placement(&game_state, grid_pos, &segment_type) {
                 if let Some(&available_count) = game_state.player_inventory.get(&segment_type) {
                     if available_count > 0 {
@@ -326,10 +325,9 @@ fn update_grid_preview(
     }
 
     // 如果有选中的路线段和有效的网格位置，显示预览
-    if let (Some(segment_type), Some(grid_pos)) = (
-        input_state.selected_segment,
-        input_state.grid_cursor_pos,
-    ) {
+    if let (Some(segment_type), Some(grid_pos)) =
+        (input_state.selected_segment, input_state.grid_cursor_pos)
+    {
         let is_valid = is_valid_placement(&game_state, grid_pos, &segment_type);
 
         // 获取世界坐标，需要网格尺寸信息
@@ -504,72 +502,6 @@ fn update_objectives_ui(
         for (tracker, mut sprite) in objective_trackers.iter_mut() {
             if tracker.objective_index == event.objective_index {
                 sprite.color = Color::srgb(0.0, 1.0, 0.0);
-            }
-        }
-    }
-}
-
-fn handle_segment_events(
-    mut segment_placed_events: EventReader<SegmentPlacedEvent>,
-    mut segment_removed_events: EventReader<SegmentRemovedEvent>,
-    mut pathfinding_graph: ResMut<PathfindingGraph>,
-    game_state: Res<GameState>,
-) {
-    let mut graph_needs_update = false;
-
-    // 处理路线段放置事件
-    for event in segment_placed_events.read() {
-        info!(
-            "Route segment placed: {:?} at {:?}",
-            event.segment_type, event.position
-        );
-        graph_needs_update = true;
-
-        // 可以在这里添加特殊效果，比如粒子效果、动画等
-        // spawn_placement_effect(&mut commands, event.position);
-    }
-
-    // 处理路线段移除事件
-    for event in segment_removed_events.read() {
-        info!("Route segment removed at {:?}", event.position);
-        graph_needs_update = true;
-
-        // 可以在这里添加移除效果
-        // spawn_removal_effect(&mut commands, event.position);
-    }
-
-    // 如果有路线段变化，更新寻路图
-    if graph_needs_update {
-        rebuild_pathfinding_graph(&mut pathfinding_graph, &game_state);
-        info!("Pathfinding graph updated due to route changes");
-    }
-}
-
-fn handle_objective_events(
-    mut objective_completed_events: EventReader<ObjectiveCompletedEvent>,
-    game_state: Res<GameState>,
-) {
-    for event in objective_completed_events.read() {
-        if let Some(level_data) = &game_state.current_level {
-            if let Some(objective) = level_data.objectives.get(event.objective_index) {
-                info!("Objective completed: {}", objective.description);
-
-                // 可以在这里添加目标完成的特效
-                // spawn_objective_complete_effect(&mut commands, event.objective_index);
-
-                // 检查是否有特殊奖励
-                match &objective.condition_type {
-                    ObjectiveType::ConnectAllPassengers => {
-                        info!("All passengers connected! Excellent work!");
-                    }
-                    ObjectiveType::MaxCost(cost) => {
-                        info!("Completed within budget of {} cost units!", cost);
-                    }
-                    ObjectiveType::TimeLimit(time) => {
-                        info!("Completed within {} seconds time limit!", time);
-                    }
-                    _ => {}
-                }
             }
         }
     }

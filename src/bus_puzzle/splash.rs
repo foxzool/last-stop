@@ -1,6 +1,6 @@
 //! A splash screen that plays briefly at startup.
 
-use crate::{bus_puzzle::GameStateEnum, AppSystems};
+use crate::bus_puzzle::GameStateEnum;
 use bevy::{
     image::{ImageLoaderSettings, ImageSampler},
     input::common_conditions::input_just_pressed,
@@ -19,10 +19,8 @@ impl Plugin for SplashPlugin {
         // Animate splash screen.
         app.add_systems(
             Update,
-            (
-                tick_fade_in_out.in_set(AppSystems::TickTimers),
-                apply_fade_in_out.in_set(AppSystems::Update),
-            )
+            (tick_fade_in_out, apply_fade_in_out)
+                .chain()
                 .run_if(in_state(GameStateEnum::Splash)),
         );
 
@@ -32,10 +30,8 @@ impl Plugin for SplashPlugin {
         app.add_systems(OnExit(GameStateEnum::Splash), remove_splash_timer);
         app.add_systems(
             Update,
-            (
-                tick_splash_timer.in_set(AppSystems::TickTimers),
-                check_splash_timer.in_set(AppSystems::Update),
-            )
+            (tick_splash_timer, check_splash_timer)
+                .chain()
                 .run_if(in_state(GameStateEnum::Splash)),
         );
 

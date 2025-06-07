@@ -62,28 +62,6 @@ impl Plugin for AppPlugin {
     }
 }
 
-/// 应用程序在`Update`调度中的高级系统分组。
-/// 添加新的变体时，请确保在`configure_sets`中对其进行排序
-/// 上面的调用。
-#[derive(SystemSet, Debug, Clone, Copy, Eq, PartialEq, Hash, PartialOrd, Ord)]
-enum AppSystems {
-    /// 更新计时器。
-    TickTimers,
-    /// 记录玩家输入。
-    RecordInput,
-    /// 处理所有其他事项（考虑将其拆分为更多变体）。
-    Update,
-}
-
-/// 游戏是否暂停。
-#[derive(States, Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
-#[states(scoped_entities)]
-struct Pause(pub bool);
-
-/// 在游戏暂停时不应运行的系统集。
-#[derive(SystemSet, Copy, Clone, Eq, PartialEq, Hash, Debug)]
-struct PausableSystems;
-
 fn spawn_camera(mut commands: Commands) {
     commands.spawn((Name::new("Camera"), Camera2d));
 }

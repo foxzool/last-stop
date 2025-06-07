@@ -1,7 +1,7 @@
 // src/bus_puzzle/connection_system.rs
 
 use crate::bus_puzzle::{
-    manhattan_distance, Connection, ConnectionType, GameState, GraphNode, GraphNodeType, GridPos,
+    manhattan_distance, Connection, ConnectionType, GraphNode, GraphNodeType, GridPos,
     PathfindingGraph, RouteSegment, RouteSegmentType, StationEntity,
 };
 use bevy::prelude::*;
@@ -125,7 +125,6 @@ fn debug_connections(
 fn force_rebuild_connections(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut pathfinding_graph: ResMut<PathfindingGraph>,
-    game_state: Res<GameState>,
     stations: Query<&StationEntity>,
     route_segments: Query<&RouteSegment>,
 ) {
@@ -138,12 +137,7 @@ fn force_rebuild_connections(
         pathfinding_graph.station_lookup.clear();
 
         // 重新构建
-        rebuild_pathfinding_graph_improved(
-            &mut pathfinding_graph,
-            &game_state,
-            &stations,
-            &route_segments,
-        );
+        rebuild_pathfinding_graph_improved(&mut pathfinding_graph, &stations, &route_segments);
 
         info!("连接图重建完成！");
         info!("  节点数: {}", pathfinding_graph.nodes.len());
@@ -155,7 +149,6 @@ fn force_rebuild_connections(
 /// 改进的寻路图重建函数
 pub fn rebuild_pathfinding_graph_improved(
     pathfinding_graph: &mut PathfindingGraph,
-    game_state: &GameState,
     stations: &Query<&StationEntity>,
     route_segments: &Query<&RouteSegment>,
 ) {

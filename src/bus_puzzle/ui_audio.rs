@@ -1290,7 +1290,8 @@ fn handle_audio_events(
     }
 
     // 路线段移除音效
-    for _event in segment_removed_events.read() {
+    for event in segment_removed_events.read() {
+        info!("segment removed at: {:?}", event.position);
         commands.spawn((
             AudioPlayer::new(audio_assets.segment_remove_sound.clone()),
             PlaybackSettings {
@@ -1349,15 +1350,15 @@ fn update_background_music(
 ) {
     // 简化的背景音乐管理
     // 在实际实现中，你可能需要更复杂的音乐状态管理
-
-    if music_query.is_empty() && matches!(current_state.get(), GameStateEnum::Playing) && !audio_settings.is_muted {
+    if music_query.is_empty()
+        && matches!(current_state.get(), GameStateEnum::Playing)
+        && !audio_settings.is_muted
+    {
         commands.spawn((
             AudioPlayer::new(audio_assets.background_music.clone()),
             PlaybackSettings {
                 mode: PlaybackMode::Despawn,
-                volume: Volume::Linear(
-                    audio_settings.music_volume * audio_settings.master_volume,
-                ),
+                volume: Volume::Linear(audio_settings.music_volume * audio_settings.master_volume),
                 ..default()
             },
         ));

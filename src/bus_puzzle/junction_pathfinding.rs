@@ -60,7 +60,6 @@ fn create_junction_internal_structure(
     let connection_points = get_junction_connection_points(center_pos, segment_type, rotation);
 
     // 创建中心节点（如果还没有的话）
-    let center_node_id = create_center_node_id(center_pos);
     pathfinding_graph.nodes.insert(
         center_pos,
         GraphNode {
@@ -234,7 +233,7 @@ fn create_junction_connections(
     entry_node: GridPos,
     center: GridPos,
     exit_node: GridPos,
-    direction: &JunctionDirection,
+    _direction: &JunctionDirection,
 ) {
     // 外部点 -> 入口节点
     add_connection(
