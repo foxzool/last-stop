@@ -8,9 +8,9 @@ use std::{
 };
 
 use super::{
-    manhattan_distance, AgentState, Connection, ConnectionType, GameStateEnum, GraphNode,
-    GraphNodeType, GridPos, LevelManager, PathfindingAgent, PathfindingGraph, RouteSegment,
-    RouteSegmentType, StationEntity, PASSENGER_Z,
+    manhattan_distance, AgentState, Connection, ConnectionType, GameState, GameStateEnum,
+    GraphNode, GraphNodeType, GridPos, LevelManager, PathfindingAgent, PathfindingGraph,
+    RouteSegment, RouteSegmentType, StationEntity, PASSENGER_Z,
 };
 
 // ============ 寻路相关组件 ============
@@ -219,9 +219,9 @@ fn create_route_connections_improved(
         for connection_pos in theoretical_connections {
             if route_segments_by_pos.contains_key(&connection_pos)
                 || pathfinding_graph
-                .station_lookup
-                .values()
-                .any(|&station_pos| station_pos == connection_pos)
+                    .station_lookup
+                    .values()
+                    .any(|&station_pos| station_pos == connection_pos)
             {
                 // 创建双向连接
                 add_connection_if_not_exists(
@@ -243,7 +243,7 @@ fn create_route_connections_improved(
         }
 
         // 重要：强制添加所有相邻路线段的连接
-        for (other_pos, other_segment) in route_segments_by_pos {
+        for (other_pos, _other_segment) in route_segments_by_pos {
             if *other_pos != *pos {
                 let distance = manhattan_distance(*pos, *other_pos);
                 if distance == 1 {
@@ -469,7 +469,7 @@ pub fn enhance_path_with_junction_nodes(
 ) -> Vec<PathNode> {
     let mut enhanced_path = Vec::new();
 
-    for (i, node) in original_path.iter().enumerate() {
+    for (_i, node) in original_path.iter().enumerate() {
         // 添加原始节点
         enhanced_path.push(node.clone());
 
@@ -662,16 +662,19 @@ fn handle_passenger_transfers(mut passengers: Query<&mut PathfindingAgent>) {
 fn cleanup_finished_passengers(
     mut commands: Commands,
     passengers: Query<(Entity, &PathfindingAgent)>,
+    mut game_state: ResMut<GameState>,
 ) {
     for (entity, agent) in passengers.iter() {
         match agent.state {
             AgentState::Arrived => {
                 info!("乘客 {:?} 成功到达目的地", agent.color);
+                game_state.passenger_stats.total_arrived += 1;
                 commands.entity(entity).despawn();
             }
             AgentState::GaveUp => {
                 warn!("乘客 {:?} 因耐心耗尽而放弃", agent.color);
                 commands.entity(entity).despawn();
+                game_state.passenger_stats.total_gave_up += 1;
             }
             _ => {}
         }
@@ -928,9 +931,9 @@ fn rebuild_connections(pathfinding_graph: &mut PathfindingGraph, game_state: &su
         for connection_pos in connections {
             if game_state.placed_segments.contains_key(&connection_pos)
                 || pathfinding_graph
-                .station_lookup
-                .values()
-                .any(|&station_pos| station_pos == connection_pos)
+                    .station_lookup
+                    .values()
+                    .any(|&station_pos| station_pos == connection_pos)
             {
                 new_connections.push((
                     *pos,

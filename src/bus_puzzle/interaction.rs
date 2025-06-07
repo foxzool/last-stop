@@ -707,11 +707,8 @@ fn check_objective_completion(
 ) -> bool {
     match &objective.condition_type {
         ObjectiveType::ConnectAllPassengers => {
-            let all_arrived = passengers
-                .iter()
-                .all(|agent| matches!(agent.state, AgentState::Arrived));
-            let has_passengers = !passengers.is_empty();
-            all_arrived && has_passengers
+            let stats = &game_state.passenger_stats;
+            stats.total_spawned > 0 && stats.total_arrived == stats.total_spawned
         }
         ObjectiveType::MaxTransfers(max_transfers) => passengers
             .iter()

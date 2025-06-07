@@ -2,8 +2,8 @@
 
 use crate::bus_puzzle::{
     spawn_passenger_no_texture, GameState, GameStateEnum, GridPos, GridTile, LevelManager,
-    PassengerColor, PathfindingAgent, RouteSegment, RouteSegmentType, StationEntity, StationType,
-    TerrainType, ROUTE_Z, STATION_Z, TERRAIN_Z,
+    PassengerColor, PassengerSpawnedEvent, PathfindingAgent, RouteSegment, RouteSegmentType,
+    StationEntity, StationType, TerrainType, ROUTE_Z, STATION_Z, TERRAIN_Z,
 };
 use bevy::{platform::collections::HashMap, prelude::*};
 use rand::Rng;
@@ -117,7 +117,8 @@ impl Plugin for LevelGenerationPlugin {
                 Update,
                 (
                     sync_level_data,
-                    update_passenger_spawning.run_if(in_state(GameStateEnum::Playing)),
+                    (update_passenger_spawning, handle_passenger_spawn)
+                        .run_if(in_state(GameStateEnum::Playing)),
                     handle_dynamic_events.run_if(in_state(GameStateEnum::Playing)),
                     debug_passenger_spawning,
                     manual_spawn_passenger_debug.run_if(in_state(GameStateEnum::Playing)),
@@ -180,8 +181,6 @@ fn update_passenger_spawning(
                     demand,
                     &level_data_ref,
                 );
-
-                demand.spawned_count += 1;
             }
         }
     }
@@ -454,5 +453,19 @@ pub fn create_tutorial_level() -> LevelData {
             speed_bonus: 25,
             cost_bonus: 25,
         },
+    }
+}
+
+fn handle_passenger_spawn(
+    mut passenger_spawned_event: EventReader<PassengerSpawnedEvent>,
+    mut game_state: ResMut<GameState>,
+) {
+    for _spawned_passenger in passenger_spawned_event.read() {
+        if let Some(level_data) = &mut game_state.current_level {
+            for demand in level_data.passenger_demands.iter_mut() {
+                demand.spawned_count += 1;
+            }
+        }
+        game_state.passenger_stats.total_spawned += 1;
     }
 }

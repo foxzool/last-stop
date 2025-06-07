@@ -2,7 +2,7 @@
 
 use crate::bus_puzzle::{
     get_passenger_color, AgentState, GameStateEnum, GridPos, PassengerColor, PassengerDemand,
-    PassengerEntity, PathNode, PathNodeType, PathfindingAgent, PASSENGER_Z,
+    PassengerEntity, PassengerSpawnedEvent, PathNode, PathNodeType, PathfindingAgent, PASSENGER_Z,
 };
 use bevy::prelude::*;
 
@@ -91,7 +91,7 @@ pub fn spawn_passenger_no_texture(
         let passenger_world_pos = Vec3::new(world_pos.x, world_pos.y, PASSENGER_Z);
         let bevy_color = get_passenger_color(demand.color);
 
-        let entity = commands
+        let _entity = commands
             .spawn((
                 Name::new(format!(
                     "Passenger {:?} {} -> {}",
@@ -125,6 +125,11 @@ pub fn spawn_passenger_no_texture(
             "生成乘客: {:?} {} -> {}",
             demand.color, demand.origin, demand.destination
         );
+        commands.send_event(PassengerSpawnedEvent {
+            color: demand.color,
+            origin: demand.origin.clone(),
+            destination: demand.destination.clone(),
+        });
     } else {
         error!("找不到起点站: {}", demand.origin);
     }

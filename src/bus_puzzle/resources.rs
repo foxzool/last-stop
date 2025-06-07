@@ -25,6 +25,14 @@ pub struct GameState {
     pub is_paused: bool,
     pub objectives_completed: Vec<bool>,
     pub score: GameScore,
+    pub passenger_stats: PassengerStats,
+}
+
+#[derive(Default)]
+pub struct PassengerStats {
+    pub total_spawned: u32,
+    pub total_arrived: u32,
+    pub total_gave_up: u32,
 }
 
 #[derive(Debug, Clone)]
