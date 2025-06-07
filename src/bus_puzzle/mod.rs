@@ -34,9 +34,11 @@ pub use resources::*;
 pub use ui_audio::*;
 pub use utils::*;
 
-use crate::bus_puzzle::{connection_system::ConnectionSystemPlugin, splash::SplashPlugin};
+use crate::bus_puzzle::{
+    connection_system::ConnectionSystemPlugin, junction_pathfinding::JunctionPathfindingPlugin,
+    splash::SplashPlugin,
+};
 use bevy::prelude::*;
-use crate::bus_puzzle::junction_pathfinding::JunctionPathfindingPlugin;
 // ============ 游戏主循环集成 ============
 
 pub struct BusPuzzleGamePlugin;
@@ -71,9 +73,14 @@ impl Plugin for BusPuzzleGamePlugin {
 
         app.add_systems(Startup, initialize_game)
             .add_systems(OnEnter(GameStateEnum::Loading), load_current_level)
+            .add_systems(OnExit(GameStateEnum::Loading), cleanup_loading_state)
             .add_systems(
                 Update,
-                (update_game_score, check_level_failure_conditions)
+                (
+                    update_game_score,
+                    check_level_failure_conditions,
+                    debug_level_reset, // 新增调试功能
+                )
                     .run_if(in_state(GameStateEnum::Playing)),
             );
     }
@@ -84,6 +91,7 @@ fn initialize_game(
     mut level_manager: ResMut<LevelManager>,
     mut game_state: ResMut<GameState>,
     asset_server: Res<AssetServer>,
+    time: Res<Time>,
 ) {
     level_manager.current_level_index = 0;
 
@@ -103,40 +111,178 @@ fn initialize_game(
     game_state.current_level = Some(tutorial_level);
     game_state.player_inventory = inventory;
     game_state.objectives_completed = vec![false; 1];
+    game_state.level_start_time = time.elapsed_secs(); // 设置开始时间
 
-    info!("游戏初始化完成");
+    info!(
+        "游戏初始化完成，开始时间: {:.1}s",
+        game_state.level_start_time
+    );
 }
 
 fn load_current_level(
+    mut commands: Commands,
     mut game_state: ResMut<GameState>,
     level_manager: Res<LevelManager>,
     mut next_state: ResMut<NextState<GameStateEnum>>,
+    asset_server: Res<AssetServer>,
+    mut pathfinding_graph: ResMut<PathfindingGraph>,
+    time: Res<Time>,
+    // 清理现有的游戏实体
+    existing_tiles: Query<Entity, With<GridTile>>,
+    existing_stations: Query<Entity, With<StationEntity>>,
+    existing_segments: Query<Entity, With<RouteSegment>>,
+    existing_passengers: Query<Entity, With<PathfindingAgent>>,
+    existing_previews: Query<Entity, With<SegmentPreview>>,
 ) {
-    if let Some(level_id) = level_manager
+    info!(
+        "开始加载关卡，当前索引: {}",
+        level_manager.current_level_index
+    );
+
+    // 第一步：清理所有现有的游戏实体
+    cleanup_game_world(
+        &mut commands,
+        existing_tiles,
+        existing_stations,
+        existing_segments,
+        existing_passengers,
+        existing_previews,
+    );
+
+    // 第二步：重置寻路图
+    pathfinding_graph.connections.clear();
+    pathfinding_graph.nodes.clear();
+    pathfinding_graph.station_lookup.clear();
+    pathfinding_graph.route_network.clear();
+
+    // 第三步：获取关卡数据
+    let level_data = if let Some(level_id) = level_manager
         .available_levels
         .get(level_manager.current_level_index)
     {
-        let level_data = match level_id.as_str() {
+        match level_id.as_str() {
             "tutorial_01" => create_tutorial_level(),
             _ => create_tutorial_level(),
-        };
-
-        game_state.current_level = Some(level_data.clone());
-        game_state.placed_segments.clear();
-        game_state.total_cost = 0;
-        game_state.game_time = 0.0;
-        game_state.is_paused = false;
-        game_state.objectives_completed = vec![false; level_data.objectives.len()];
-        game_state.score = GameScore::default();
-
-        let mut inventory = HashMap::new();
-        for segment in &level_data.available_segments {
-            inventory.insert(segment.segment_type.clone(), segment.count);
         }
-        game_state.player_inventory = inventory;
+    } else {
+        warn!("无效的关卡索引: {}", level_manager.current_level_index);
+        return;
+    };
 
-        next_state.set(GameStateEnum::Playing);
-        info!("加载关卡: {}", level_id);
+    // 第四步：重置游戏状态
+    reset_game_state(&mut game_state, &level_data, time.elapsed_secs());
+
+    // 第五步：重新生成关卡地图
+    generate_level_map(
+        &mut commands,
+        &asset_server,
+        &level_data,
+        level_manager.tile_size,
+    );
+
+    next_state.set(GameStateEnum::Playing);
+    info!("关卡加载完成: {}", level_data.name);
+}
+
+/// 清理游戏世界中的所有实体
+fn cleanup_game_world(
+    commands: &mut Commands,
+    tiles: Query<Entity, With<GridTile>>,
+    stations: Query<Entity, With<StationEntity>>,
+    segments: Query<Entity, With<RouteSegment>>,
+    passengers: Query<Entity, With<PathfindingAgent>>,
+    previews: Query<Entity, With<SegmentPreview>>,
+) {
+    info!("清理游戏世界实体...");
+
+    // 清理地形瓦片
+    for entity in tiles.iter() {
+        commands.entity(entity).despawn();
+    }
+
+    // 清理站点
+    for entity in stations.iter() {
+        commands.entity(entity).despawn();
+    }
+
+    // 清理路线段
+    for entity in segments.iter() {
+        commands.entity(entity).despawn();
+    }
+
+    // 清理乘客
+    for entity in passengers.iter() {
+        commands.entity(entity).despawn();
+    }
+
+    // 清理预览
+    for entity in previews.iter() {
+        commands.entity(entity).despawn();
+    }
+
+    info!("游戏世界清理完成");
+}
+
+/// 重置游戏状态
+fn reset_game_state(game_state: &mut GameState, level_data: &LevelData, system_time: f32) {
+    info!("重置游戏状态...");
+
+    // 设置关卡数据
+    game_state.current_level = Some(level_data.clone());
+
+    // 清理已放置的路线段
+    game_state.placed_segments.clear();
+
+    // 重置计分和计时
+    game_state.total_cost = 0;
+    game_state.game_time = 0.0;
+    game_state.level_start_time = system_time; // 记录关卡开始时间
+    game_state.is_paused = false;
+    game_state.score = GameScore::default();
+
+    // 重置目标完成状态
+    game_state.objectives_completed = vec![false; level_data.objectives.len()];
+
+    // 重置乘客统计
+    game_state.passenger_stats = PassengerStats {
+        total_spawned: 0,
+        total_arrived: 0,
+        total_gave_up: 0,
+    };
+
+    // 重置库存
+    let mut inventory = HashMap::new();
+    for segment in &level_data.available_segments {
+        inventory.insert(segment.segment_type.clone(), segment.count);
+    }
+    game_state.player_inventory = inventory;
+
+    info!("游戏状态重置完成，关卡开始时间: {:.1}s", system_time);
+}
+
+/// 清理加载状态时的临时资源
+fn cleanup_loading_state() {
+    info!("清理加载状态");
+}
+
+/// F5 - 调试关卡重置功能
+fn debug_level_reset(
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    mut next_state: ResMut<NextState<GameStateEnum>>,
+    game_state: Res<GameState>,
+) {
+    if keyboard_input.just_pressed(KeyCode::F5) {
+        info!("🔄 手动触发关卡重置");
+        info!("当前游戏时间: {:.1}s", game_state.game_time);
+        info!(
+            "当前乘客统计: 生成={}, 到达={}, 放弃={}",
+            game_state.passenger_stats.total_spawned,
+            game_state.passenger_stats.total_arrived,
+            game_state.passenger_stats.total_gave_up
+        );
+        info!("当前库存状态: {:?}", game_state.player_inventory);
+
+        next_state.set(GameStateEnum::Loading);
     }
 }
 

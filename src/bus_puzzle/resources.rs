@@ -22,6 +22,7 @@ pub struct GameState {
     pub placed_segments: HashMap<GridPos, PlacedSegment>,
     pub total_cost: u32,
     pub game_time: f32,
+    pub level_start_time: f32, // 新增：关卡开始时的系统时间
     pub is_paused: bool,
     pub objectives_completed: Vec<bool>,
     pub score: GameScore,

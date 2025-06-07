@@ -152,9 +152,10 @@ fn update_passenger_spawning(
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut game_state: ResMut<GameState>,
 ) {
+    // 重要：使用游戏时间而不是系统时间来判断乘客生成
+    let game_time = game_state.game_time;
     if let Some(level_data) = &mut game_state.current_level {
         let mut rng = rand::rng();
-        let current_time = time.elapsed_secs();
 
         // 提前获取不可变借用的数据
         let level_data_ref = level_data.clone();
@@ -166,9 +167,10 @@ fn update_passenger_spawning(
                     continue; // 跳过这个需求
                 }
             }
-            // 检查时间窗口
+
+            // 检查时间窗口 - 使用游戏时间
             if let Some((start, end)) = demand.spawn_time_range {
-                if current_time < start || current_time > end {
+                if game_time < start || game_time > end {
                     continue;
                 }
             }
@@ -178,12 +180,20 @@ fn update_passenger_spawning(
             let random_value = rng.random::<f32>();
 
             if random_value < spawn_chance {
+                // 在生成前增加计数
+                demand.spawned_count += 1;
+
                 spawn_passenger_no_texture(
                     &mut commands,
                     &mut meshes,
                     &mut materials,
                     demand,
                     &level_data_ref,
+                );
+
+                info!(
+                    "生成乘客 {:?}: {}/{:?} (游戏时间: {:.1}s)",
+                    demand.color, demand.spawned_count, demand.total_count, game_time
                 );
             }
         }
@@ -198,17 +208,48 @@ fn debug_passenger_spawning(
 ) {
     if keyboard_input.just_pressed(KeyCode::F2) {
         info!("=== 乘客生成调试信息 ===");
-        info!("当前游戏时间: {:.1}秒", time.elapsed_secs());
+        info!("系统时间: {:.1}秒", time.elapsed_secs());
+        info!("游戏时间: {:.1}秒", game_state.game_time);
         info!("当前乘客数量: {}", passengers.iter().count());
+        info!(
+            "乘客统计: 生成={}, 到达={}, 放弃={}",
+            game_state.passenger_stats.total_spawned,
+            game_state.passenger_stats.total_arrived,
+            game_state.passenger_stats.total_gave_up
+        );
 
         if let Some(level_data) = &game_state.current_level {
             info!("关卡名称: {}", level_data.name);
             info!("乘客需求数量: {}", level_data.passenger_demands.len());
 
             for (i, demand) in level_data.passenger_demands.iter().enumerate() {
+                let status = if let Some(total) = demand.total_count {
+                    if demand.spawned_count >= total {
+                        "已完成"
+                    } else {
+                        "进行中"
+                    }
+                } else {
+                    "无限制"
+                };
+
+                let time_status = if let Some((start, end)) = demand.spawn_time_range {
+                    format!("时间窗口: {:.1}-{:.1}s", start, end)
+                } else {
+                    "无时间限制".to_string()
+                };
+
                 info!(
-                    "需求 {}: {:?} {} -> {}, 生成率: {}/秒",
-                    i, demand.color, demand.origin, demand.destination, demand.spawn_rate
+                    "需求 {}: {:?} {} -> {}, 生成率: {}/秒, 已生成: {}/{:?} ({}), {}",
+                    i,
+                    demand.color,
+                    demand.origin,
+                    demand.destination,
+                    demand.spawn_rate,
+                    demand.spawned_count,
+                    demand.total_count,
+                    status,
+                    time_status
                 );
             }
         }
@@ -431,7 +472,7 @@ pub fn create_tutorial_level() -> LevelData {
             patience: 120.0, // 增加耐心值到2分钟
             spawn_time_range: Some((5.0, 25.0)),
             total_count: Some(3),
-            spawned_count: 0,
+            spawned_count: 0, // 重要：每次都重置为0
         }],
         available_segments: vec![
             AvailableSegment {
@@ -465,11 +506,8 @@ fn handle_passenger_spawn(
     mut game_state: ResMut<GameState>,
 ) {
     for _spawned_passenger in passenger_spawned_event.read() {
-        if let Some(level_data) = &mut game_state.current_level {
-            for demand in level_data.passenger_demands.iter_mut() {
-                demand.spawned_count += 1;
-            }
-        }
+        // 注意：不要在这里增加计数，因为在 update_passenger_spawning 中已经增加了
+        // 只更新总体统计
         game_state.passenger_stats.total_spawned += 1;
     }
 }
