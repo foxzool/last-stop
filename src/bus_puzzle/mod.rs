@@ -23,7 +23,6 @@ pub use components::*;
 pub use config::*;
 pub use events::*;
 pub use interaction::*;
-pub use junction_movement::*;
 pub use level_system::*;
 pub use passenger_movement_debug::*;
 pub use passenger_test::*;
@@ -52,7 +51,6 @@ impl Plugin for BusPuzzleGamePlugin {
             PassengerTestPlugin,
             PassengerMovementDebugPlugin,
             JunctionPathfindingPlugin,
-            JunctionMovementPlugin,
             FixedConnectionSystemPlugin,
         ));
 

@@ -8,9 +8,9 @@ use std::{
 };
 
 use super::{
-    manhattan_distance, AgentState, Connection, ConnectionType, GameState, GameStateEnum,
-    GraphNode, GraphNodeType, GridPos, LevelManager, PathfindingAgent, PathfindingGraph,
-    RouteSegment, RouteSegmentType, StationEntity, PASSENGER_Z,
+    get_neighbors, manhattan_distance, AgentState, Connection, ConnectionType, GameState,
+    GameStateEnum, GraphNode, GraphNodeType, GridPos, LevelManager, PathfindingAgent,
+    PathfindingGraph, RouteSegment, RouteSegmentType, StationEntity, PASSENGER_Z,
 };
 
 // ============ 寻路相关组件 ============
@@ -466,7 +466,6 @@ fn can_connect_station_to_segment(
 fn find_paths_for_new_passengers(
     pathfinding_graph: Res<PathfindingGraph>,
     mut passengers: Query<&mut PathfindingAgent, Added<PathfindingAgent>>,
-    route_segments: Query<&RouteSegment>,
 ) {
     for mut agent in passengers.iter_mut() {
         // 检查寻路图是否有必要的站点
@@ -488,22 +487,8 @@ fn find_paths_for_new_passengers(
         if let Some(basic_path) =
             find_optimal_path(&pathfinding_graph, &agent.origin, &agent.destination)
         {
-            // 检查路径是否经过路口，如果是则增强路径
-            let enhanced_path = if path_needs_junction_enhancement(&basic_path, &route_segments) {
-                let enhanced =
-                    enhance_path_with_junction_nodes(basic_path.clone(), &route_segments);
-                info!(
-                    "为乘客 {:?} 增强路径，从 {} 步增加到 {} 步",
-                    agent.color,
-                    enhanced.len() - (enhanced.len() - basic_path.len()),
-                    enhanced.len()
-                );
-                enhanced
-            } else {
-                basic_path
-            };
-
-            agent.current_path = enhanced_path;
+            // 暂时禁用路口增强功能，使用基础路径
+            agent.current_path = basic_path;
             agent.current_step = 0;
             agent.state = AgentState::WaitingAtStation;
             agent.waiting_time = 0.0;
@@ -513,6 +498,11 @@ fn find_paths_for_new_passengers(
                 agent.color,
                 agent.current_path.len()
             );
+
+            // 显示路径详情
+            for (i, node) in agent.current_path.iter().enumerate() {
+                info!("  步骤 {}: {:?} ({:?})", i, node.position, node.node_type);
+            }
         } else {
             info!("暂时无法为乘客 {:?} 找到路径，设置为等待状态", agent.color);
             agent.state = AgentState::WaitingAtStation;
@@ -601,6 +591,8 @@ fn update_passenger_movement(
     mut passengers: Query<(&mut PathfindingAgent, &mut Transform)>,
     level_manager: Res<LevelManager>,
     pathfinding_graph: Res<PathfindingGraph>,
+    route_segments: Query<&RouteSegment>,      // 添加路线段查询
+    keyboard_input: Res<ButtonInput<KeyCode>>, // 添加键盘输入用于调试
 ) {
     let dt = time.delta_secs();
     let tile_size = level_manager.tile_size;
@@ -610,6 +602,53 @@ fn update_passenger_movement(
     } else {
         return;
     };
+
+    // F7 - 调试乘客移动状态
+    if keyboard_input.just_pressed(KeyCode::F7) {
+        info!("=== 乘客移动调试 ===");
+        for (agent, transform) in passengers.iter() {
+            if matches!(agent.state, AgentState::Traveling) {
+                info!("乘客 {:?}:", agent.color);
+                info!("  位置: {:?}", transform.translation);
+                info!(
+                    "  路径步骤: {}/{}",
+                    agent.current_step,
+                    agent.current_path.len()
+                );
+
+                if agent.current_step < agent.current_path.len() {
+                    let current_node = &agent.current_path[agent.current_step];
+                    let target_pos =
+                        current_node
+                            .position
+                            .to_world_pos(tile_size, grid_width, grid_height);
+                    let distance = transform.translation.distance(target_pos);
+
+                    info!(
+                        "  当前目标: {:?} (距离: {:.1})",
+                        current_node.position, distance
+                    );
+                    info!("  节点类型: {:?}", current_node.node_type);
+
+                    // 检查是否是路口
+                    let is_junction = route_segments.iter().any(|segment| {
+                        segment.grid_pos == current_node.position
+                            && segment.is_active
+                            && matches!(
+                                segment.segment_type,
+                                RouteSegmentType::Curve
+                                    | RouteSegmentType::TSplit
+                                    | RouteSegmentType::Cross
+                            )
+                    });
+
+                    if is_junction {
+                        info!("  这是一个路口！");
+                    }
+                }
+            }
+        }
+    }
 
     for (mut agent, mut transform) in passengers.iter_mut() {
         // 确保乘客在正确的Z层级
@@ -666,38 +705,77 @@ fn update_passenger_movement(
                             .position
                             .to_world_pos(tile_size, grid_width, grid_height);
 
-                    let direction = (target_pos - transform.translation).normalize_or_zero();
-                    let speed = 120.0;
+                    // 检查当前节点是否是路口类型（Curve, TSplit, Cross）
+                    let is_junction = route_segments.iter().any(|segment| {
+                        segment.grid_pos == current_node.position
+                            && segment.is_active
+                            && matches!(
+                                segment.segment_type,
+                                RouteSegmentType::Curve
+                                    | RouteSegmentType::TSplit
+                                    | RouteSegmentType::Cross
+                            )
+                    });
 
-                    let distance_to_target = transform.translation.distance(target_pos);
-
-                    if distance_to_target > 8.0 {
-                        let movement = Vec3::new(direction.x, direction.y, 0.0) * speed * dt;
-                        transform.translation += movement;
-                        transform.translation.z = PASSENGER_Z; // 保持Z坐标
+                    if is_junction {
+                        // 对于路口，使用更宽松的到达判定
+                        let distance_to_target = transform.translation.distance(target_pos);
+                        if distance_to_target > 15.0 {
+                            // 距离较远，正常移动
+                            let direction =
+                                (target_pos - transform.translation).normalize_or_zero();
+                            let speed = 100.0; // 在路口附近稍慢一些
+                            let movement = Vec3::new(direction.x, direction.y, 0.0) * speed * dt;
+                            transform.translation += movement;
+                            transform.translation.z = PASSENGER_Z;
+                        } else {
+                            // 接近路口，直接移动到下一个节点
+                            let next_step = agent.current_step + 1;
+                            if next_step >= agent.current_path.len() {
+                                agent.state = AgentState::Arrived;
+                                info!("乘客 {:?} 到达路径终点", agent.color);
+                            } else {
+                                info!(
+                                    "乘客 {:?} 通过路口 {:?}",
+                                    agent.color, agent.current_path[agent.current_step].position
+                                );
+                            }
+                            agent.current_step = next_step;
+                        }
                     } else {
-                        // 到达当前节点
-                        transform.translation = target_pos;
-                        transform.translation.z = PASSENGER_Z;
+                        // 普通路段的移动逻辑
+                        let direction = (target_pos - transform.translation).normalize_or_zero();
+                        let speed = 120.0;
+                        let distance_to_target = transform.translation.distance(target_pos);
 
-                        match &current_node.node_type {
-                            PathNodeType::Station(station_name) => {
-                                if station_name == &agent.destination {
-                                    agent.state = AgentState::Arrived;
-                                    info!("乘客 {:?} 到达目的地", agent.color);
-                                } else {
+                        if distance_to_target > 8.0 {
+                            let movement = Vec3::new(direction.x, direction.y, 0.0) * speed * dt;
+                            transform.translation += movement;
+                            transform.translation.z = PASSENGER_Z; // 保持Z坐标
+                        } else {
+                            // 到达当前节点
+                            transform.translation = target_pos;
+                            transform.translation.z = PASSENGER_Z;
+
+                            match &current_node.node_type {
+                                PathNodeType::Station(station_name) => {
+                                    if station_name == &agent.destination {
+                                        agent.state = AgentState::Arrived;
+                                        info!("乘客 {:?} 到达目的地", agent.color);
+                                    } else {
+                                        agent.state = AgentState::Transferring;
+                                    }
+                                }
+                                PathNodeType::TransferPoint => {
                                     agent.state = AgentState::Transferring;
                                 }
-                            }
-                            PathNodeType::TransferPoint => {
-                                agent.state = AgentState::Transferring;
-                            }
-                            _ => {
-                                // 继续移动到下一个节点
-                                agent.current_step += 1;
-                                if agent.current_step >= agent.current_path.len() {
-                                    agent.state = AgentState::Arrived;
-                                    info!("乘客 {:?} 到达路径终点", agent.color);
+                                _ => {
+                                    // 继续移动到下一个节点
+                                    agent.current_step += 1;
+                                    if agent.current_step >= agent.current_path.len() {
+                                        agent.state = AgentState::Arrived;
+                                        info!("乘客 {:?} 到达路径终点", agent.color);
+                                    }
                                 }
                             }
                         }
@@ -984,15 +1062,6 @@ fn rotate_offset(dx: i32, dy: i32, rotation: u32) -> (i32, i32) {
     }
 }
 
-fn get_adjacent_positions(pos: GridPos) -> Vec<GridPos> {
-    vec![
-        GridPos::new(pos.x, pos.y - 1),
-        GridPos::new(pos.x, pos.y + 1),
-        GridPos::new(pos.x - 1, pos.y),
-        GridPos::new(pos.x + 1, pos.y),
-    ]
-}
-
 fn rebuild_connections(pathfinding_graph: &mut PathfindingGraph, game_state: &super::GameState) {
     // 建立路线段之间的连接
     let mut new_connections = Vec::new();
@@ -1033,7 +1102,7 @@ fn rebuild_connections(pathfinding_graph: &mut PathfindingGraph, game_state: &su
     let mut station_connections = Vec::new();
 
     for (_station_name, &station_pos) in &pathfinding_graph.station_lookup {
-        let adjacent_positions = get_adjacent_positions(station_pos);
+        let adjacent_positions = get_neighbors(station_pos);
 
         for adj_pos in adjacent_positions {
             if game_state.placed_segments.contains_key(&adj_pos) {
