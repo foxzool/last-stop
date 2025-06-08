@@ -33,7 +33,7 @@ fn debug_info_system(
     passengers: Query<&bus_puzzle::PathfindingAgent>,
     placed_segments: Query<&bus_puzzle::RouteSegment>,
     buses: Query<&bus_puzzle::BusVehicle>, // 新增：公交车查询
-    bus_routes_manager: Res<bus_puzzle::BusRoutesManager>, // 新增：路线管理器
+    // bus_routes_manager: Res<bus_puzzle::BusRoutesManager>, // 新增：路线管理器
     current_state: Res<State<bus_puzzle::GameStateEnum>>,
     time: Res<Time>,
 ) {
@@ -69,16 +69,16 @@ fn debug_info_system(
         // 新增：公交车系统信息
         info!("=== 公交车系统状态 ===");
         info!("公交车数量: {}", buses.iter().count());
-        info!("路线数量: {}", bus_routes_manager.routes.len());
-
-        for (route_id, route) in &bus_routes_manager.routes {
-            info!(
-                "路线 {}: {} ({}个站点)",
-                route_id,
-                route.route_name,
-                route.stops.len()
-            );
-        }
+        // info!("路线数量: {}", bus_routes_manager.routes.len());
+        //
+        // for (route_id, route) in &bus_routes_manager.routes {
+        //     info!(
+        //         "路线 {}: {} ({}个站点)",
+        //         route_id,
+        //         route.route_name,
+        //         route.stops.len()
+        //     );
+        // }
 
         for bus in buses.iter() {
             info!(
@@ -107,9 +107,11 @@ fn debug_info_system(
         info!("=== 按键提示 ===");
         info!("F2: 乘客生成详情");
         info!("F3: 手动生成测试乘客");
-        info!("F4: 重新发现公交路线并生成公交车 🚌");
-        info!("F5: 公交车系统详细状态");
-        info!("F6: 乘客-公交车交互调试 🚌👥");
+        info!("F4: 智能公交路线发现 🚌 (使用乘客寻路算法)");
+        info!("F5: 智能公交车详细状态 🧠");
+        info!("F6: 乘客状态调试 👥");
+        info!("F7: 乘客移动状态详情 🚶");
+        info!("F8: 连接系统调试 🔗");
         info!("F12: 测试游戏失败菜单");
     }
 }

@@ -1,4 +1,5 @@
 // 模块声明
+pub mod bus_pathfinding_system;
 pub mod bus_system;
 pub mod components;
 pub mod config;
@@ -20,6 +21,8 @@ use bevy::{
     platform::collections::HashMap,
 };
 // 重新导出主要类型
+pub use bus_pathfinding_system::*;
+// 新增：导出公交车寻路系统
 pub use bus_system::*;
 pub use components::*;
 pub use config::*;
@@ -41,6 +44,7 @@ use crate::bus_puzzle::{
         update_passenger_bus_interaction, update_passengers_on_bus,
     },
     splash::SplashPlugin,
+    BusPathfindingPlugin, // 新增：公交车寻路插件
     LevelCompleteData,
 };
 use bevy::prelude::*;
@@ -60,8 +64,9 @@ impl Plugin for BusPuzzleGamePlugin {
             PassengerMovementDebugPlugin,
             FixedConnectionSystemPlugin,
             DebugInfoPlugin,
-            BusSystemPlugin,               // 新增公交车系统
-            PassengerBusIntegrationPlugin, // 新增乘客-公交车交互
+            BusPathfindingPlugin, /* 新增：公交车智能寻路系统
+                                   * BusSystemPlugin,            // 注释掉：旧的公交车系统
+                                   * PassengerBusIntegrationPlugin, // 注释掉：乘客-公交车交互 */
         ));
 
         app.init_resource::<GameState>()
@@ -169,7 +174,7 @@ fn load_current_level(
     mut next_state: ResMut<NextState<GameStateEnum>>,
     asset_server: Res<AssetServer>,
     mut pathfinding_graph: ResMut<PathfindingGraph>,
-    mut bus_routes_manager: ResMut<BusRoutesManager>, // 新增：公交车路线管理器
+    // mut bus_routes_manager: ResMut<BusRoutesManager>, // 新增：公交车路线管理器
     mut level_complete_data: ResMut<LevelCompleteData>, // 添加LevelCompleteData
     time: Res<Time>,
     // 清理现有的游戏实体
@@ -207,8 +212,8 @@ fn load_current_level(
     pathfinding_graph.route_network.clear();
 
     // 清空公交车路线管理器
-    bus_routes_manager.routes.clear();
-    info!("公交车路线管理器已重置");
+    // bus_routes_manager.routes.clear();
+    // info!("公交车路线管理器已重置");
 
     // 第四步：获取关卡数据
     let level_data = if let Some(level_id) = level_manager

@@ -410,46 +410,23 @@ fn find_paths_for_new_passengers(
     mut passengers: Query<&mut PathfindingAgent, Added<PathfindingAgent>>,
 ) {
     for mut agent in passengers.iter_mut() {
-        // 检查寻路图是否有必要的站点
-        if !pathfinding_graph.station_lookup.contains_key(&agent.origin) {
-            warn!("找不到起点站: {}", agent.origin);
-            agent.state = AgentState::GaveUp;
-            continue;
-        }
+        // 禁用乘客寻路：让乘客只能等车，不能自己寻路
+        info!(
+            "乘客 {:?} 生成，设置为等车模式: {} -> {}",
+            agent.color, agent.origin, agent.destination
+        );
 
-        if !pathfinding_graph
-            .station_lookup
-            .contains_key(&agent.destination)
-        {
-            warn!("找不到终点站: {}", agent.destination);
-            agent.state = AgentState::GaveUp;
-            continue;
-        }
+        // 清空路径，让乘客等车
+        agent.current_path.clear();
+        agent.current_step = 0;
+        agent.state = AgentState::WaitingAtStation;
+        agent.waiting_time = 0.0;
 
-        if let Some(basic_path) =
-            find_optimal_path(&pathfinding_graph, &agent.origin, &agent.destination)
-        {
-            // 暂时禁用路口增强功能，使用基础路径
-            agent.current_path = basic_path;
-            agent.current_step = 0;
-            agent.state = AgentState::WaitingAtStation;
-            agent.waiting_time = 0.0;
-
-            info!(
-                "为乘客 {:?} 找到路径，共 {} 步",
-                agent.color,
-                agent.current_path.len()
-            );
-
-            // 显示路径详情
-            for (i, node) in agent.current_path.iter().enumerate() {
-                info!("  步骤 {}: {:?} ({:?})", i, node.position, node.node_type);
-            }
-        } else {
-            info!("暂时无法为乘客 {:?} 找到路径，设置为等待状态", agent.color);
-            agent.state = AgentState::WaitingAtStation;
-            agent.waiting_time = 0.0;
-        }
+        // 不进行寻路，让公交车来处理
+        warn!(
+            "乘客寻路已禁用 - 乘客 {:?} 需要等车从 {} 到 {}",
+            agent.color, agent.origin, agent.destination
+        );
     }
 }
 
@@ -462,9 +439,9 @@ fn update_passenger_movement(
     keyboard_input: Res<ButtonInput<KeyCode>>, // 添加键盘输入用于调试
 ) {
     let dt = time.delta_secs();
-    let tile_size = level_manager.tile_size;
+    let _tile_size = level_manager.tile_size;
 
-    let (grid_width, grid_height) = if let Some(level_data) = &level_manager.current_level {
+    let (_grid_width, _grid_height) = if let Some(level_data) = &level_manager.current_level {
         level_data.grid_size
     } else {
         return;
@@ -472,7 +449,7 @@ fn update_passenger_movement(
 
     // F7 - 调试乘客移动状态
     if keyboard_input.just_pressed(KeyCode::F7) {
-        info!("=== 乘客移动调试 ===");
+        info!("=== 乘客移动调试 (寻路已禁用) ===");
         for (agent, transform) in passengers.iter() {
             info!("乘客 {:?}:", agent.color);
             info!(
@@ -480,205 +457,75 @@ fn update_passenger_movement(
                 transform.translation.x, transform.translation.y
             );
             info!("  状态: {:?}", agent.state);
-            info!(
-                "  路径步骤: {}/{}",
-                agent.current_step,
-                agent.current_path.len()
-            );
             info!("  耐心: {:.1}/{:.1}", agent.patience, agent.max_patience);
+            info!("  等待时间: {:.1}s", agent.waiting_time);
+            info!("  路径: {} 步 (被禁用)", agent.current_path.len());
 
-            if !agent.current_path.is_empty() {
-                info!("  完整路径:");
-                for (i, node) in agent.current_path.iter().enumerate() {
-                    let marker = if i == agent.current_step {
-                        " -> "
-                    } else {
-                        "    "
-                    };
-                    let node_name = match &node.node_type {
-                        PathNodeType::Station(name) => format!("站点:{}", name),
-                        PathNodeType::RouteSegment => "路线段".to_string(),
-                        PathNodeType::TransferPoint => "换乘点".to_string(),
-                    };
-                    info!("{}步骤 {}: {:?} ({})", marker, i, node.position, node_name);
-                }
-
-                if agent.current_step < agent.current_path.len() {
-                    let current_node = &agent.current_path[agent.current_step];
-                    let target_pos =
-                        current_node
-                            .position
-                            .to_world_pos(tile_size, grid_width, grid_height);
-                    let distance = transform.translation.distance(target_pos);
-                    info!("  当前目标距离: {:.1}", distance);
-
-                    // 检查是否是路口
-                    let is_junction = route_segments.iter().any(|segment| {
-                        segment.grid_pos == current_node.position
-                            && segment.is_active
-                            && matches!(
-                                segment.segment_type,
-                                RouteSegmentType::Curve
-                                    | RouteSegmentType::TSplit
-                                    | RouteSegmentType::Cross
-                            )
-                    });
-
-                    if is_junction {
-                        info!("  当前位置是路口");
-                    }
-                }
+            if agent.current_path.is_empty() {
+                info!("  ✅ 正确状态: 等车中，没有自主寻路路径");
             } else {
-                warn!("  没有路径！");
+                warn!("  ⚠️ 异常状态: 仍有寻路路径，应该被清空");
             }
             info!(""); // 空行分隔
         }
     }
 
+    // 禁用乘客自主移动 - 乘客只能等车，不能自己移动
     for (mut agent, mut transform) in passengers.iter_mut() {
         // 确保乘客在正确的Z层级
-        transform.translation.z = PASSENGER_Z;
+        transform.translation.z = crate::bus_puzzle::PASSENGER_Z;
 
         match agent.state {
             AgentState::WaitingAtStation => {
                 agent.waiting_time += dt;
-                // 减缓耐心消耗速度，避免过快放弃
-                agent.patience -= dt * 0.1; // 原来是dt，现在减慢10倍
+                // 减缓耐心消耗速度
+                agent.patience -= dt * 0.05; // 进一步减慢耐心消耗
 
-                // 如果有路径，等待一段时间后开始移动
-                if !agent.current_path.is_empty() && agent.waiting_time > 1.0 {
-                    agent.state = AgentState::Traveling;
-                    agent.waiting_time = 0.0;
-                    info!("乘客 {:?} 开始移动", agent.color);
-                } else if agent.current_path.is_empty() {
-                    // 尝试重新寻路（也许玩家建设了新的路线）
-                    if agent.waiting_time > 3.0 {
-                        // 每3秒尝试一次重新寻路
-                        if let Some(path) =
-                            find_optimal_path(&pathfinding_graph, &agent.origin, &agent.destination)
-                        {
-                            agent.current_path = path;
-                            agent.current_step = 0;
-                            agent.waiting_time = 0.0;
-                            info!("乘客 {:?} 找到新路径，准备出发", agent.color);
-                        } else {
-                            agent.waiting_time = 0.0; // 重置等待时间，继续等待
-                        }
-                    }
+                // 清空任何可能存在的寻路路径
+                if !agent.current_path.is_empty() {
+                    agent.current_path.clear();
+                    agent.current_step = 0;
                 }
-            }
-            AgentState::Transferring => {
-                agent.waiting_time += dt;
-                agent.patience -= dt * 0.2; // 换乘时耐心消耗稍快
 
-                if agent.waiting_time > 0.8
-                    && agent.current_step < agent.current_path.len().saturating_sub(1)
-                {
-                    agent.current_step += 1;
-                    agent.state = AgentState::Traveling;
-                    agent.waiting_time = 0.0;
-                }
+                // 乘客只能等车，不能自主移动
+                info!(
+                    "乘客 {:?} 等车中: {} -> {} (等待 {:.1}s)",
+                    agent.color, agent.origin, agent.destination, agent.waiting_time
+                );
             }
             AgentState::Traveling => {
-                // 移动时不消耗耐心，或者消耗很少
-                agent.patience -= dt * 0.05;
-
-                if agent.current_step < agent.current_path.len() {
-                    let current_node = &agent.current_path[agent.current_step];
-                    let current_node_position = current_node.position;
-                    let target_pos =
-                        current_node
-                            .position
-                            .to_world_pos(tile_size, grid_width, grid_height);
-
-                    // 检查当前节点是否是路口类型（Curve, TSplit, Cross）
-                    let is_junction = route_segments.iter().any(|segment| {
-                        segment.grid_pos == current_node.position
-                            && segment.is_active
-                            && matches!(
-                                segment.segment_type,
-                                RouteSegmentType::Curve
-                                    | RouteSegmentType::TSplit
-                                    | RouteSegmentType::Cross
-                            )
-                    });
-
-                    if is_junction {
-                        // 对于路口，使用更宽松的到达判定
-                        let distance_to_target = transform.translation.distance(target_pos);
-                        if distance_to_target > 15.0 {
-                            // 距离较远，正常移动
-                            let direction =
-                                (target_pos - transform.translation).normalize_or_zero();
-                            let speed = WALKING_SPEED * 2.0; // 在路口附近稍慢一些
-                            let movement = Vec3::new(direction.x, direction.y, 0.0) * speed * dt;
-                            transform.translation += movement;
-                            transform.translation.z = PASSENGER_Z;
-                        } else {
-                            // 接近路口，直接移动到下一个节点
-                            agent.current_step += 1;
-                            if agent.current_step >= agent.current_path.len() {
-                                agent.state = AgentState::Arrived;
-                                info!("乘客 {:?} 到达路径终点", agent.color);
-                            } else {
-                                info!(
-                                    "乘客 {:?} 通过路口 {:?} -> 下一站 {:?}",
-                                    agent.color,
-                                    current_node_position,
-                                    agent.current_path[agent.current_step].position
-                                );
-                            }
-                        }
-                    } else {
-                        // 普通路段的移动逻辑
-                        let direction = (target_pos - transform.translation).normalize_or_zero();
-                        let speed = BUS_SPEED * 0.8; // 公交车速度稍微调低一些适合游戏体验
-                        let distance_to_target = transform.translation.distance(target_pos);
-
-                        if distance_to_target > 8.0 {
-                            let movement = Vec3::new(direction.x, direction.y, 0.0) * speed * dt;
-                            transform.translation += movement;
-                            transform.translation.z = PASSENGER_Z; // 保持Z坐标
-                        } else {
-                            // 到达当前节点
-                            transform.translation = target_pos;
-                            transform.translation.z = PASSENGER_Z;
-
-                            match &current_node.node_type {
-                                PathNodeType::Station(station_name) => {
-                                    if station_name == &agent.destination {
-                                        agent.state = AgentState::Arrived;
-                                        info!("乘客 {:?} 到达目的地", agent.color);
-                                    } else {
-                                        agent.state = AgentState::Transferring;
-                                    }
-                                }
-                                PathNodeType::TransferPoint => {
-                                    agent.state = AgentState::Transferring;
-                                }
-                                _ => {
-                                    // 继续移动到下一个节点
-                                    agent.current_step += 1;
-                                    if agent.current_step >= agent.current_path.len() {
-                                        agent.state = AgentState::Arrived;
-                                        info!("乘客 {:?} 到达路径终点", agent.color);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                // 如果乘客处于移动状态，将其重置为等车状态
+                warn!("乘客 {:?} 不应该自主移动，重置为等车状态", agent.color);
+                agent.state = AgentState::WaitingAtStation;
+                agent.current_path.clear();
+                agent.current_step = 0;
             }
-            _ => {}
+            AgentState::Transferring => {
+                // 换乘状态也重置为等车
+                warn!("乘客 {:?} 换乘状态重置为等车状态", agent.color);
+                agent.state = AgentState::WaitingAtStation;
+                agent.current_path.clear();
+                agent.current_step = 0;
+            }
+            AgentState::Arrived => {
+                // 已到达状态保持不变
+                info!("乘客 {:?} 已到达目的地", agent.color);
+            }
+            AgentState::GaveUp => {
+                // 放弃状态保持不变
+                warn!("乘客 {:?} 已放弃", agent.color);
+            }
         }
 
         // 检查耐心值 - 给更多的耐心时间
-        if agent.patience <= 0.0 && agent.state != AgentState::Arrived {
+        if agent.patience <= 0.0
+            && agent.state != AgentState::Arrived
+            && agent.state != AgentState::GaveUp
+        {
             agent.state = AgentState::GaveUp;
             warn!(
-                "乘客 {:?} 耐心耗尽，等待了 {:.1} 秒",
-                agent.color,
-                agent.max_patience - agent.patience
+                "乘客 {:?} 等车耐心耗尽，等待了 {:.1} 秒",
+                agent.color, agent.waiting_time
             );
         }
     }
@@ -721,7 +568,7 @@ fn cleanup_finished_passengers(
 
 // ============ A* 寻路算法实现 ============
 
-fn find_optimal_path(
+pub fn find_optimal_path(
     graph: &PathfindingGraph,
     origin: &str,
     destination: &str,
