@@ -42,6 +42,7 @@ pub struct BusPathfindingManager {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct BusRouteInfo {
     pub route_id: String,
     pub stations: Vec<String>,

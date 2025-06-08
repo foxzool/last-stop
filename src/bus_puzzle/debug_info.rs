@@ -191,6 +191,7 @@ fn debug_level_reset(
 }
 
 /// F6 - 调试关卡状态
+#[allow(dead_code)]
 fn debug_level_status(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     level_manager: Res<LevelManager>,

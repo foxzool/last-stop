@@ -345,6 +345,7 @@ impl RouteDiscoverySystem {
     }
 
     /// 检查从pos1是否可以连接到segment
+    #[allow(dead_code)]
     fn can_connect(pos1: GridPos, segment: &RouteSegment) -> bool {
         // 简化版本：检查路线段是否有朝向pos1的连接端口
         segment
@@ -543,7 +544,7 @@ pub fn spawn_bus_vehicle(
                 current_passengers: Vec::new(),
                 current_stop_index: 0,
                 direction: BusDirection::Forward,
-                state: BusState::Idle,
+                state: BusState::Loading,
                 speed: 80.0,
                 dwell_time: 3.0,
                 remaining_dwell: 0.0,

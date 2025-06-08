@@ -10,7 +10,7 @@ use std::{
 use super::{
     get_neighbors, AgentState, Connection, ConnectionType, GameState, GameStateEnum, GraphNode,
     GraphNodeType, GridPos, LevelManager, PathfindingAgent, PathfindingGraph, RouteSegment,
-    RouteSegmentType, StationEntity, BUS_SPEED, PASSENGER_Z, WALKING_SPEED,
+    RouteSegmentType, StationEntity,
 };
 
 // ============ 寻路相关组件 ============
@@ -406,7 +406,7 @@ fn segment_can_connect_to_station(segment: &RouteSegment, station_pos: GridPos) 
 }
 
 fn find_paths_for_new_passengers(
-    pathfinding_graph: Res<PathfindingGraph>,
+    // pathfinding_graph: Res<PathfindingGraph>,
     mut passengers: Query<&mut PathfindingAgent, Added<PathfindingAgent>>,
 ) {
     for mut agent in passengers.iter_mut() {

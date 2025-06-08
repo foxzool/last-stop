@@ -1,8 +1,8 @@
 // src/bus_puzzle/passenger_boarding_system.rs - 乘客上下车系统
 
 use crate::bus_puzzle::{
-    AgentState, BusPathfindingAgent, BusPathfindingState, BusState, BusVehicle, GameStateEnum,
-    LevelManager, PathfindingAgent, StationEntity, PASSENGER_Z,
+    AgentState, BusPathfindingAgent, BusPathfindingState, BusVehicle, GameStateEnum, LevelManager,
+    PathfindingAgent, StationEntity, PASSENGER_Z,
 };
 use bevy::prelude::*;
 
@@ -239,7 +239,7 @@ fn handle_passenger_alighting(
         passengers_on_bus.iter_mut()
     {
         // 找到乘客所在的公交车
-        if let Some((bus_entity, mut bus_vehicle, bus_agent, bus_transform)) = buses
+        if let Some((_bus_entity, mut bus_vehicle, bus_agent, bus_transform)) = buses
             .iter_mut()
             .find(|(entity, _, _, _)| *entity == on_bus.bus_entity)
         {
@@ -315,7 +315,6 @@ fn handle_passenger_alighting(
 
 fn update_passengers_on_bus(
     passengers_on_bus: Query<(&OnBus, &PathfindingAgent)>,
-    buses: Query<(&BusVehicle, &BusPathfindingAgent)>,
     time: Res<Time>,
 ) {
     // 每10秒更新一次乘车统计（避免日志过多）

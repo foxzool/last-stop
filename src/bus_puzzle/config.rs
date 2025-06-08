@@ -60,9 +60,11 @@ pub const MAX_PATHFINDING_ITERATIONS: usize = 1000;
 pub const TRANSFER_COST_MULTIPLIER: f32 = 5.0;
 
 /// 步行速度 (像素/秒)
+#[allow(dead_code)]
 pub const WALKING_SPEED: f32 = 50.0;
 
 /// 公交车速度 (像素/秒)
+#[allow(dead_code)]
 pub const BUS_SPEED: f32 = 150.0;
 
 // ============ UI 相关常量 ============
