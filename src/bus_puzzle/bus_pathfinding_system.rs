@@ -2,12 +2,11 @@
 // 使用乘客验证过的寻路算法来驱动公交车移动
 
 use crate::bus_puzzle::{
-    find_optimal_path, BusDirection, BusState, BusVehicle, GameStateEnum, LevelManager, PathNode,
-    PathNodeType, PathfindingGraph, RouteSegment, StationEntity, PASSENGER_Z, ROUTE_Z,
+    find_optimal_path, BusDirection, BusState, BusVehicle, GameState, GameStateEnum, LevelManager,
+    PathNode, PathNodeType, PathfindingGraph, RouteSegment, StationEntity, PASSENGER_Z, ROUTE_Z,
 };
 use bevy::prelude::*;
 use std::collections::{HashMap, HashSet};
-
 
 // ============ 公交车寻路组件 ============
 
@@ -100,6 +99,7 @@ fn discover_bus_routes_pathfinding(
     asset_server: Res<AssetServer>,
     level_manager: Res<LevelManager>,
     existing_buses: Query<Entity, With<BusVehicle>>,
+    game_state: Res<GameState>,
 ) {
     if keyboard_input.just_pressed(KeyCode::F4) {
         info!("🚌 使用寻路算法重新发现公交路线...");
@@ -135,82 +135,144 @@ fn discover_bus_routes_pathfinding(
         }
 
         info!("智能路线发现完成: {} 条路线", bus_manager.bus_routes.len());
+
+        let routes: Vec<BusRouteInfo> = bus_manager.bus_routes.values().cloned().collect();
+        check_passenger_coverage(&routes, &game_state)
     }
 }
 
-/// 使用寻路图发现公交路线
 fn discover_routes_using_pathfinding(
     pathfinding_graph: &PathfindingGraph,
     stations: Query<&StationEntity>,
 ) -> Vec<BusRouteInfo> {
     let mut routes = Vec::new();
-    let mut processed_stations = HashSet::new();
+    let mut processed_pairs = HashSet::new();
 
     let station_list: Vec<_> = stations.iter().collect();
 
+    // 为每对站点尝试创建路线
     for (i, start_station) in station_list.iter().enumerate() {
-        let start_name = &start_station.station_data.name;
-
-        if processed_stations.contains(start_name) {
-            continue;
-        }
-
-        // 尝试找到一条连接多个站点的路线
-        let mut route_stations = vec![start_name.clone()];
-        let mut current_station = start_name;
-
-        // 寻找可达的其他站点
-        for end_station in station_list.iter().skip(i + 1) {
-            let end_name = &end_station.station_data.name;
-
-            if processed_stations.contains(end_name) || current_station == end_name {
-                continue;
+        for (j, end_station) in station_list.iter().enumerate() {
+            if i >= j {
+                continue; // 避免重复和自己到自己
             }
 
+            let start_name = &start_station.station_data.name;
+            let end_name = &end_station.station_data.name;
+
+            // 避免重复处理相同的站点对
+            let pair_key = if start_name < end_name {
+                (start_name.clone(), end_name.clone())
+            } else {
+                (end_name.clone(), start_name.clone())
+            };
+
+            if processed_pairs.contains(&pair_key) {
+                continue;
+            }
+            processed_pairs.insert(pair_key);
+
             // 使用寻路算法检查连通性
-            if let Some(path) = find_optimal_path(pathfinding_graph, current_station, end_name) {
+            if let Some(path) = find_optimal_path(pathfinding_graph, start_name, end_name) {
                 if path.len() > 1 {
-                    // 找到有效路径
+                    // 创建双向路线（往返服务）
+                    let route_id = format!("智能路线_{}", routes.len() + 1);
+
+                    // 检查路径中是否包含中转站，如果有则加入路线
+                    let mut route_stations = vec![start_name.clone()];
+
+                    // 添加路径中的中转站点
+                    for path_node in &path[1..path.len() - 1] {
+                        if let PathNodeType::Station(station_name) = &path_node.node_type {
+                            if !route_stations.contains(station_name) {
+                                route_stations.push(station_name.clone());
+                            }
+                        }
+                    }
+
+                    // 添加终点站
                     route_stations.push(end_name.clone());
-                    current_station = end_name;
+
+                    let route_info = BusRouteInfo {
+                        route_id: route_id.clone(),
+                        stations: route_stations.clone(),
+                        is_circular: false,
+                        max_vehicles: 1,
+                    };
 
                     info!(
-                        "找到连接: {} -> {} (路径长度: {})",
-                        route_stations[route_stations.len() - 2],
-                        end_name,
+                        "创建智能路线 {}: {:?} (路径长度: {})",
+                        route_id,
+                        route_stations,
                         path.len()
                     );
 
-                    // 如果已经有足够的站点，可以创建路线
-                    if route_stations.len() >= 2 {
-                        break;
-                    }
+                    routes.push(route_info);
                 }
+            } else {
+                info!(
+                    "无法找到从 {} 到 {} 的路径，跳过创建路线",
+                    start_name, end_name
+                );
             }
         }
+    }
 
-        // 如果找到了有效路线
-        if route_stations.len() >= 2 {
-            let route_id = format!("智能路线_{}", routes.len() + 1);
+    // 如果没有发现任何路线，创建一个包含所有站点的主干路线
+    if routes.is_empty() {
+        warn!("没有发现任何有效路线，尝试创建主干路线");
+
+        let all_stations: Vec<String> = station_list
+            .iter()
+            .map(|s| s.station_data.name.clone())
+            .collect();
+
+        if all_stations.len() >= 2 {
             let route_info = BusRouteInfo {
-                route_id: route_id.clone(),
-                stations: route_stations.clone(),
+                route_id: "主干路线".to_string(),
+                stations: all_stations.clone(),
                 is_circular: false,
                 max_vehicles: 1,
             };
 
-            info!("创建智能路线 {}: {:?}", route_id, route_stations);
-
-            // 标记这些站点为已处理
-            for station_name in &route_stations {
-                processed_stations.insert(station_name.clone());
-            }
-
+            info!("创建主干路线: {:?}", all_stations);
             routes.push(route_info);
         }
     }
 
     routes
+}
+
+// 同时需要添加这个函数来检查乘客需求覆盖率
+fn check_passenger_coverage(routes: &[BusRouteInfo], game_state: &crate::bus_puzzle::GameState) {
+    if let Some(level_data) = &game_state.current_level {
+        info!("=== 乘客需求覆盖分析 ===");
+
+        for demand in &level_data.passenger_demands {
+            let mut covered = false;
+
+            for route in routes {
+                let has_origin = route.stations.contains(&demand.origin);
+                let has_destination = route.stations.contains(&demand.destination);
+
+                if has_origin && has_destination {
+                    covered = true;
+                    info!(
+                        "✅ 乘客需求 {:?} {} -> {} 被路线 {} 覆盖",
+                        demand.color, demand.origin, demand.destination, route.route_id
+                    );
+                    break;
+                }
+            }
+
+            if !covered {
+                warn!(
+                    "❌ 乘客需求 {:?} {} -> {} 没有被任何路线覆盖！",
+                    demand.color, demand.origin, demand.destination
+                );
+            }
+        }
+    }
 }
 
 /// 生成使用寻路算法的公交车

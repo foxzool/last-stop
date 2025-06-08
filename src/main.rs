@@ -2,6 +2,7 @@
 #![cfg_attr(bevy_lint, feature(register_tool), register_tool(bevy))]
 // 在Windows非开发版本中禁用控制台。
 #![cfg_attr(not(feature = "dev"), windows_subsystem = "windows")]
+extern crate core;
 
 mod bus_puzzle;
 #[cfg(feature = "dev")]
@@ -33,7 +34,7 @@ impl Plugin for AppPlugin {
                         fit_canvas_to_parent: true,
                         ..default()
                     }
-                    .into(),
+                        .into(),
                     ..default()
                 })
                 .set(ImagePlugin::default_nearest()),
