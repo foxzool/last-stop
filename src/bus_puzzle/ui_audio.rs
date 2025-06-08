@@ -33,6 +33,7 @@ pub struct LevelCompleteUI;
 pub struct GameOverUI;
 
 #[derive(Component)]
+#[allow(dead_code)]
 pub struct ObjectiveUI {
     pub objective_index: usize,
 }
@@ -45,6 +46,7 @@ pub struct ProgressBar {
 }
 
 #[derive(Clone, PartialEq)]
+#[allow(dead_code)]
 pub enum ProgressBarType {
     ObjectiveProgress,
     TimeRemaining,
@@ -61,6 +63,7 @@ pub struct PassengerColorCountText {
 }
 
 #[derive(Component)]
+#[allow(dead_code)]
 pub struct PassengerColorIcon {
     pub color: PassengerColor,
 }
@@ -110,6 +113,7 @@ pub enum ButtonType {
 // ============ 资源定义 ============
 
 #[derive(Resource)]
+#[allow(dead_code)]
 pub struct UIAssets {
     pub font: Handle<Font>,
     pub button_texture: Handle<Image>,
@@ -132,7 +136,6 @@ pub struct GameOverData {
     pub final_score: u32,
     pub game_time: f32,
     pub passengers_gave_up: u32,
-    pub time_exceeded: bool,
 }
 
 #[derive(Resource)]

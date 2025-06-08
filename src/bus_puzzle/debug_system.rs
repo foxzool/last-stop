@@ -129,7 +129,6 @@ fn debug_trigger_game_over(
             final_score: game_state.score.total_score,
             game_time: game_state.game_time,
             passengers_gave_up: gave_up_count,
-            time_exceeded: false,
         });
 
         next_state.set(GameStateEnum::GameOver);

@@ -4,7 +4,7 @@ use crate::bus_puzzle::{
     get_passenger_color, AgentState, GameState, GameStateEnum, GridPos, GridTile,
     LevelCompletedEvent, LevelManager, PassengerColor, PassengerEntity, PassengerSpawnedEvent,
     PathfindingAgent, RouteSegment, RouteSegmentType, StationEntity, StationType, TerrainType,
-    PASSENGER_Z, ROUTE_Z, STATION_Z, TERRAIN_Z, DEFAULT_TILE_SIZE,
+    DEFAULT_PASSENGER_PATIENCE, DEFAULT_TILE_SIZE, PASSENGER_Z, ROUTE_Z, STATION_Z, TERRAIN_Z,
 };
 use bevy::{platform::collections::HashMap, prelude::*};
 use rand::Rng;
@@ -534,7 +534,7 @@ pub fn create_tutorial_level() -> LevelData {
             origin: "A站".to_string(),
             destination: "B站".to_string(),
             spawn_rate: 0.5,
-            patience: 120.0, // 增加耐心值到2分钟
+            patience: DEFAULT_PASSENGER_PATIENCE,
             spawn_time_range: Some((5.0, 25.0)),
             total_count: Some(3),
             spawned_count: 0, // 重要：每次都重置为0

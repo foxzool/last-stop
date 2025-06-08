@@ -160,7 +160,12 @@ impl RouteSegmentType {
     }
 
     /// 检查路线段在指定旋转下是否有连接到目标位置的端口
-    pub fn has_connection_to(&self, segment_pos: GridPos, target_pos: GridPos, rotation: u32) -> bool {
+    pub fn has_connection_to(
+        &self,
+        segment_pos: GridPos,
+        target_pos: GridPos,
+        rotation: u32,
+    ) -> bool {
         let connection_offsets = self.get_connection_offsets(rotation);
         let target_offset = (target_pos.x - segment_pos.x, target_pos.y - segment_pos.y);
         connection_offsets.contains(&target_offset)
@@ -196,6 +201,7 @@ pub enum PassengerColor {
 
 // Bevy 组件
 #[derive(Component)]
+#[allow(dead_code)]
 pub struct GridTile {
     pub grid_pos: GridPos,
     pub terrain_type: TerrainType,
@@ -210,12 +216,14 @@ pub struct RouteSegment {
 }
 
 #[derive(Component)]
+#[allow(dead_code)]
 pub struct StationEntity {
     pub station_data: Station,
     pub current_passengers: u32,
 }
 
 #[derive(Component)]
+#[allow(dead_code)]
 pub struct PassengerEntity {
     pub color: PassengerColor,
     pub origin: String,
@@ -261,12 +269,14 @@ pub struct PauseMenuUI;
 pub struct LevelCompleteUI;
 
 #[derive(Component)]
+#[allow(dead_code)]
 pub struct InventoryUI {
     pub segment_type: RouteSegmentType,
     pub slot_index: usize,
 }
 
 #[derive(Component)]
+#[allow(dead_code)]
 pub struct ObjectiveUI {
     pub objective_index: usize,
 }
@@ -285,6 +295,7 @@ pub struct PassengerCountText;
 
 // 交互组件
 #[derive(Component)]
+#[allow(dead_code)]
 pub struct DraggableSegment {
     pub segment_type: RouteSegmentType,
     pub rotation: u32,
@@ -294,6 +305,7 @@ pub struct DraggableSegment {
 }
 
 #[derive(Component)]
+#[allow(dead_code)]
 pub struct SegmentPreview {
     pub segment_type: RouteSegmentType,
     pub rotation: u32,
@@ -301,6 +313,7 @@ pub struct SegmentPreview {
 }
 
 #[derive(Component)]
+#[allow(dead_code)]
 pub struct GridHighlight {
     pub is_valid_placement: bool,
 }
@@ -309,6 +322,7 @@ pub struct GridHighlight {
 pub struct UIElement;
 
 #[derive(Component)]
+#[allow(dead_code)]
 pub struct InventorySlot {
     pub slot_index: usize,
     pub segment_type: Option<RouteSegmentType>,
@@ -321,6 +335,7 @@ pub struct InventoryCountText {
 }
 
 #[derive(Component)]
+#[allow(dead_code)]
 pub struct ObjectiveTracker {
     pub objective_index: usize,
     pub is_completed: bool,

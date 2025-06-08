@@ -2,6 +2,7 @@ use crate::bus_puzzle::{GridPos, PassengerColor, RouteSegmentType};
 use bevy::prelude::*;
 
 #[derive(Event)]
+#[allow(dead_code)]
 pub struct SegmentPlacedEvent {
     pub position: GridPos,
     pub segment_type: RouteSegmentType,
@@ -31,6 +32,7 @@ pub struct InventoryUpdatedEvent {
 }
 
 #[derive(Event)]
+#[allow(dead_code)]
 pub struct PassengerSpawnedEvent {
     pub color: PassengerColor,
     pub origin: String,
@@ -38,6 +40,7 @@ pub struct PassengerSpawnedEvent {
 }
 
 #[derive(Event)]
+#[allow(dead_code)]
 pub struct PassengerArrivedEvent {
     pub color: PassengerColor,
     pub travel_time: f32,

@@ -724,8 +724,3 @@ fn calculate_passenger_satisfaction(passengers: &Query<&PathfindingAgent>) -> f3
 
     satisfied_count as f32 / passengers.iter().count() as f32
 }
-
-fn calculate_final_score(game_state: &GameState) -> u32 {
-    // 直接使用已经计算好的总分数，避免重复计算
-    game_state.score.total_score
-}

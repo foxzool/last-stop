@@ -54,6 +54,7 @@ pub struct GameScore {
 }
 
 #[derive(Resource, Default)]
+#[allow(dead_code)]
 pub struct InputState {
     pub mouse_world_pos: Vec3,
     pub selected_segment: Option<RouteSegmentType>,
@@ -84,6 +85,7 @@ impl Default for CameraController {
 }
 
 #[derive(Resource)]
+#[allow(dead_code)]
 pub struct LevelManager {
     pub current_level: Option<LevelData>,
     pub tile_size: f32,
@@ -121,6 +123,7 @@ pub struct PathfindingGraph {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct GraphNode {
     pub position: GridPos,
     pub node_type: GraphNodeType,
@@ -136,6 +139,7 @@ pub enum GraphNodeType {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct Connection {
     pub to: GridPos,
     pub cost: f32,
@@ -151,6 +155,7 @@ pub enum ConnectionType {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct RouteInfo {
     pub id: String,
     pub segments: Vec<GridPos>,

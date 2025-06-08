@@ -345,7 +345,6 @@ fn check_level_failure_conditions(
             final_score: game_state.score.total_score,
             game_time: game_state.game_time,
             passengers_gave_up: gave_up_count,
-            time_exceeded: false,
         });
 
         // 播放失败音效
@@ -381,7 +380,6 @@ fn check_level_failure_conditions(
                         final_score: game_state.score.total_score,
                         game_time: game_state.game_time,
                         passengers_gave_up: gave_up_count,
-                        time_exceeded: true,
                     });
 
                     // 播放失败音效
@@ -416,7 +414,6 @@ fn check_level_failure_conditions(
                         final_score: game_state.score.total_score,
                         game_time: game_state.game_time,
                         passengers_gave_up: gave_up_count,
-                        time_exceeded: false,
                     });
 
                     if !audio_settings.is_muted {

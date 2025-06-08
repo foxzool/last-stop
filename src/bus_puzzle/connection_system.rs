@@ -53,8 +53,12 @@ fn debug_connections_with_directions(
             );
 
             // 显示该路线段的连接端口
-            let connection_positions = segment.segment_type.get_connection_positions(segment.grid_pos, segment.rotation);
-            let connection_offsets = segment.segment_type.get_connection_offsets(segment.rotation);
+            let connection_positions = segment
+                .segment_type
+                .get_connection_positions(segment.grid_pos, segment.rotation);
+            let connection_offsets = segment
+                .segment_type
+                .get_connection_offsets(segment.rotation);
 
             info!("  连接端口:");
             for (offset, position) in connection_offsets.iter().zip(connection_positions.iter()) {
@@ -105,7 +109,8 @@ fn debug_connections_with_directions(
 
                 let distance = manhattan_distance(station_pos, segment.grid_pos);
                 if distance <= 2 {
-                    let can_connect = can_station_connect_to_segment_directional(station_pos, segment);
+                    let can_connect =
+                        can_station_connect_to_segment_directional(station_pos, segment);
 
                     let dx = segment.grid_pos.x - station_pos.x;
                     let dy = segment.grid_pos.y - station_pos.y;
@@ -352,6 +357,7 @@ impl Direction {
         }
     }
 
+    #[allow(dead_code)]
     fn to_offset(self) -> (i32, i32) {
         match self {
             Direction::North => (0, -1), // 统一：North = 上 = y-1
@@ -392,14 +398,15 @@ fn get_segment_connection_ports(
         .collect()
 }
 
-
-
 /// 检查路线段是否有朝向指定位置的端口
 fn segment_has_port_facing(segment: &RouteSegment, target_pos: GridPos) -> bool {
-    segment.segment_type.has_connection_to(segment.grid_pos, target_pos, segment.rotation)
+    segment
+        .segment_type
+        .has_connection_to(segment.grid_pos, target_pos, segment.rotation)
 }
 
 /// 获取两点之间的方向
+#[allow(dead_code)]
 fn get_direction_between(from: GridPos, to: GridPos) -> Option<Direction> {
     let dx = to.x - from.x;
     let dy = to.y - from.y;
@@ -444,14 +451,20 @@ fn get_connection_reason(station_pos: GridPos, segment: &RouteSegment) -> String
     match distance {
         0 => "重叠位置".to_string(),
         1 => {
-            if segment.segment_type.has_connection_to(segment.grid_pos, station_pos, segment.rotation) {
+            if segment.segment_type.has_connection_to(
+                segment.grid_pos,
+                station_pos,
+                segment.rotation,
+            ) {
                 "直接相邻且路线段有朝向站点的端口".to_string()
             } else {
                 "直接相邻但路线段没有朝向站点的端口".to_string()
             }
         }
         _ => {
-            let connection_positions = segment.segment_type.get_connection_positions(segment.grid_pos, segment.rotation);
+            let connection_positions = segment
+                .segment_type
+                .get_connection_positions(segment.grid_pos, segment.rotation);
 
             if connection_positions.contains(&station_pos) {
                 "站点位于路线段的端口位置".to_string()
@@ -514,7 +527,9 @@ fn visualize_segment_ports(
     };
 
     // 使用统一的连接方向定义
-    let connection_offsets = segment.segment_type.get_connection_offsets(segment.rotation);
+    let connection_offsets = segment
+        .segment_type
+        .get_connection_offsets(segment.rotation);
 
     let center_world = segment
         .grid_pos
@@ -529,7 +544,7 @@ fn visualize_segment_ports(
         let base_rotation = match (*dx, *dy) {
             (0, -1) => 0.0,                        // 向上 (North)
             (1, 0) => -std::f32::consts::PI / 2.0, // 向右 (East)
-            (0, 1) => std::f32::consts::PI,       // 向下 (South)
+            (0, 1) => std::f32::consts::PI,        // 向下 (South)
             (-1, 0) => std::f32::consts::PI / 2.0, // 向左 (West)
             _ => 0.0,
         };
