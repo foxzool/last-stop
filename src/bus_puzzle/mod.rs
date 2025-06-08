@@ -2,6 +2,7 @@
 pub mod components;
 pub mod config;
 pub mod connection_system;
+pub mod debug_system;
 pub mod events;
 pub mod interaction;
 pub mod level_system;
@@ -12,10 +13,14 @@ pub mod splash;
 pub mod ui_audio;
 pub mod utils;
 
-use bevy::platform::collections::HashMap;
+use bevy::{
+    audio::{PlaybackMode, Volume},
+    platform::collections::HashMap,
+};
 // 重新导出主要类型
 pub use components::*;
 pub use config::*;
+pub use debug_system::*;
 pub use events::*;
 pub use interaction::*;
 pub use level_system::*;
@@ -44,6 +49,7 @@ impl Plugin for BusPuzzleGamePlugin {
             GameUIPlugin,
             PassengerMovementDebugPlugin,
             FixedConnectionSystemPlugin,
+            DebugSystem,
         ));
 
         app.init_resource::<GameState>()
@@ -62,13 +68,7 @@ impl Plugin for BusPuzzleGamePlugin {
             .add_systems(OnExit(GameStateEnum::Loading), cleanup_loading_state)
             .add_systems(
                 Update,
-                (
-                    update_game_score,
-                    check_level_failure_conditions,
-                    debug_level_reset,       // 新增调试功能
-                    debug_level_status,      // 新增关卡状态调试
-                    debug_score_calculation, // 新增分数计算调试
-                )
+                (update_game_score, check_level_failure_conditions)
                     .run_if(in_state(GameStateEnum::Playing)),
             );
     }
@@ -264,106 +264,6 @@ fn cleanup_loading_state() {
     info!("清理加载状态");
 }
 
-/// F5 - 调试关卡重置功能
-fn debug_level_reset(
-    keyboard_input: Res<ButtonInput<KeyCode>>,
-    mut next_state: ResMut<NextState<GameStateEnum>>,
-    game_state: Res<GameState>,
-) {
-    if keyboard_input.just_pressed(KeyCode::F5) {
-        info!("🔄 手动触发关卡重置");
-        info!("当前游戏时间: {:.1}s", game_state.game_time);
-        info!(
-            "当前乘客统计: 生成={}, 到达={}, 放弃={}",
-            game_state.passenger_stats.total_spawned,
-            game_state.passenger_stats.total_arrived,
-            game_state.passenger_stats.total_gave_up
-        );
-        info!("当前库存状态: {:?}", game_state.player_inventory);
-
-        next_state.set(GameStateEnum::Loading);
-    }
-}
-
-/// F6 - 调试关卡状态
-fn debug_level_status(
-    keyboard_input: Res<ButtonInput<KeyCode>>,
-    level_manager: Res<LevelManager>,
-    game_state: Res<GameState>,
-    passengers: Query<&PathfindingAgent>,
-) {
-    if keyboard_input.just_pressed(KeyCode::F6) {
-        info!("=== 关卡状态调试 ===");
-        info!("当前关卡索引: {}", level_manager.current_level_index);
-        info!("总关卡数: {}", level_manager.available_levels.len());
-
-        for (i, level_id) in level_manager.available_levels.iter().enumerate() {
-            let is_current = i == level_manager.current_level_index;
-            let is_unlocked = level_manager
-                .unlocked_levels
-                .get(i)
-                .copied()
-                .unwrap_or(false);
-            let marker = if is_current { " <- 当前" } else { "" };
-            let status = if is_unlocked {
-                "已解锁"
-            } else {
-                "未解锁"
-            };
-
-            info!("  关卡 {}: {} ({}){}", i, level_id, status, marker);
-        }
-
-        if let Some(level_data) = &game_state.current_level {
-            info!("当前关卡详情:");
-            info!("  ID: {}", level_data.id);
-            info!("  名称: {}", level_data.name);
-            info!("  难度: {}", level_data.difficulty);
-            info!("  目标数: {}", level_data.objectives.len());
-
-            // 详细分数调试信息
-            info!("=== 分数系统调试 ===");
-            info!("当前分数: {}", game_state.score.total_score);
-            info!("  基础分: {}", game_state.score.base_points);
-            info!("  效率奖励: {}", game_state.score.efficiency_bonus);
-            info!("  速度奖励: {}", game_state.score.speed_bonus);
-            info!("  成本奖励: {}", game_state.score.cost_bonus);
-
-            // 分数计算详情
-            let network_efficiency = calculate_network_efficiency(&game_state, &passengers);
-            info!("网络效率评分: {:.2}", network_efficiency);
-            info!("游戏时间: {:.1}秒", game_state.game_time);
-            info!("总成本: {}", game_state.total_cost);
-            info!("已放置路段数: {}", game_state.placed_segments.len());
-
-            // 乘客状态统计
-            let total_passengers = passengers.iter().count();
-            let arrived_count = passengers
-                .iter()
-                .filter(|agent| matches!(agent.state, AgentState::Arrived))
-                .count();
-            let gave_up_count = passengers
-                .iter()
-                .filter(|agent| matches!(agent.state, AgentState::GaveUp))
-                .count();
-
-            info!(
-                "乘客状态: 总计={}, 到达={}, 放弃={}",
-                total_passengers, arrived_count, gave_up_count
-            );
-        }
-
-        let next_index = level_manager.current_level_index + 1;
-        if next_index < level_manager.available_levels.len() {
-            info!(
-                "下一关: {} (索引: {})",
-                level_manager.available_levels[next_index], next_index
-            );
-        } else {
-            info!("这是最后一关！");
-        }
-    }
-}
 
 fn update_game_score(mut game_state: ResMut<GameState>, passengers: Query<&PathfindingAgent>) {
     if let Some(level_data) = &game_state.current_level {
@@ -407,112 +307,118 @@ fn update_game_score(mut game_state: ResMut<GameState>, passengers: Query<&Pathf
     }
 }
 
-/// F9 - 调试分数计算
-fn debug_score_calculation(
-    keyboard_input: Res<ButtonInput<KeyCode>>,
-    game_state: Res<GameState>,
-    passengers: Query<&PathfindingAgent>,
-) {
-    if keyboard_input.just_pressed(KeyCode::F9) {
-        info!("=== 分数计算详细调试 ===");
-
-        if let Some(level_data) = &game_state.current_level {
-            info!("关卡: {} ({})", level_data.name, level_data.id);
-            info!("当前游戏时间: {:.1}秒", game_state.game_time);
-            info!("当前总成本: {}", game_state.total_cost);
-            info!("已放置路段数: {}", game_state.placed_segments.len());
-
-            // 分数组成部分
-            let base_points = level_data.scoring.base_points;
-            info!("基础分数: {}", base_points);
-
-            // 网络效率计算
-            let network_efficiency = calculate_network_efficiency(&game_state, &passengers);
-            let efficiency_bonus =
-                (network_efficiency * level_data.scoring.efficiency_bonus as f32) as u32;
-            info!(
-                "网络效率: {:.2} -> 效率奖励: {}",
-                network_efficiency, efficiency_bonus
-            );
-
-            // 速度奖励
-            let speed_bonus = if game_state.game_time < 60.0 {
-                level_data.scoring.speed_bonus
-            } else {
-                0
-            };
-            info!(
-                "速度奖励: {} (条件: <60秒, 当前: {:.1}秒)",
-                speed_bonus, game_state.game_time
-            );
-
-            // 成本奖励
-            let cost_threshold = match level_data.id.as_str() {
-                "tutorial_01" => 10,
-                "level_02_transfer" => 15,
-                "level_03_multiple_routes" => 25,
-                "level_04_time_pressure" => 20,
-                _ => 15,
-            };
-            let cost_bonus = if game_state.total_cost <= cost_threshold {
-                level_data.scoring.cost_bonus
-            } else {
-                0
-            };
-            info!(
-                "成本奖励: {} (条件: ≤{}, 当前: {})",
-                cost_bonus, cost_threshold, game_state.total_cost
-            );
-
-            // 总分
-            let total_calculated = base_points + efficiency_bonus + speed_bonus + cost_bonus;
-            info!(
-                "计算总分: {} + {} + {} + {} = {}",
-                base_points, efficiency_bonus, speed_bonus, cost_bonus, total_calculated
-            );
-            info!("当前实际总分: {}", game_state.score.total_score);
-
-            // 乘客统计
-            let total_passengers = passengers.iter().count();
-            let arrived_count = passengers
-                .iter()
-                .filter(|agent| matches!(agent.state, AgentState::Arrived))
-                .count();
-            let gave_up_count = passengers
-                .iter()
-                .filter(|agent| matches!(agent.state, AgentState::GaveUp))
-                .count();
-
-            info!(
-                "乘客统计: 总计={}, 到达={}, 放弃={}",
-                total_passengers, arrived_count, gave_up_count
-            );
-            info!("目标完成情况: {:?}", game_state.objectives_completed);
-        }
-    }
-}
 
 fn check_level_failure_conditions(
     game_state: Res<GameState>,
     passengers: Query<&PathfindingAgent>,
     mut next_state: ResMut<NextState<GameStateEnum>>,
+    mut commands: Commands,
+    audio_assets: Res<AudioAssets>,
+    audio_settings: Res<AudioSettings>,
 ) {
     let gave_up_count = passengers
         .iter()
         .filter(|agent| matches!(agent.state, AgentState::GaveUp))
-        .count();
+        .count() as u32;
 
+    // 检查乘客放弃失败条件
     if gave_up_count > 3 {
+        // 设置失败数据
+        commands.insert_resource(GameOverData {
+            reason: format!("太多乘客放弃了行程 ({} 人)", gave_up_count),
+            final_score: game_state.score.total_score,
+            game_time: game_state.game_time,
+            passengers_gave_up: gave_up_count,
+            time_exceeded: false,
+        });
+
+        // 播放失败音效
+        if !audio_settings.is_muted {
+            commands.spawn((
+                AudioPlayer::new(audio_assets.error_sound.clone()),
+                PlaybackSettings {
+                    mode: PlaybackMode::Despawn,
+                    volume: Volume::Linear(
+                        audio_settings.sfx_volume * audio_settings.master_volume * 1.2,
+                    ),
+                    ..default()
+                },
+            ));
+        }
+
         next_state.set(GameStateEnum::GameOver);
-        warn!("太多乘客放弃了行程，游戏失败");
+        warn!("游戏失败：太多乘客放弃了行程 ({} 人)", gave_up_count);
+        return;
     }
 
+    // 检查时间限制失败条件
     if let Some(level_data) = &game_state.current_level {
         for objective in &level_data.objectives {
             if let ObjectiveType::TimeLimit(time_limit) = &objective.condition_type {
                 if game_state.game_time > *time_limit {
+                    // 设置失败数据
+                    commands.insert_resource(GameOverData {
+                        reason: format!(
+                            "时间超限 ({:.1}s / {:.1}s)",
+                            game_state.game_time, time_limit
+                        ),
+                        final_score: game_state.score.total_score,
+                        game_time: game_state.game_time,
+                        passengers_gave_up: gave_up_count,
+                        time_exceeded: true,
+                    });
+
+                    // 播放失败音效
+                    if !audio_settings.is_muted {
+                        commands.spawn((
+                            AudioPlayer::new(audio_assets.error_sound.clone()),
+                            PlaybackSettings {
+                                mode: PlaybackMode::Despawn,
+                                volume: Volume::Linear(
+                                    audio_settings.sfx_volume * audio_settings.master_volume * 1.2,
+                                ),
+                                ..default()
+                            },
+                        ));
+                    }
+
                     next_state.set(GameStateEnum::GameOver);
-                    warn!("时间超限，游戏失败");
+                    warn!("游戏失败：时间超限 ({:.1}s)", game_state.game_time);
+                    return;
+                }
+            }
+        }
+
+        // 可选：预算超支检查 (严重超支才算失败)
+        for objective in &level_data.objectives {
+            if let ObjectiveType::MaxCost(max_cost) = &objective.condition_type {
+                // 给予一些缓冲，避免意外超支导致立即失败
+                let cost_limit = max_cost + (max_cost / 2); // 150% 的预算作为硬限制
+                if game_state.total_cost > cost_limit {
+                    commands.insert_resource(GameOverData {
+                        reason: format!("预算严重超支 ({} / {})", game_state.total_cost, max_cost),
+                        final_score: game_state.score.total_score,
+                        game_time: game_state.game_time,
+                        passengers_gave_up: gave_up_count,
+                        time_exceeded: false,
+                    });
+
+                    if !audio_settings.is_muted {
+                        commands.spawn((
+                            AudioPlayer::new(audio_assets.error_sound.clone()),
+                            PlaybackSettings {
+                                mode: PlaybackMode::Despawn,
+                                volume: Volume::Linear(
+                                    audio_settings.sfx_volume * audio_settings.master_volume * 1.2,
+                                ),
+                                ..default()
+                            },
+                        ));
+                    }
+
+                    next_state.set(GameStateEnum::GameOver);
+                    warn!("游戏失败：预算严重超支");
+                    return;
                 }
             }
         }

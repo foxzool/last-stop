@@ -30,6 +30,9 @@ pub struct PauseMenuUI;
 pub struct LevelCompleteUI;
 
 #[derive(Component)]
+pub struct GameOverUI;
+
+#[derive(Component)]
 pub struct ObjectiveUI {
     pub objective_index: usize,
 }
@@ -123,6 +126,15 @@ pub struct LevelCompleteData {
     pub completion_time: f32,
 }
 
+#[derive(Resource, Default)]
+pub struct GameOverData {
+    pub reason: String,
+    pub final_score: u32,
+    pub game_time: f32,
+    pub passengers_gave_up: u32,
+    pub time_exceeded: bool,
+}
+
 #[derive(Resource)]
 pub struct AudioSettings {
     pub master_volume: f32,
@@ -144,6 +156,7 @@ impl Plugin for GameUIPlugin {
             is_muted: false,
         })
             .insert_resource(LevelCompleteData::default())
+            .insert_resource(GameOverData::default())
             .add_systems(Startup, (load_ui_assets, load_audio_assets))
             .add_systems(OnEnter(GameStateEnum::MainMenu), setup_main_menu)
             .add_systems(OnEnter(GameStateEnum::Playing), setup_gameplay_ui)
@@ -152,6 +165,7 @@ impl Plugin for GameUIPlugin {
                 OnEnter(GameStateEnum::LevelComplete),
                 setup_level_complete_ui,
             )
+            .add_systems(OnEnter(GameStateEnum::GameOver), setup_game_over_ui)
             .add_systems(OnExit(GameStateEnum::MainMenu), cleanup_main_menu)
             .add_systems(OnExit(GameStateEnum::Playing), cleanup_gameplay_ui)
             .add_systems(OnExit(GameStateEnum::Paused), cleanup_pause_menu)
@@ -159,6 +173,7 @@ impl Plugin for GameUIPlugin {
                 OnExit(GameStateEnum::LevelComplete),
                 cleanup_level_complete_ui,
             )
+            .add_systems(OnExit(GameStateEnum::GameOver), cleanup_game_over_ui)
             .add_systems(
                 Update,
                 (
@@ -186,6 +201,11 @@ impl Plugin for GameUIPlugin {
                 Update,
                 (handle_level_complete_buttons, handle_button_interactions)
                     .run_if(in_state(GameStateEnum::LevelComplete)),
+            )
+            .add_systems(
+                Update,
+                (handle_game_over_buttons, handle_button_interactions)
+                    .run_if(in_state(GameStateEnum::GameOver)),
             );
     }
 }
@@ -1702,5 +1722,185 @@ fn update_background_music(
                 ..default()
             },
         ));
+    }
+}
+
+fn setup_game_over_ui(
+    mut commands: Commands,
+    ui_assets: Res<UIAssets>,
+    game_state: Res<GameState>,
+    game_over_data: Res<GameOverData>,
+) {
+    let game_over_entity = commands
+        .spawn((
+            Node {
+                width: Percent(100.0),
+                height: Percent(100.0),
+                position_type: PositionType::Absolute,
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.8)),
+            ZIndex(2000),
+            GameOverUI,
+        ))
+        .with_children(|parent| {
+            parent
+                .spawn((
+                    Node {
+                        width: Px(450.0),
+                        height: Px(550.0),
+                        flex_direction: FlexDirection::Column,
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        row_gap: Px(20.0),
+                        padding: UiRect::all(Px(40.0)),
+                        ..default()
+                    },
+                    BackgroundColor(Color::srgb(0.3, 0.1, 0.1)), // 红色调表示失败
+                    ZIndex(2001),
+                ))
+                .with_children(|parent| {
+                    // 失败标题
+                    spawn_title_text(parent, &ui_assets, "❌ 任务失败", 36.0);
+
+                    // 失败原因
+                    spawn_score_text(
+                        parent,
+                        &ui_assets,
+                        &format!("失败原因: {}", game_over_data.reason),
+                        20.0,
+                    );
+
+                    // 分隔线
+                    parent.spawn((
+                        Node {
+                            width: Percent(80.0),
+                            height: Px(2.0),
+                            ..default()
+                        },
+                        BackgroundColor(Color::srgb(0.5, 0.5, 0.5)),
+                    ));
+
+                    // 游戏统计
+                    spawn_score_text(parent, &ui_assets, "本次游戏统计:", 18.0);
+
+                    spawn_score_text(
+                        parent,
+                        &ui_assets,
+                        &format!("获得分数: {}", game_over_data.final_score),
+                        16.0,
+                    );
+
+                    spawn_score_text(
+                        parent,
+                        &ui_assets,
+                        &format!("游戏时长: {}", format_time(game_over_data.game_time)),
+                        16.0,
+                    );
+
+                    spawn_score_text(
+                        parent,
+                        &ui_assets,
+                        &format!("总成本: {}", game_state.total_cost),
+                        16.0,
+                    );
+
+                    if game_over_data.passengers_gave_up > 0 {
+                        spawn_score_text(
+                            parent,
+                            &ui_assets,
+                            &format!("放弃的乘客: {}", game_over_data.passengers_gave_up),
+                            16.0,
+                        );
+                    }
+
+                    // 分隔线
+                    parent.spawn((
+                        Node {
+                            width: Percent(80.0),
+                            height: Px(2.0),
+                            ..default()
+                        },
+                        BackgroundColor(Color::srgb(0.5, 0.5, 0.5)),
+                    ));
+
+                    // 鼓励文字和提示
+                    spawn_score_text(parent, &ui_assets, "不要灰心，再试一次！", 18.0);
+
+                    // 根据失败原因显示提示
+                    let tip = get_failure_tip(&game_over_data.reason);
+                    spawn_score_text(parent, &ui_assets, tip, 14.0);
+
+                    // 按钮组
+                    spawn_menu_button(
+                        parent,
+                        &ui_assets,
+                        "重新挑战",
+                        ButtonType::RestartLevel,
+                        Color::srgb(0.2, 0.6, 0.2),
+                    );
+                    spawn_menu_button(
+                        parent,
+                        &ui_assets,
+                        "主菜单",
+                        ButtonType::MainMenu,
+                        Color::srgb(0.6, 0.2, 0.2),
+                    );
+                });
+        })
+        .id();
+
+    // 添加动画效果
+    commands.entity(game_over_entity).insert(AnimatedUI {
+        animation_type: UIAnimation::FadeIn,
+        duration: 0.5,
+        elapsed: 0.0,
+        start_value: 0.0,
+        target_value: 1.0,
+    });
+
+    info!("游戏失败UI创建完毕: {}", game_over_data.reason);
+}
+
+fn cleanup_game_over_ui(mut commands: Commands, ui_query: Query<Entity, With<GameOverUI>>) {
+    for entity in ui_query.iter() {
+        commands.entity(entity).despawn();
+    }
+}
+
+fn handle_game_over_buttons(
+    button_query: Query<&ButtonComponent, (Changed<ButtonComponent>, With<Button>)>,
+    mut next_state: ResMut<NextState<GameStateEnum>>,
+) {
+    for button in button_query.iter() {
+        if button.is_pressed {
+            info!("游戏失败界面按钮被点击: {:?}", button.button_type);
+            match button.button_type {
+                ButtonType::RestartLevel => {
+                    info!("重新挑战当前关卡");
+                    next_state.set(GameStateEnum::Loading);
+                }
+                ButtonType::MainMenu => {
+                    info!("返回主菜单");
+                    next_state.set(GameStateEnum::MainMenu);
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+// 辅助函数：根据失败原因提供建议
+fn get_failure_tip(reason: &str) -> &'static str {
+    if reason.contains("乘客放弃") {
+        "💡 提示：尝试建设更短的路径，或者增加换乘站点来减少等待时间"
+    } else if reason.contains("时间超限") {
+        "💡 提示：优先连接最重要的站点，不要追求完美的网络设计"
+    } else if reason.contains("预算超支") {
+        "💡 提示：多使用便宜的直线段，减少昂贵的复杂路段"
+    } else {
+        "💡 提示：分析失败原因，调整策略后重新挑战"
     }
 }
