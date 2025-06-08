@@ -1,5 +1,6 @@
 // 模块声明
 pub mod bus_pathfinding_system;
+pub mod smart_bus_generation;
 pub mod bus_system;
 pub mod components;
 pub mod config;
@@ -38,6 +39,7 @@ pub use resources::*;
 pub use ui_audio::*;
 pub use utils::*;
 
+use crate::bus_puzzle::smart_bus_generation::SmartBusGenerationPlugin;
 use crate::bus_puzzle::{
     connection_system::FixedConnectionSystemPlugin,
     splash::SplashPlugin,
@@ -45,7 +47,6 @@ use crate::bus_puzzle::{
     LevelCompleteData,
 };
 use bevy::prelude::*;
-
 // ============ 游戏主循环集成 ============
 
 pub struct BusPuzzleGamePlugin;
@@ -63,6 +64,7 @@ impl Plugin for BusPuzzleGamePlugin {
             DebugInfoPlugin,
             BusPathfindingPlugin, // 公交车智能寻路系统
             PassengerBoardingPlugin,
+            SmartBusGenerationPlugin
         ));
 
         app.init_resource::<GameState>()
