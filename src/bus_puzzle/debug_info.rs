@@ -37,7 +37,7 @@ fn debug_info_system(
     current_state: Res<State<bus_puzzle::GameStateEnum>>,
     time: Res<Time>,
 ) {
-    if keyboard_input.just_pressed(KeyCode::F1) {
+    if keyboard_input.just_pressed(KeyCode::F11) {
         info!("=== 详细调试信息 ===");
         info!("当前游戏状态: {:?}", current_state.get());
         info!("游戏时间: {:.1}秒", game_state.game_time);
@@ -105,6 +105,7 @@ fn debug_info_system(
         }
 
         info!("=== 按键提示 ===");
+        info!("F1: 切换Tips提示面板 💡");
         info!("F2: 乘客生成详情");
         info!("F3: 手动生成测试乘客");
         info!("F4: 智能公交路线发现 🚌 (使用乘客寻路算法)");
@@ -112,7 +113,9 @@ fn debug_info_system(
         info!("F6: 乘客上下车系统调试 🚏🚌");
         info!("F7: 乘客移动状态详情 🚶");
         info!("F8: 连接系统调试 🔗");
+        info!("F11: 详细调试信息 (本按键)");
         info!("F12: 测试游戏失败菜单");
+        info!("💡 Tips系统: 根据关卡自动显示相关提示和策略建议");
     }
 }
 

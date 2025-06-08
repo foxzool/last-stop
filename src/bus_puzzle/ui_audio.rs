@@ -6,8 +6,9 @@ use super::{
     InventoryCountText, InventorySlot, LevelCompletedEvent, LevelData, LevelManager,
     ObjectiveCompletedEvent, ObjectiveCondition, ObjectiveType, PassengerColor, PassengerCountText,
     PathfindingAgent, RouteSegmentType, ScoreText, SegmentPlacedEvent, SegmentRemovedEvent,
-    TimerText, UIElement, INVENTORY_SLOT_SIZE,
+    TimerText, TipsPanel, UIElement, INVENTORY_SLOT_SIZE,
 };
+use crate::bus_puzzle::{check_and_show_contextual_tips, create_tips_panel, TipsManager};
 use bevy::{
     audio::{PlaybackMode, Volume},
     platform::collections::HashMap,
@@ -188,6 +189,7 @@ impl Plugin for GameUIPlugin {
                     handle_audio_events,
                     update_background_music,
                     capture_level_complete_data, // 新增：捕获关卡完成数据
+                    check_and_show_contextual_tips, // 新增：上下文感知提示
                 )
                     .run_if(in_state(GameStateEnum::Playing)),
             )
@@ -401,7 +403,12 @@ fn setup_main_menu(mut commands: Commands, ui_assets: Res<UIAssets>) {
         });
 }
 
-fn setup_gameplay_ui(mut commands: Commands, ui_assets: Res<UIAssets>, game_state: Res<GameState>) {
+fn setup_gameplay_ui(
+    mut commands: Commands,
+    ui_assets: Res<UIAssets>,
+    game_state: Res<GameState>,
+    tips_manager: Res<TipsManager>,
+) {
     // 顶部状态栏
     commands
         .spawn((
@@ -559,18 +566,18 @@ fn setup_gameplay_ui(mut commands: Commands, ui_assets: Res<UIAssets>, game_stat
                 });
         });
 
-    // 左侧库存面板
+    // 左侧库存面板（调整位置避免与Tips面板重叠）
     commands
         .spawn((
             Node {
-                width: Px(120.0),
-                height: Percent(80.0),
+                width: Px(110.0),  // 稍微缩小
+                height: Px(350.0), // 设置固定高度
                 position_type: PositionType::Absolute,
                 left: Px(10.0),
                 top: Px(90.0),
                 flex_direction: FlexDirection::Column,
-                padding: UiRect::all(Px(10.0)),
-                row_gap: Px(10.0),
+                padding: UiRect::all(Px(8.0)), // 减少内边距
+                row_gap: Px(8.0),              // 减少间距
                 ..default()
             },
             // 临时回退到背景色
@@ -639,8 +646,8 @@ fn setup_gameplay_ui(mut commands: Commands, ui_assets: Res<UIAssets>, game_stat
                             parent.spawn((
                                 ImageNode::new(icon.clone()),
                                 Node {
-                                    width: Px(40.0),
-                                    height: Px(40.0),
+                                    width: Px(35.0), // 缩小图标
+                                    height: Px(35.0),
                                     ..default()
                                 },
                             ));
@@ -668,19 +675,19 @@ fn setup_gameplay_ui(mut commands: Commands, ui_assets: Res<UIAssets>, game_stat
             }
         });
 
-    // 右侧目标面板
+    // 右侧目标面板（调整位置适应1280x720）
     if let Some(level_data) = &game_state.current_level {
         commands
             .spawn((
                 Node {
-                    width: Px(300.0),
-                    height: Px(200.0),
+                    width: Px(280.0),  // 缩小宽度
+                    height: Px(180.0), // 缩小高度
                     position_type: PositionType::Absolute,
                     right: Px(10.0),
                     top: Px(90.0),
                     flex_direction: FlexDirection::Column,
-                    padding: UiRect::all(Px(15.0)),
-                    row_gap: Px(10.0),
+                    padding: UiRect::all(Px(12.0)), // 减少内边距
+                    row_gap: Px(8.0),               // 减少间距
                     ..default()
                 },
                 BackgroundColor(Color::srgba(0.2, 0.2, 0.2, 0.7)),
@@ -692,7 +699,7 @@ fn setup_gameplay_ui(mut commands: Commands, ui_assets: Res<UIAssets>, game_stat
                     Text::new("目标"),
                     TextFont {
                         font: ui_assets.font.clone(),
-                        font_size: 18.0,
+                        font_size: 16.0, // 缩小字体
                         ..default()
                     },
                     TextColor(Color::WHITE),
@@ -767,18 +774,18 @@ fn setup_gameplay_ui(mut commands: Commands, ui_assets: Res<UIAssets>, game_stat
                 }
             });
 
-        // 新增：乘客统计面板
+        // 新增：乘客统计面板（调整位置和大小）
         commands
             .spawn((
                 Node {
-                    width: Px(250.0),
-                    height: Px(180.0),
+                    width: Px(230.0),  // 缩小宽度
+                    height: Px(160.0), // 缩小高度
                     position_type: PositionType::Absolute,
                     right: Px(10.0),
-                    top: Px(300.0), // 在目标面板下方
+                    top: Px(280.0), // 调整位置，在目标面板下方
                     flex_direction: FlexDirection::Column,
-                    padding: UiRect::all(Px(15.0)),
-                    row_gap: Px(8.0),
+                    padding: UiRect::all(Px(12.0)), // 减少内边距
+                    row_gap: Px(6.0),               // 减少间距
                     ..default()
                 },
                 BackgroundColor(Color::srgba(0.2, 0.2, 0.2, 0.7)),
@@ -791,7 +798,7 @@ fn setup_gameplay_ui(mut commands: Commands, ui_assets: Res<UIAssets>, game_stat
                     Text::new("乘客状态"),
                     TextFont {
                         font: ui_assets.font.clone(),
-                        font_size: 16.0,
+                        font_size: 14.0, // 缩小字体
                         ..default()
                     },
                     TextColor(Color::WHITE),
@@ -867,6 +874,32 @@ fn setup_gameplay_ui(mut commands: Commands, ui_assets: Res<UIAssets>, game_stat
                 }
             });
     }
+
+    // 新增：Tips提示面板（左下角，调整为适合1280x720窗口）
+    commands
+        .spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                left: Px(10.0),
+                bottom: Px(10.0),
+                width: Px(280.0),  // 缩小宽度适应窗口
+                height: Px(320.0), // 缩小高度适应窗口
+                flex_direction: FlexDirection::Column,
+                padding: UiRect::all(Px(12.0)), // 减少内边距
+                row_gap: Px(6.0),               // 减少间距
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.1, 0.1, 0.2, 0.9)),
+            BorderColor(Color::srgb(0.3, 0.3, 0.4)),
+            Outline::new(Val::Px(2.0), Val::ZERO, Color::srgb(0.3, 0.3, 0.4)),
+            ZIndex(100),
+            GameplayUI,
+            TipsPanel, // 添加TipsPanel组件
+            Name::new("Tips Panel"),
+        ))
+        .with_children(|parent| {
+            create_tips_panel(parent, &ui_assets, &tips_manager);
+        });
 }
 
 fn setup_pause_menu(mut commands: Commands, ui_assets: Res<UIAssets>) {

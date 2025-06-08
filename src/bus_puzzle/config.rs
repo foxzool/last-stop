@@ -78,4 +78,4 @@ pub const UI_ANIMATION_DURATION: f32 = 0.5;
 pub const BUTTON_HOVER_SCALE: f32 = 1.1;
 
 /// 库存槽位大小（像素）
-pub const INVENTORY_SLOT_SIZE: f32 = 80.0;
+pub const INVENTORY_SLOT_SIZE: f32 = 70.0;

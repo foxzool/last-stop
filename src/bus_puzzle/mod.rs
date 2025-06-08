@@ -1,6 +1,5 @@
 // 模块声明
 pub mod bus_pathfinding_system;
-pub mod smart_bus_generation;
 pub mod bus_system;
 pub mod components;
 pub mod config;
@@ -9,12 +8,14 @@ pub mod debug_info;
 pub mod events;
 pub mod interaction;
 pub mod level_system;
+pub mod smart_bus_generation;
 
 pub mod passenger_boarding_system;
 pub mod passenger_movement_debug;
 pub mod pathfinding;
 pub mod resources;
 pub mod splash;
+pub mod tips_system;
 pub mod ui_audio;
 pub mod utils;
 
@@ -36,6 +37,7 @@ pub use passenger_boarding_system::*;
 pub use passenger_movement_debug::*;
 pub use pathfinding::*;
 pub use resources::*;
+pub use tips_system::*;
 pub use ui_audio::*;
 pub use utils::*;
 
@@ -64,7 +66,8 @@ impl Plugin for BusPuzzleGamePlugin {
             DebugInfoPlugin,
             BusPathfindingPlugin, // 公交车智能寻路系统
             PassengerBoardingPlugin,
-            SmartBusGenerationPlugin
+            SmartBusGenerationPlugin,
+            TipsSystemPlugin, // 新增：提示系统
         ));
 
         app.init_resource::<GameState>()
@@ -95,6 +98,7 @@ fn initialize_game(
     mut commands: Commands,
     mut level_manager: ResMut<LevelManager>,
     mut game_state: ResMut<GameState>,
+    mut tips_manager: ResMut<TipsManager>, // 新增：Tips管理器
     asset_server: Res<AssetServer>,
     time: Res<Time>,
 ) {
@@ -119,10 +123,14 @@ fn initialize_game(
         inventory.insert(segment.segment_type, segment.count);
     }
 
-    game_state.current_level = Some(tutorial_level);
+    game_state.current_level = Some(tutorial_level.clone());
     game_state.player_inventory = inventory;
     game_state.objectives_completed = vec![false; 1];
     game_state.level_start_time = time.elapsed_secs(); // 设置开始时间
+
+    // 初始化Tips系统
+    tips_manager.generate_tips_for_level(&tutorial_level);
+    tips_manager.is_expanded = true; // 默认展开提示面板
 
     info!(
         "游戏初始化完成，开始时间: {:.1}s",

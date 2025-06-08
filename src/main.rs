@@ -34,7 +34,7 @@ impl Plugin for AppPlugin {
                         fit_canvas_to_parent: true,
                         ..default()
                     }
-                        .into(),
+                    .into(),
                     ..default()
                 })
                 .set(ImagePlugin::default_nearest()),

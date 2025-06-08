@@ -2,10 +2,9 @@
 // 智能公交车生成系统
 
 use crate::bus_puzzle::{
-    find_optimal_path, BusPathfindingAgent, BusPathfindingManager, BusVehicle,
-    GameStateEnum, LevelManager, PathfindingGraph, RouteSegment,
-    SegmentPlacedEvent, SegmentRemovedEvent, StationEntity,
-    PASSENGER_Z,
+    find_optimal_path, BusPathfindingAgent, BusPathfindingManager, BusVehicle, GameStateEnum,
+    LevelManager, PathfindingGraph, RouteSegment, SegmentPlacedEvent, SegmentRemovedEvent,
+    StationEntity, PASSENGER_Z,
 };
 use bevy::prelude::*;
 use std::collections::HashSet;
@@ -162,7 +161,10 @@ fn analyze_station_connectivity(
     stations: &Query<&StationEntity>,
 ) -> Vec<String> {
     let mut connected_stations = Vec::new();
-    let station_names: Vec<_> = stations.iter().map(|s| s.station_data.name.clone()).collect();
+    let station_names: Vec<_> = stations
+        .iter()
+        .map(|s| s.station_data.name.clone())
+        .collect();
 
     for station_name in &station_names {
         if let Some(&station_pos) = pathfinding_graph.station_lookup.get(station_name) {
@@ -217,8 +219,11 @@ fn generate_smart_bus_routes(
                     route_stations.push(end_name.clone());
                     current_station = end_name;
 
-                    info!("📍 发现连接: {} -> {}",
-                          route_stations[route_stations.len() - 2], end_name);
+                    info!(
+                        "📍 发现连接: {} -> {}",
+                        route_stations[route_stations.len() - 2],
+                        end_name
+                    );
 
                     // 如果路线足够长，可以创建公交车
                     if route_stations.len() >= 2 {
@@ -274,11 +279,9 @@ fn spawn_smart_bus(
             (10, 8)
         };
 
-        let spawn_world_pos = start_pos.to_world_pos(
-            level_manager.tile_size,
-            grid_width,
-            grid_height,
-        ) + Vec3::Z * (PASSENGER_Z + 0.1);
+        let spawn_world_pos =
+            start_pos.to_world_pos(level_manager.tile_size, grid_width, grid_height)
+                + Vec3::Z * (PASSENGER_Z + 0.1);
 
         // 生成路线颜色
         let route_colors = [
