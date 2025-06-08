@@ -22,9 +22,6 @@ impl Plugin for PuzzleInteractionPlugin {
             .add_systems(
                 Update,
                 (
-                    update_mouse_world_position,
-                    handle_camera_controls,
-                    handle_button_interactions, // 统一的按钮交互处理
                     handle_segment_placement,
                     handle_segment_rotation,
                     handle_segment_removal,
@@ -32,6 +29,17 @@ impl Plugin for PuzzleInteractionPlugin {
                     update_objectives,
                     update_game_timer,
                     handle_level_completion,
+                )
+                    .chain()
+                    .run_if(in_state(GameStateEnum::Playing))
+                    .run_if(not(is_paused)),
+            )
+            .add_systems(
+                Update,
+                (
+                    handle_camera_controls,
+                    update_mouse_world_position,
+                    handle_button_interactions, // 统一的按钮交互处理
                 )
                     .chain()
                     .run_if(in_state(GameStateEnum::Playing)),
@@ -46,6 +54,10 @@ impl Plugin for PuzzleInteractionPlugin {
                     .run_if(in_state(GameStateEnum::Playing)),
             );
     }
+}
+
+fn is_paused(game_state: Res<GameState>) -> bool {
+    game_state.is_paused
 }
 
 // ============ 输入处理系统 ============

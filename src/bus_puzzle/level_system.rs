@@ -1,7 +1,7 @@
 // src/bus_puzzle/level_system.rs
 
 use crate::bus_puzzle::{
-    get_passenger_color, AgentState, GameState, GameStateEnum, GridPos, GridTile,
+    get_passenger_color, reset_game_state, AgentState, GameState, GameStateEnum, GridPos, GridTile,
     LevelCompletedEvent, LevelManager, PassengerColor, PassengerEntity, PassengerSpawnedEvent,
     PathfindingAgent, RouteSegment, RouteSegmentType, StationEntity, StationType, TerrainType,
     PASSENGER_Z, ROUTE_Z, STATION_Z, TERRAIN_Z,

@@ -64,8 +64,10 @@ impl Plugin for BusPuzzleGamePlugin {
             .add_event::<PassengerArrivedEvent>();
 
         app.add_systems(Startup, initialize_game)
+            .add_systems(OnExit(GameStateEnum::MainMenu), load_current_level)
             .add_systems(OnEnter(GameStateEnum::Loading), load_current_level)
             .add_systems(OnExit(GameStateEnum::Loading), cleanup_loading_state)
+            // .add_systems(OnEnter(GameStateEnum::MainMenu), default_game_state)
             .add_systems(
                 Update,
                 (update_game_score, check_level_failure_conditions)
@@ -83,7 +85,13 @@ fn initialize_game(
 ) {
     level_manager.current_level_index = 0;
 
-    let tutorial_level = create_tutorial_level();
+    let mut tutorial_level = create_tutorial_level();
+
+    // 确保初始化时所有乘客需求计数都为0
+    for demand in &mut tutorial_level.passenger_demands {
+        demand.spawned_count = 0;
+    }
+
     generate_level_map(
         &mut commands,
         &asset_server,
@@ -226,8 +234,18 @@ fn cleanup_game_world(
 fn reset_game_state(game_state: &mut GameState, level_data: &LevelData, system_time: f32) {
     info!("重置游戏状态...");
 
+    // 创建一个新的关卡数据副本，重置所有乘客需求的计数
+    let mut reset_level_data = level_data.clone();
+    for demand in &mut reset_level_data.passenger_demands {
+        demand.spawned_count = 0; // 重置乘客生成计数
+        info!(
+            "重置乘客需求: {:?} {} -> {} (计数重置为0)",
+            demand.color, demand.origin, demand.destination
+        );
+    }
+
     // 设置关卡数据
-    game_state.current_level = Some(level_data.clone());
+    game_state.current_level = Some(reset_level_data);
 
     // 清理已放置的路线段
     game_state.placed_segments.clear();
@@ -263,7 +281,6 @@ fn reset_game_state(game_state: &mut GameState, level_data: &LevelData, system_t
 fn cleanup_loading_state() {
     info!("清理加载状态");
 }
-
 
 fn update_game_score(mut game_state: ResMut<GameState>, passengers: Query<&PathfindingAgent>) {
     if let Some(level_data) = &game_state.current_level {
@@ -306,7 +323,6 @@ fn update_game_score(mut game_state: ResMut<GameState>, passengers: Query<&Pathf
         };
     }
 }
-
 
 fn check_level_failure_conditions(
     game_state: Res<GameState>,

@@ -376,31 +376,6 @@ pub fn create_station_connections_improved(
 
         for adj_pos in adjacent_positions {
             if let Some(segment) = route_segments_by_pos.get(&adj_pos) {
-                // 详细调试特定情况
-                if station_name == "B站" && matches!(segment.segment_type, RouteSegmentType::Curve)
-                {
-                    info!("=== 详细调试 B站 -> Curve ===");
-                    info!("  站点位置: {:?}", station_pos);
-                    info!("  Curve位置: {:?}", segment.grid_pos);
-                    info!("  Curve旋转: {}°", segment.rotation);
-
-                    let connection_points = get_segment_connections(
-                        segment.grid_pos,
-                        &segment.segment_type,
-                        segment.rotation,
-                    );
-                    info!("  Curve连接点: {:?}", connection_points);
-                    info!(
-                        "  站点是否在连接点中: {}",
-                        connection_points.contains(&station_pos)
-                    );
-
-                    // 显示方向分析
-                    let dx = station_pos.x - segment.grid_pos.x;
-                    let dy = station_pos.y - segment.grid_pos.y;
-                    info!("  相对方向: dx={}, dy={} (站点相对于Curve的位置)", dx, dy);
-                }
-
                 // 检查路线段是否有朝向站点的连接点
                 if segment_can_connect_to_station(segment, station_pos) {
                     // 站点到路线段
@@ -421,12 +396,18 @@ pub fn create_station_connections_improved(
 
                     trace!(
                         "建立连接: 站点 {} {:?} <-> 路线段 {:?} {:?}",
-                        station_name, station_pos, segment.segment_type, adj_pos
+                        station_name,
+                        station_pos,
+                        segment.segment_type,
+                        adj_pos
                     );
                 } else {
                     trace!(
                         "跳过连接: 站点 {} {:?} -> 路线段 {:?} {:?} (路线段没有朝向站点的端口)",
-                        station_name, station_pos, segment.segment_type, adj_pos
+                        station_name,
+                        station_pos,
+                        segment.segment_type,
+                        adj_pos
                     );
                 }
             }
