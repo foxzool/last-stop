@@ -8,6 +8,7 @@ pub mod debug_info;
 pub mod events;
 pub mod interaction;
 pub mod level_system;
+pub mod localization;
 pub mod smart_bus_generation;
 
 pub mod passenger_boarding_system;
@@ -32,8 +33,9 @@ pub use debug_info::*;
 pub use events::*;
 pub use interaction::*;
 pub use level_system::*;
-pub use passenger_boarding_system::*;
 // 新增：导出乘客上下车系统
+pub use localization::*;
+pub use passenger_boarding_system::*;
 pub use passenger_movement_debug::*;
 pub use pathfinding::*;
 pub use resources::*;
@@ -67,7 +69,8 @@ impl Plugin for BusPuzzleGamePlugin {
             BusPathfindingPlugin, // 公交车智能寻路系统
             PassengerBoardingPlugin,
             SmartBusGenerationPlugin,
-            TipsSystemPlugin, // 新增：提示系统
+            TipsSystemPlugin,
+            LocalizationPlugin, // 新增：提示系统
         ));
 
         app.init_resource::<GameState>()
