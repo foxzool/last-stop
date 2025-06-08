@@ -59,7 +59,7 @@ impl GridPos {
     }
 
     /// 将网格坐标转换为世界坐标，使地图居中显示在原点附近
-    pub fn to_world_pos(&self, tile_size: f32, grid_width: u32, grid_height: u32) -> Vec3 {
+    pub fn to_world_pos(self, tile_size: f32, grid_width: u32, grid_height: u32) -> Vec3 {
         let center_offset_x = (grid_width as f32 - 1.0) * tile_size * 0.5;
         let center_offset_y = (grid_height as f32 - 1.0) * tile_size * 0.5;
 

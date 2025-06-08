@@ -585,7 +585,7 @@ fn update_passenger_movement(
 
                 if agent.current_step < agent.current_path.len() {
                     let current_node = &agent.current_path[agent.current_step];
-                    let current_node_position = current_node.position.clone();
+                    let current_node_position = current_node.position;
                     let target_pos =
                         current_node
                             .position

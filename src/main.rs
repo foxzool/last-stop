@@ -37,7 +37,7 @@ impl Plugin for AppPlugin {
                         fit_canvas_to_parent: true,
                         ..default()
                     }
-                    .into(),
+                        .into(),
                     ..default()
                 })
                 .set(ImagePlugin::default_nearest()),
@@ -66,6 +66,7 @@ fn spawn_camera(mut commands: Commands) {
     commands.spawn((Name::new("Camera"), Camera2d));
 }
 
+#[cfg(not(target_family = "wasm"))]
 fn screenshot_system(keyboard_input: Res<ButtonInput<KeyCode>>, mut commands: Commands) {
     if keyboard_input.just_pressed(KeyCode::F12) {
         let path = format!(
