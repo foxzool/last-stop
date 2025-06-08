@@ -205,7 +205,8 @@ fn reset_game_state(game_state: &mut GameState, level_data: &LevelData, system_t
 
 /// 加载语言设置（从本地存储或默认设置）
 fn load_language_settings(
-    mut current_language: ResMut<CurrentLanguage>,
+    #[cfg(not(target_family = "wasm"))] mut current_language: ResMut<CurrentLanguage>,
+    #[cfg(target_family = "wasm")] current_language: Res<CurrentLanguage>,
     mut ev: EventWriter<LanguageChangedEvent>,
 ) {
     // 尝试从本地存储加载语言设置
