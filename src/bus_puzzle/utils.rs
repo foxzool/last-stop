@@ -14,10 +14,34 @@ pub fn world_to_grid(
     let adjusted_x = world_pos.x + center_offset_x;
     let adjusted_y = world_pos.y + center_offset_y;
 
+    // 使用 round() 来获得最接近的网格坐标
+    // 这样可以确保鼠标点击位置正确映射到最近的网格中心
     GridPos::new(
-        (adjusted_x / tile_size).floor() as i32,
-        (adjusted_y / tile_size).floor() as i32,
+        (adjusted_x / tile_size).round() as i32,
+        (adjusted_y / tile_size).round() as i32,
     )
+}
+
+/// 调试用：验证坐标转换的准确性
+pub fn debug_coordinate_conversion(
+    world_pos: Vec3,
+    tile_size: f32,
+    grid_width: u32,
+    grid_height: u32,
+) {
+    let grid_pos = world_to_grid(world_pos, tile_size, grid_width, grid_height);
+    let back_to_world = grid_pos.to_world_pos(tile_size, grid_width, grid_height);
+
+    let distance = world_pos.distance(back_to_world);
+
+    info!(
+        "坐标转换验证: 世界 {:?} -> 网格 {:?} -> 世界 {:?}, 距离差: {:.2}",
+        world_pos, grid_pos, back_to_world, distance
+    );
+
+    if distance > tile_size * 0.1 {
+        warn!("坐标转换精度可能有问题，距离差过大: {:.2}", distance);
+    }
 }
 
 /// 计算两点间的曼哈顿距离

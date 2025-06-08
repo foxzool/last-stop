@@ -1,10 +1,11 @@
 // src/bus_puzzle/debug_info
 
+use crate::bus_puzzle::GameOverData;
 use crate::{
     bus_puzzle,
     bus_puzzle::{
-        calculate_network_efficiency, AgentState, GameOverData, GameState, GameStateEnum,
-        LevelManager, PathfindingAgent,
+        calculate_network_efficiency, AgentState, GameState, GameStateEnum, LevelManager,
+        PathfindingAgent,
     },
 };
 use bevy::prelude::*;
@@ -37,7 +38,7 @@ fn debug_info_system(
     current_state: Res<State<bus_puzzle::GameStateEnum>>,
     time: Res<Time>,
 ) {
-    if keyboard_input.just_pressed(KeyCode::F11) {
+    if keyboard_input.just_pressed(KeyCode::F1) {
         info!("=== 详细调试信息 ===");
         info!("当前游戏状态: {:?}", current_state.get());
         info!("游戏时间: {:.1}秒", game_state.game_time);
@@ -69,16 +70,6 @@ fn debug_info_system(
         // 新增：公交车系统信息
         info!("=== 公交车系统状态 ===");
         info!("公交车数量: {}", buses.iter().count());
-        // info!("路线数量: {}", bus_routes_manager.routes.len());
-        //
-        // for (route_id, route) in &bus_routes_manager.routes {
-        //     info!(
-        //         "路线 {}: {} ({}个站点)",
-        //         route_id,
-        //         route.route_name,
-        //         route.stops.len()
-        //     );
-        // }
 
         for bus in buses.iter() {
             info!(
@@ -100,20 +91,39 @@ fn debug_info_system(
                     i, demand.color, demand.origin, demand.destination, demand.spawn_rate
                 );
             }
+
+            // 教学关卡特殊提示
+            if level_data.id == "tutorial_01" {
+                info!("🎓 教学关卡提示: 连接站点后会自动生成公交车");
+            }
         } else {
             warn!("没有关卡数据！");
         }
 
         info!("=== 按键提示 ===");
-        info!("F1: 切换Tips提示面板 💡");
+        info!("F1: 详细调试信息 (本按键) 💡");
         info!("F2: 乘客生成详情");
         info!("F3: 手动生成测试乘客");
-        info!("F4: 智能公交路线发现 🚌 (使用乘客寻路算法)");
+
+        // 根据关卡显示不同的公交车生成提示
+        if game_state
+            .current_level
+            .as_ref()
+            .map(|level| level.id == "tutorial_01")
+            .unwrap_or(false)
+        {
+            info!("教学关卡: 连接站点后自动生成公交车 ✨");
+        } else {
+            info!("F4: 智能公交路线发现 🚌 (使用乘客寻路算法)");
+        }
+
         info!("F5: 智能公交车详细状态 🧠");
         info!("F6: 乘客上下车系统调试 🚏🚌");
         info!("F7: 乘客移动状态详情 🚶");
         info!("F8: 连接系统调试 🔗");
-        info!("F11: 详细调试信息 (本按键)");
+        info!("F9: 分数计算调试 📊");
+        info!("F10: 鼠标坐标转换调试 🖱️");
+        info!("F11: 寻路图状态调试 🗺️");
         info!("F12: 测试游戏失败菜单");
         info!("💡 Tips系统: 根据关卡自动显示相关提示和策略建议");
     }

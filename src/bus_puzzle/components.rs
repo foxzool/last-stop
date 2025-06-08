@@ -63,6 +63,7 @@ impl GridPos {
         let center_offset_x = (grid_width as f32 - 1.0) * tile_size * 0.5;
         let center_offset_y = (grid_height as f32 - 1.0) * tile_size * 0.5;
 
+        // 确保网格坐标转换为世界坐标时指向瓦片中心
         Vec3::new(
             self.x as f32 * tile_size - center_offset_x,
             self.y as f32 * tile_size - center_offset_y,

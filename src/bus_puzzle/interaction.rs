@@ -68,6 +68,7 @@ fn update_mouse_world_position(
     camera_query: Query<(&Camera, &GlobalTransform)>,
     game_state: Res<GameState>,
     level_manager: Res<LevelManager>,
+    keyboard_input: Res<ButtonInput<KeyCode>>, // 添加键盘输入用于调试
 ) -> Result {
     let window = windows.single()?;
     let (camera, camera_transform) = camera_query.single()?;
@@ -84,6 +85,39 @@ fn update_mouse_world_position(
                     level_data.grid_size.1,
                 );
                 input_state.grid_cursor_pos = Some(grid_pos);
+
+                // F10 调试坐标转换精度
+                if keyboard_input.just_pressed(KeyCode::F10) {
+                    crate::bus_puzzle::debug_coordinate_conversion(
+                        input_state.mouse_world_pos,
+                        level_manager.tile_size,
+                        level_data.grid_size.0,
+                        level_data.grid_size.1,
+                    );
+
+                    // 显示当前鼠标位置信息
+                    info!("鼠标调试信息:");
+                    info!("  屏幕坐标: {:?}", cursor_pos);
+                    info!("  世界坐标: {:?}", input_state.mouse_world_pos);
+                    info!("  网格坐标: {:?}", grid_pos);
+
+                    // 计算网格中心的世界坐标
+                    let grid_center_world = grid_pos.to_world_pos(
+                        level_manager.tile_size,
+                        level_data.grid_size.0,
+                        level_data.grid_size.1,
+                    );
+                    info!("  网格中心世界坐标: {:?}", grid_center_world);
+
+                    let distance = input_state.mouse_world_pos.distance(grid_center_world);
+                    info!("  鼠标距离网格中心: {:.2} 像素", distance);
+
+                    if distance > level_manager.tile_size * 0.3 {
+                        warn!("  ⚠️ 鼠标距离网格中心较远，可能存在坐标转换问题");
+                    } else {
+                        info!("  ✅ 坐标转换正常");
+                    }
+                }
             } else {
                 let grid_pos =
                     world_to_grid(input_state.mouse_world_pos, level_manager.tile_size, 10, 8);

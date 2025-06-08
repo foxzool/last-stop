@@ -89,6 +89,35 @@ fn disable_passenger_pathfinding_system(
 
 // ============ 路线发现系统（基于寻路） ============
 
+/// 检查站点之间是否已经有连接
+fn has_station_connections(
+    pathfinding_graph: &PathfindingGraph,
+    stations: &Query<&StationEntity>,
+) -> bool {
+    let station_names: Vec<String> = stations
+        .iter()
+        .map(|s| s.station_data.name.clone())
+        .collect();
+
+    // 检查任意两个站点之间是否有路径
+    for (i, start_station) in station_names.iter().enumerate() {
+        for end_station in station_names.iter().skip(i + 1) {
+            if let Some(path) = find_optimal_path(pathfinding_graph, start_station, end_station) {
+                if path.len() > 1 {
+                    info!(
+                        "检测到站点连接: {} -> {} (路径长度: {})",
+                        start_station,
+                        end_station,
+                        path.len()
+                    );
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
 fn discover_bus_routes_pathfinding(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut bus_manager: ResMut<BusPathfindingManager>,
@@ -101,8 +130,27 @@ fn discover_bus_routes_pathfinding(
     existing_buses: Query<Entity, With<BusVehicle>>,
     game_state: Res<GameState>,
 ) {
-    if keyboard_input.just_pressed(KeyCode::F4) {
-        info!("🚌 使用寻路算法重新发现公交路线...");
+    // 检查是否是教学关卡并且站点之间有连接
+    let is_tutorial_level = game_state
+        .current_level
+        .as_ref()
+        .map(|level| level.id == "tutorial_01")
+        .unwrap_or(false);
+
+    let should_auto_generate = if is_tutorial_level {
+        // 教学关卡：检查是否已有连接且没有公交车
+        existing_buses.is_empty() && has_station_connections(&pathfinding_graph, &stations)
+    } else {
+        false
+    };
+
+    // 手动触发 (F4) 或教学关卡自动触发
+    if keyboard_input.just_pressed(KeyCode::F4) || should_auto_generate {
+        if keyboard_input.just_pressed(KeyCode::F4) {
+            info!("🚌 手动触发：使用寻路算法重新发现公交路线...");
+        } else if should_auto_generate {
+            info!("🚌 教学关卡：检测到站点连接，自动生成公交车...");
+        }
 
         // 清理现有公交车
         for bus_entity in existing_buses.iter() {
@@ -134,7 +182,11 @@ fn discover_bus_routes_pathfinding(
             }
         }
 
-        info!("智能路线发现完成: {} 条路线", bus_manager.bus_routes.len());
+        if keyboard_input.just_pressed(KeyCode::F4) {
+            info!("手动路线发现完成: {} 条路线", bus_manager.bus_routes.len());
+        } else if should_auto_generate {
+            info!("教学关卡公交车自动生成完成: {} 条路线", bus_manager.bus_routes.len());
+        }
 
         let routes: Vec<BusRouteInfo> = bus_manager.bus_routes.values().cloned().collect();
         check_passenger_coverage(&routes, &game_state)
