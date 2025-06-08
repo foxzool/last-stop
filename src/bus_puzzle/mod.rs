@@ -2,7 +2,7 @@
 pub mod components;
 pub mod config;
 pub mod connection_system;
-pub mod debug_system;
+pub mod debug_info;
 pub mod events;
 pub mod interaction;
 pub mod level_system;
@@ -20,7 +20,7 @@ use bevy::{
 // 重新导出主要类型
 pub use components::*;
 pub use config::*;
-pub use debug_system::*;
+pub use debug_info::*;
 pub use events::*;
 pub use interaction::*;
 pub use level_system::*;
@@ -49,7 +49,7 @@ impl Plugin for BusPuzzleGamePlugin {
             GameUIPlugin,
             PassengerMovementDebugPlugin,
             FixedConnectionSystemPlugin,
-            DebugSystem,
+            DebugInfoPlugin,
         ));
 
         app.init_resource::<GameState>()

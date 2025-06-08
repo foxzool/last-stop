@@ -1,4 +1,4 @@
-// src/bus_puzzle/debug_system.rs
+// src/bus_puzzle/debug_info
 
 use crate::{
     bus_puzzle,
@@ -9,9 +9,9 @@ use crate::{
 };
 use bevy::prelude::*;
 
-pub struct DebugSystem;
+pub struct DebugInfoPlugin;
 
-impl Plugin for DebugSystem {
+impl Plugin for DebugInfoPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
