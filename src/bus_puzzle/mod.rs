@@ -10,7 +10,6 @@ pub mod interaction;
 pub mod level_system;
 
 pub mod passenger_boarding_system;
-pub mod passenger_bus_integration;
 pub mod passenger_movement_debug;
 pub mod pathfinding;
 pub mod resources;
@@ -40,12 +39,7 @@ pub use ui_audio::*;
 pub use utils::*;
 
 use crate::bus_puzzle::{
-    bus_system::{debug_bus_system, update_bus_movement, update_bus_routes, BusRoutesManager},
     connection_system::FixedConnectionSystemPlugin,
-    passenger_bus_integration::{
-        debug_passenger_bus_system, disable_passenger_pathfinding,
-        update_passenger_bus_interaction, update_passengers_on_bus,
-    },
     splash::SplashPlugin,
     BusPathfindingPlugin, // 新增：公交车寻路插件
     LevelCompleteData,
@@ -68,9 +62,7 @@ impl Plugin for BusPuzzleGamePlugin {
             FixedConnectionSystemPlugin,
             DebugInfoPlugin,
             BusPathfindingPlugin, // 公交车智能寻路系统
-            PassengerBoardingPlugin, /* 新增：乘客上下车系统
-                                   * BusSystemPlugin,            // 注释掉：旧的公交车系统
-                                   * PassengerBusIntegrationPlugin, // 注释掉：乘客-公交车交互 */
+            PassengerBoardingPlugin,
         ));
 
         app.init_resource::<GameState>()
@@ -94,41 +86,6 @@ impl Plugin for BusPuzzleGamePlugin {
                 (update_game_score, check_level_failure_conditions)
                     .run_if(in_state(GameStateEnum::Playing)),
             );
-    }
-}
-
-// ============ 乘客-公交车交互插件 ============
-
-pub struct PassengerBusIntegrationPlugin;
-
-impl Plugin for PassengerBusIntegrationPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_systems(
-            Update,
-            (
-                disable_passenger_pathfinding,
-                update_passenger_bus_interaction,
-                update_passengers_on_bus,
-                debug_passenger_bus_system,
-            )
-                .chain()
-                .run_if(in_state(GameStateEnum::Playing)),
-        );
-    }
-}
-
-// ============ 公交车系统插件 ============
-
-pub struct BusSystemPlugin;
-
-impl Plugin for BusSystemPlugin {
-    fn build(&self, app: &mut App) {
-        app.init_resource::<BusRoutesManager>().add_systems(
-            Update,
-            (update_bus_routes, update_bus_movement, debug_bus_system)
-                .chain()
-                .run_if(in_state(GameStateEnum::Playing)),
-        );
     }
 }
 
