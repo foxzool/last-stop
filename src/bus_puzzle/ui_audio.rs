@@ -2,11 +2,14 @@
 
 // 使用相对路径引用同模块下的其他文件
 use super::{
-    ease_out_back, format_time, AgentState, AudioAssets, CostText, GameState, GameStateEnum,
-    InventoryCountText, InventorySlot, LevelCompletedEvent, LevelData, LevelManager,
-    ObjectiveCompletedEvent, ObjectiveCondition, ObjectiveType, PassengerColor, PassengerCountText,
-    PathfindingAgent, RouteSegmentType, ScoreText, SegmentPlacedEvent, SegmentRemovedEvent,
-    TimerText, TipsPanel, UIElement, INVENTORY_SLOT_SIZE,
+    ease_out_back, format_time, localized_text, localized_text_with_args, AgentState, AudioAssets,
+    CostText, CurrentLanguage, GameState, GameStateEnum, InventoryCountText, InventorySlot,
+    Language, LanguageChangedEvent, LevelCompletedEvent, LevelData, LevelManager, LocalizedText,
+    LocalizedTextComponent, ObjectiveCompletedEvent, ObjectiveCondition, ObjectiveType,
+    PassengerColor, PassengerCountText, PathfindingAgent, RouteSegmentType, ScoreText,
+    SegmentPlacedEvent, SegmentRemovedEvent, TimerText, TipsPanel, UIElement, ALL_LEVELS_COMPLETE,
+    COMPLETION_TIME, CONGRATULATIONS, FINAL_SCORE, GAME_TITLE, INVENTORY_SLOT_SIZE, LEVEL_COMPLETE,
+    MAIN_MENU, NEXT_LEVEL, QUIT_GAME, RETRY, SCORE_BREAKDOWN, START_GAME, THANK_YOU, TOTAL_COST,
 };
 use crate::bus_puzzle::{check_and_show_contextual_tips, create_tips_panel, TipsManager};
 use bevy::{
@@ -97,18 +100,6 @@ pub struct ButtonComponent {
     pub button_type: ButtonType,
     pub is_hovered: bool,
     pub is_pressed: bool,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum ButtonType {
-    StartGame,
-    PauseGame,
-    ResumeGame,
-    RestartLevel,
-    NextLevel,
-    MainMenu,
-    QuitGame,
-    InventorySlot(RouteSegmentType),
 }
 
 // ============ 资源定义 ============
@@ -216,7 +207,8 @@ impl Plugin for GameUIPlugin {
                 Update,
                 (handle_game_over_buttons, handle_button_interactions)
                     .run_if(in_state(GameStateEnum::GameOver)),
-            );
+            )
+            .add_systems(Update, handle_language_toggle_button);
     }
 }
 
@@ -310,7 +302,11 @@ fn load_audio_assets(mut commands: Commands, asset_server: Res<AssetServer>) {
 
 // ============ UI 设置系统 ============
 
-fn setup_main_menu(mut commands: Commands, ui_assets: Res<UIAssets>) {
+fn setup_main_menu(
+    mut commands: Commands,
+    ui_assets: Res<UIAssets>,
+    current_language: Res<CurrentLanguage>,
+) {
     commands
         .spawn((
             Node {
@@ -325,8 +321,10 @@ fn setup_main_menu(mut commands: Commands, ui_assets: Res<UIAssets>) {
             MainMenuUI,
         ))
         .with_children(|parent| {
+            // 游戏标题 - 使用本地化
+            let (localized_title, title_text) = localized_text(&GAME_TITLE);
             parent.spawn((
-                Text::new("下一站"),
+                title_text,
                 TextFont {
                     font: ui_assets.font.clone(),
                     font_size: 60.0,
@@ -337,8 +335,10 @@ fn setup_main_menu(mut commands: Commands, ui_assets: Res<UIAssets>) {
                     margin: UiRect::bottom(Px(50.0)),
                     ..default()
                 },
+                localized_title,
             ));
 
+            // 开始游戏按钮
             parent
                 .spawn((
                     Button,
@@ -350,7 +350,6 @@ fn setup_main_menu(mut commands: Commands, ui_assets: Res<UIAssets>) {
                         margin: UiRect::all(Px(10.0)),
                         ..default()
                     },
-                    // 临时回退到背景色
                     BackgroundColor(Color::srgb(0.2, 0.6, 0.2)),
                     ButtonComponent {
                         button_type: ButtonType::StartGame,
@@ -359,17 +358,20 @@ fn setup_main_menu(mut commands: Commands, ui_assets: Res<UIAssets>) {
                     },
                 ))
                 .with_children(|parent| {
+                    let (localized_start, start_text) = localized_text(&START_GAME);
                     parent.spawn((
-                        Text::new("开始游戏"),
+                        start_text,
                         TextFont {
                             font: ui_assets.font.clone(),
                             font_size: 20.0,
                             ..default()
                         },
                         TextColor(Color::WHITE),
+                        localized_start,
                     ));
                 });
 
+            // 退出游戏按钮
             parent
                 .spawn((
                     Button,
@@ -381,7 +383,6 @@ fn setup_main_menu(mut commands: Commands, ui_assets: Res<UIAssets>) {
                         margin: UiRect::all(Px(10.0)),
                         ..default()
                     },
-                    // 临时回退到背景色
                     BackgroundColor(Color::srgb(0.6, 0.2, 0.2)),
                     ButtonComponent {
                         button_type: ButtonType::QuitGame,
@@ -390,14 +391,54 @@ fn setup_main_menu(mut commands: Commands, ui_assets: Res<UIAssets>) {
                     },
                 ))
                 .with_children(|parent| {
+                    let (localized_quit, quit_text) = localized_text(&QUIT_GAME);
                     parent.spawn((
-                        Text::new("退出游戏"),
+                        quit_text,
                         TextFont {
                             font: ui_assets.font.clone(),
                             font_size: 20.0,
                             ..default()
                         },
                         TextColor(Color::WHITE),
+                        localized_quit,
+                    ));
+                });
+
+            // 语言切换按钮
+            parent
+                .spawn((
+                    Button,
+                    Node {
+                        width: Px(150.0),
+                        height: Px(40.0),
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        margin: UiRect::all(Px(10.0)),
+                        ..default()
+                    },
+                    BackgroundColor(Color::srgb(0.3, 0.3, 0.5)),
+                    ButtonComponent {
+                        button_type: ButtonType::ToggleLanguage,
+                        is_hovered: false,
+                        is_pressed: false,
+                    },
+                ))
+                .with_children(|parent| {
+                    // 显示当前语言的另一种语言（切换目标）
+                    let next_language = match current_language.language {
+                        Language::English => "中文",
+                        Language::Chinese => "English",
+                    };
+
+                    parent.spawn((
+                        Text::new(next_language),
+                        TextFont {
+                            font: ui_assets.font.clone(),
+                            font_size: 16.0,
+                            ..default()
+                        },
+                        TextColor(Color::WHITE),
+                        LanguageToggleText, // 特殊组件，需要单独处理
                     ));
                 });
         });
@@ -964,139 +1005,6 @@ fn setup_pause_menu(mut commands: Commands, ui_assets: Res<UIAssets>) {
         });
 }
 
-fn setup_level_complete_ui(
-    mut commands: Commands,
-    ui_assets: Res<UIAssets>,
-    game_state: Res<GameState>,
-    level_manager: Res<LevelManager>,
-    level_complete_data: Res<LevelCompleteData>,
-) {
-    let level_complete_entity = commands
-        .spawn((
-            Node {
-                width: Percent(100.0),
-                height: Percent(100.0),
-                position_type: PositionType::Absolute,
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
-                ..default()
-            },
-            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.8)),
-            ZIndex(2000),
-            LevelCompleteUI,
-        ))
-        .with_children(|parent| {
-            parent
-                .spawn((
-                    Node {
-                        width: Px(400.0),
-                        height: Px(500.0),
-                        flex_direction: FlexDirection::Column,
-                        justify_content: JustifyContent::Center,
-                        align_items: AlignItems::Center,
-                        row_gap: Px(20.0),
-                        padding: UiRect::all(Px(40.0)),
-                        ..default()
-                    },
-                    BackgroundColor(Color::srgb(0.1, 0.3, 0.1)),
-                    ZIndex(2001), // 确保在背景之上
-                ))
-                .with_children(|parent| {
-                    // 检查是否是最后一关
-                    let is_final_level = level_manager.current_level_index + 1
-                        >= level_manager.available_levels.len();
-
-                    if is_final_level {
-                        spawn_title_text(parent, &ui_assets, "🎉 恭喜通关！", 36.0);
-                        spawn_score_text(parent, &ui_assets, "您已完成所有关卡！", 18.0);
-                    } else {
-                        spawn_title_text(parent, &ui_assets, "关卡完成！", 36.0);
-                    }
-
-                    // 使用捕获的最终分数，如果为0则使用当前分数
-                    let final_score = if level_complete_data.final_score > 0 {
-                        level_complete_data.final_score
-                    } else {
-                        game_state.score.total_score
-                    };
-
-                    spawn_score_text(
-                        parent,
-                        &ui_assets,
-                        &format!("最终得分: {}", final_score),
-                        24.0,
-                    );
-
-                    // 显示分数详细分解
-                    let score = &game_state.score;
-                    spawn_score_text(
-                        parent,
-                        &ui_assets,
-                        &format!(
-                            "分数明细: 基础:{} 效率:+{} 速度:+{} 成本:+{}",
-                            score.base_points,
-                            score.efficiency_bonus,
-                            score.speed_bonus,
-                            score.cost_bonus
-                        ),
-                        16.0,
-                    );
-
-                    // 使用捕获的完成时间，如果为0则使用当前时间
-                    let completion_time = if level_complete_data.completion_time > 0.0 {
-                        level_complete_data.completion_time
-                    } else {
-                        game_state.game_time
-                    };
-
-                    spawn_score_text(
-                        parent,
-                        &ui_assets,
-                        &format!("用时: {}", format_time(completion_time)),
-                        20.0,
-                    );
-                    spawn_score_text(
-                        parent,
-                        &ui_assets,
-                        &format!("总成本: {}", game_state.total_cost),
-                        20.0,
-                    );
-
-                    // 根据是否有下一关显示不同的按钮
-                    if !is_final_level {
-                        spawn_menu_button(parent, &ui_assets, "下一关", ButtonType::NextLevel);
-                    } else {
-                        // 最后一关完成后显示特殊信息
-                        spawn_score_text(parent, &ui_assets, "感谢游玩！", 18.0);
-                    }
-
-                    spawn_menu_button(parent, &ui_assets, "重新挑战", ButtonType::RestartLevel);
-                    spawn_menu_button(parent, &ui_assets, "主菜单", ButtonType::MainMenu);
-                });
-        })
-        .id();
-
-    // 延迟添加动画组件，避免动画影响初始交互
-    commands.entity(level_complete_entity).insert(AnimatedUI {
-        animation_type: UIAnimation::ScaleUp,
-        duration: 0.3, // 缩短动画时间
-        elapsed: 0.0,
-        start_value: 0.8, // 从80%开始，避免从0开始导致的交互问题
-        target_value: 1.0,
-    });
-
-    let current_level_name = if let Some(level_data) = &game_state.current_level {
-        &level_data.name
-    } else {
-        "未知关卡"
-    };
-
-    info!(
-        "关卡完成UI创建完毕: {} (索引: {})",
-        current_level_name, level_manager.current_level_index
-    );
-}
-
 // 新增：更新乘客统计UI的系统
 fn update_passenger_stats_ui(
     passengers: Query<&PathfindingAgent>,
@@ -1564,66 +1472,6 @@ fn update_ui_animations(
     }
 }
 
-fn update_gameplay_ui_values(
-    game_state: Res<GameState>,
-    mut score_text: Query<
-        &mut Text,
-        (
-            With<ScoreText>,
-            Without<TimerText>,
-            Without<CostText>,
-            Without<PassengerCountText>,
-        ),
-    >,
-    mut timer_text: Query<
-        &mut Text,
-        (
-            With<TimerText>,
-            Without<ScoreText>,
-            Without<CostText>,
-            Without<PassengerCountText>,
-        ),
-    >,
-    mut cost_text: Query<
-        &mut Text,
-        (
-            With<CostText>,
-            Without<ScoreText>,
-            Without<TimerText>,
-            Without<PassengerCountText>,
-        ),
-    >,
-    mut passenger_text: Query<
-        &mut Text,
-        (
-            With<PassengerCountText>,
-            Without<ScoreText>,
-            Without<TimerText>,
-            Without<CostText>,
-        ),
-    >,
-) {
-    if let Ok(mut text) = score_text.single_mut() {
-        // 显示详细的分数分解
-        let score = &game_state.score;
-        *text = Text::new(format!("分数: {}", score.total_score));
-    }
-
-    if let Ok(mut text) = timer_text.single_mut() {
-        *text = Text::new(format!("时间: {}", format_time(game_state.game_time)));
-    }
-
-    if let Ok(mut text) = cost_text.single_mut() {
-        *text = Text::new(format!("成本: {}", game_state.total_cost));
-    }
-
-    if let Ok(mut text) = passenger_text.single_mut() {
-        let arrived_passengers = game_state.passenger_stats.total_arrived;
-        let total_passengers = game_state.passenger_stats.total_spawned;
-        *text = Text::new(format!("乘客: {}/{}", arrived_passengers, total_passengers));
-    }
-}
-
 fn update_progress_bars(
     mut progress_bars: Query<(&mut ProgressBar, &mut Node)>,
     game_state: Res<GameState>,
@@ -1985,4 +1833,387 @@ fn debug_pause_menu_state(
             );
         }
     }
+}
+
+// ============ 关卡完成界面修改示例 ============
+
+fn setup_level_complete_ui(
+    mut commands: Commands,
+    ui_assets: Res<UIAssets>,
+    game_state: Res<GameState>,
+    level_manager: Res<LevelManager>,
+    level_complete_data: Res<LevelCompleteData>,
+    // current_language: Res<CurrentLanguage>,
+) {
+    let level_complete_entity = commands
+        .spawn((
+            Node {
+                width: Percent(100.0),
+                height: Percent(100.0),
+                position_type: PositionType::Absolute,
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.8)),
+            ZIndex(2000),
+            LevelCompleteUI,
+        ))
+        .with_children(|parent| {
+            parent
+                .spawn((
+                    Node {
+                        width: Px(400.0),
+                        height: Px(500.0),
+                        flex_direction: FlexDirection::Column,
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        row_gap: Px(20.0),
+                        padding: UiRect::all(Px(40.0)),
+                        ..default()
+                    },
+                    BackgroundColor(Color::srgb(0.1, 0.3, 0.1)),
+                    ZIndex(2001),
+                ))
+                .with_children(|parent| {
+                    // 检查是否是最后一关
+                    let is_final_level = level_manager.current_level_index + 1
+                        >= level_manager.available_levels.len();
+
+                    // 标题
+                    let title_key = if is_final_level {
+                        &CONGRATULATIONS
+                    } else {
+                        &LEVEL_COMPLETE
+                    };
+                    spawn_localized_title(parent, &ui_assets, title_key, 36.0);
+
+                    if is_final_level {
+                        spawn_localized_score_text(parent, &ui_assets, &ALL_LEVELS_COMPLETE, 18.0);
+                    }
+
+                    // 最终分数
+                    let final_score = if level_complete_data.final_score > 0 {
+                        level_complete_data.final_score
+                    } else {
+                        game_state.score.total_score
+                    };
+
+                    let score_args = vec![final_score.to_string()];
+                    spawn_localized_score_text_with_args(
+                        parent,
+                        &ui_assets,
+                        &FINAL_SCORE,
+                        score_args,
+                        24.0,
+                    );
+
+                    // 分数详细分解
+                    let score = &game_state.score;
+                    let breakdown_args = vec![
+                        score.base_points.to_string(),
+                        score.efficiency_bonus.to_string(),
+                        score.speed_bonus.to_string(),
+                        score.cost_bonus.to_string(),
+                    ];
+                    spawn_localized_score_text_with_args(
+                        parent,
+                        &ui_assets,
+                        &SCORE_BREAKDOWN,
+                        breakdown_args,
+                        16.0,
+                    );
+
+                    // 完成时间
+                    let completion_time = if level_complete_data.completion_time > 0.0 {
+                        level_complete_data.completion_time
+                    } else {
+                        game_state.game_time
+                    };
+
+                    let time_args = vec![format_time(completion_time)];
+                    spawn_localized_score_text_with_args(
+                        parent,
+                        &ui_assets,
+                        &COMPLETION_TIME,
+                        time_args,
+                        20.0,
+                    );
+
+                    // 总成本
+                    let cost_args = vec![game_state.total_cost.to_string()];
+                    spawn_localized_score_text_with_args(
+                        parent,
+                        &ui_assets,
+                        &TOTAL_COST,
+                        cost_args,
+                        20.0,
+                    );
+
+                    // 按钮
+                    if !is_final_level {
+                        spawn_localized_menu_button(
+                            parent,
+                            &ui_assets,
+                            &NEXT_LEVEL,
+                            ButtonType::NextLevel,
+                        );
+                    } else {
+                        spawn_localized_score_text(parent, &ui_assets, &THANK_YOU, 18.0);
+                    }
+
+                    spawn_localized_menu_button(
+                        parent,
+                        &ui_assets,
+                        &RETRY,
+                        ButtonType::RestartLevel,
+                    );
+                    spawn_localized_menu_button(
+                        parent,
+                        &ui_assets,
+                        &MAIN_MENU,
+                        ButtonType::MainMenu,
+                    );
+                });
+        })
+        .id();
+
+    // 添加动画
+    commands.entity(level_complete_entity).insert(AnimatedUI {
+        animation_type: UIAnimation::ScaleUp,
+        duration: 0.3,
+        elapsed: 0.0,
+        start_value: 0.8,
+        target_value: 1.0,
+    });
+}
+
+// ============ 语言切换处理 ============
+
+#[derive(Component)]
+pub struct LanguageToggleText;
+
+fn handle_language_toggle_button(
+    button_query: Query<(&Interaction, &ButtonComponent), (Changed<Interaction>, With<Button>)>,
+    current_language: Res<CurrentLanguage>,
+    mut language_events: EventWriter<LanguageChangedEvent>,
+    mut toggle_texts: Query<&mut Text, With<LanguageToggleText>>,
+) {
+    for (interaction, button_component) in button_query.iter() {
+        if matches!(*interaction, Interaction::Pressed) {
+            if let ButtonType::ToggleLanguage = button_component.button_type {
+                let new_language = match current_language.language {
+                    Language::English => Language::Chinese,
+                    Language::Chinese => Language::English,
+                };
+
+                // 发送语言切换事件
+                language_events.write(LanguageChangedEvent { new_language });
+
+                // 立即更新语言切换按钮的文本
+                for mut text in toggle_texts.iter_mut() {
+                    let next_language_text = match new_language {
+                        Language::English => "中文",
+                        Language::Chinese => "English",
+                    };
+                    *text = Text::new(next_language_text);
+                }
+            }
+        }
+    }
+}
+
+// ============ 动态文本更新系统 ============
+
+fn update_gameplay_ui_values(
+    game_state: Res<GameState>,
+    current_language: Res<CurrentLanguage>,
+    mut score_text: Query<
+        (&mut LocalizedTextComponent, &mut Text),
+        (
+            With<ScoreText>,
+            Without<TimerText>,
+            Without<CostText>,
+            Without<PassengerCountText>,
+        ),
+    >,
+    mut timer_text: Query<
+        (&mut LocalizedTextComponent, &mut Text),
+        (
+            With<TimerText>,
+            Without<ScoreText>,
+            Without<CostText>,
+            Without<PassengerCountText>,
+        ),
+    >,
+    mut cost_text: Query<
+        (&mut LocalizedTextComponent, &mut Text),
+        (
+            With<CostText>,
+            Without<ScoreText>,
+            Without<TimerText>,
+            Without<PassengerCountText>,
+        ),
+    >,
+    mut passenger_text: Query<
+        (&mut LocalizedTextComponent, &mut Text),
+        (
+            With<PassengerCountText>,
+            Without<ScoreText>,
+            Without<TimerText>,
+            Without<CostText>,
+        ),
+    >,
+) {
+    // 更新分数文本
+    if let Ok((mut localized, mut text)) = score_text.single_mut() {
+        let score = &game_state.score;
+        localized.format_args = Some(vec![
+            score.total_score.to_string(),
+            score.base_points.to_string(),
+            score.efficiency_bonus.to_string(),
+            score.speed_bonus.to_string(),
+            score.cost_bonus.to_string(),
+        ]);
+        *text = Text::new(localized.get_text(current_language.language));
+    }
+
+    // 更新时间文本
+    if let Ok((mut localized, mut text)) = timer_text.single_mut() {
+        localized.format_args = Some(vec![format_time(game_state.game_time)]);
+        *text = Text::new(localized.get_text(current_language.language));
+    }
+
+    // 更新成本文本
+    if let Ok((mut localized, mut text)) = cost_text.single_mut() {
+        localized.format_args = Some(vec![game_state.total_cost.to_string()]);
+        *text = Text::new(localized.get_text(current_language.language));
+    }
+
+    // 更新乘客文本
+    if let Ok((mut localized, mut text)) = passenger_text.single_mut() {
+        let arrived_passengers = game_state.passenger_stats.total_arrived;
+        let total_passengers = game_state.passenger_stats.total_spawned;
+        localized.format_args = Some(vec![
+            arrived_passengers.to_string(),
+            total_passengers.to_string(),
+        ]);
+        *text = Text::new(localized.get_text(current_language.language));
+    }
+}
+
+// ============ 辅助函数 ============
+
+fn spawn_localized_title(
+    parent: &mut ChildSpawnerCommands<'_>,
+    ui_assets: &UIAssets,
+    text_key: &'static LocalizedText,
+    size: f32,
+) {
+    let (localized_text, text) = localized_text(text_key);
+    parent.spawn((
+        text,
+        TextFont {
+            font: ui_assets.font.clone(),
+            font_size: size,
+            ..default()
+        },
+        TextColor(Color::srgb(1.0, 1.0, 0.0)),
+        localized_text,
+    ));
+}
+
+fn spawn_localized_score_text(
+    parent: &mut ChildSpawnerCommands<'_>,
+    ui_assets: &UIAssets,
+    text_key: &'static LocalizedText,
+    size: f32,
+) {
+    let (localized_text, text) = localized_text(text_key);
+    parent.spawn((
+        text,
+        TextFont {
+            font: ui_assets.font.clone(),
+            font_size: size,
+            ..default()
+        },
+        TextColor(Color::WHITE),
+        localized_text,
+    ));
+}
+
+fn spawn_localized_score_text_with_args(
+    parent: &mut ChildSpawnerCommands<'_>,
+    ui_assets: &UIAssets,
+    text_key: &'static LocalizedText,
+    args: Vec<String>,
+    size: f32,
+) {
+    let (localized_text, text) = localized_text_with_args(text_key, args);
+    parent.spawn((
+        text,
+        TextFont {
+            font: ui_assets.font.clone(),
+            font_size: size,
+            ..default()
+        },
+        TextColor(Color::WHITE),
+        localized_text,
+    ));
+}
+
+fn spawn_localized_menu_button(
+    parent: &mut ChildSpawnerCommands<'_>,
+    ui_assets: &UIAssets,
+    text_key: &'static LocalizedText,
+    button_type: ButtonType,
+) {
+    parent
+        .spawn((
+            Button,
+            Node {
+                width: Px(200.0),
+                height: Px(50.0),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                margin: UiRect::all(Px(5.0)),
+                ..default()
+            },
+            ImageNode::new(ui_assets.button_texture.clone()),
+            ButtonComponent {
+                button_type,
+                is_hovered: false,
+                is_pressed: false,
+            },
+            ZIndex(10),
+        ))
+        .with_children(|parent| {
+            let (localized_text, text) = localized_text(text_key);
+            parent.spawn((
+                text,
+                TextFont {
+                    font: ui_assets.font.clone(),
+                    font_size: 18.0,
+                    ..default()
+                },
+                TextColor(Color::WHITE),
+                ZIndex(11),
+                localized_text,
+            ));
+        });
+}
+
+// ============ 新的按钮类型 ============
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum ButtonType {
+    StartGame,
+    PauseGame,
+    ResumeGame,
+    RestartLevel,
+    NextLevel,
+    MainMenu,
+    QuitGame,
+    ToggleLanguage, // 新增：语言切换按钮
+    InventorySlot(RouteSegmentType),
 }

@@ -1,5 +1,5 @@
+#[allow(dead_code)]
 // src/bus_puzzle/localization.rs - 本地化系统核心
-
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -119,7 +119,7 @@ pub struct LanguageChangedEvent {
 // ============ 文本常量定义 ============
 
 // 主菜单
-pub const GAME_TITLE: LocalizedText = LocalizedText::new("Next Stop", "下一站");
+pub const GAME_TITLE: LocalizedText = LocalizedText::new("Last Stop", "下一站");
 pub const START_GAME: LocalizedText = LocalizedText::new("Start Game", "开始游戏");
 pub const QUIT_GAME: LocalizedText = LocalizedText::new("Quit Game", "退出游戏");
 pub const LANGUAGE_SETTING: LocalizedText = LocalizedText::new("Language", "语言设置");

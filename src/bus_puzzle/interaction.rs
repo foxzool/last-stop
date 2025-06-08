@@ -237,6 +237,7 @@ fn handle_button_interactions(
                         warn!("Insufficient inventory: {:?}", segment_type);
                     }
                 }
+                _ => {}
             }
         }
     }

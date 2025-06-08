@@ -75,7 +75,7 @@ pub struct ObjectiveCondition {
 }
 
 // ============ 实现本地化获取方法 ============
-
+#[allow(dead_code)]
 impl LevelData {
     /// 获取本地化的关卡名称
     pub fn get_localized_name(&self, language: Language) -> String {
@@ -96,6 +96,7 @@ impl LevelData {
     }
 }
 
+#[allow(dead_code)]
 impl Station {
     /// 获取本地化的站点名称
     pub fn get_localized_name(&self, language: Language) -> String {
