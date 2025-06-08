@@ -1,4 +1,5 @@
 // 模块声明
+pub mod bus_system;
 pub mod components;
 pub mod config;
 pub mod connection_system;
@@ -6,6 +7,7 @@ pub mod debug_info;
 pub mod events;
 pub mod interaction;
 pub mod level_system;
+pub mod passenger_bus_integration;
 pub mod passenger_movement_debug;
 pub mod pathfinding;
 pub mod resources;
@@ -18,6 +20,7 @@ use bevy::{
     platform::collections::HashMap,
 };
 // 重新导出主要类型
+pub use bus_system::*;
 pub use components::*;
 pub use config::*;
 pub use debug_info::*;
@@ -31,7 +34,14 @@ pub use ui_audio::*;
 pub use utils::*;
 
 use crate::bus_puzzle::{
-    connection_system::FixedConnectionSystemPlugin, splash::SplashPlugin, LevelCompleteData,
+    bus_system::{debug_bus_system, update_bus_movement, update_bus_routes, BusRoutesManager},
+    connection_system::FixedConnectionSystemPlugin,
+    passenger_bus_integration::{
+        debug_passenger_bus_system, disable_passenger_pathfinding,
+        update_passenger_bus_interaction, update_passengers_on_bus,
+    },
+    splash::SplashPlugin,
+    LevelCompleteData,
 };
 use bevy::prelude::*;
 
@@ -50,6 +60,8 @@ impl Plugin for BusPuzzleGamePlugin {
             PassengerMovementDebugPlugin,
             FixedConnectionSystemPlugin,
             DebugInfoPlugin,
+            BusSystemPlugin,               // 新增公交车系统
+            PassengerBusIntegrationPlugin, // 新增乘客-公交车交互
         ));
 
         app.init_resource::<GameState>()
@@ -73,6 +85,41 @@ impl Plugin for BusPuzzleGamePlugin {
                 (update_game_score, check_level_failure_conditions)
                     .run_if(in_state(GameStateEnum::Playing)),
             );
+    }
+}
+
+// ============ 乘客-公交车交互插件 ============
+
+pub struct PassengerBusIntegrationPlugin;
+
+impl Plugin for PassengerBusIntegrationPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(
+            Update,
+            (
+                disable_passenger_pathfinding,
+                update_passenger_bus_interaction,
+                update_passengers_on_bus,
+                debug_passenger_bus_system,
+            )
+                .chain()
+                .run_if(in_state(GameStateEnum::Playing)),
+        );
+    }
+}
+
+// ============ 公交车系统插件 ============
+
+pub struct BusSystemPlugin;
+
+impl Plugin for BusSystemPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<BusRoutesManager>().add_systems(
+            Update,
+            (update_bus_routes, update_bus_movement, debug_bus_system)
+                .chain()
+                .run_if(in_state(GameStateEnum::Playing)),
+        );
     }
 }
 
@@ -122,6 +169,7 @@ fn load_current_level(
     mut next_state: ResMut<NextState<GameStateEnum>>,
     asset_server: Res<AssetServer>,
     mut pathfinding_graph: ResMut<PathfindingGraph>,
+    mut bus_routes_manager: ResMut<BusRoutesManager>, // 新增：公交车路线管理器
     mut level_complete_data: ResMut<LevelCompleteData>, // 添加LevelCompleteData
     time: Res<Time>,
     // 清理现有的游戏实体
@@ -130,6 +178,7 @@ fn load_current_level(
     existing_segments: Query<Entity, With<RouteSegment>>,
     existing_passengers: Query<Entity, With<PathfindingAgent>>,
     existing_previews: Query<Entity, With<SegmentPreview>>,
+    existing_buses: Query<Entity, With<BusVehicle>>, // 新增：现有公交车
 ) {
     info!(
         "开始加载关卡，当前索引: {}",
@@ -148,13 +197,18 @@ fn load_current_level(
         existing_segments,
         existing_passengers,
         existing_previews,
+        existing_buses, // 传递公交车查询
     );
 
-    // 第三步：重置寻路图
+    // 第三步：重置寻路图和公交车系统
     pathfinding_graph.connections.clear();
     pathfinding_graph.nodes.clear();
     pathfinding_graph.station_lookup.clear();
     pathfinding_graph.route_network.clear();
+
+    // 清空公交车路线管理器
+    bus_routes_manager.routes.clear();
+    info!("公交车路线管理器已重置");
 
     // 第四步：获取关卡数据
     let level_data = if let Some(level_id) = level_manager
@@ -199,6 +253,7 @@ fn cleanup_game_world(
     segments: Query<Entity, With<RouteSegment>>,
     passengers: Query<Entity, With<PathfindingAgent>>,
     previews: Query<Entity, With<SegmentPreview>>,
+    buses: Query<Entity, With<BusVehicle>>, // 新增：清理公交车
 ) {
     info!("清理游戏世界实体...");
 
@@ -224,6 +279,11 @@ fn cleanup_game_world(
 
     // 清理预览
     for entity in previews.iter() {
+        commands.entity(entity).despawn();
+    }
+
+    // 清理公交车
+    for entity in buses.iter() {
         commands.entity(entity).despawn();
     }
 

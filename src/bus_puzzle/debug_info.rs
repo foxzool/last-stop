@@ -17,8 +17,8 @@ impl Plugin for DebugInfoPlugin {
             Update,
             (
                 debug_info_system,
-                debug_state_switch,
-                debug_level_reset,       // 新增调试功能
+                // debug_state_switch,
+                // debug_level_reset,       // 新增调试功能
                 debug_level_status,      // 新增关卡状态调试
                 debug_score_calculation, // 新增分数计算调试
                 debug_trigger_game_over, // 新增：测试游戏失败菜单
@@ -32,6 +32,8 @@ fn debug_info_system(
     game_state: Res<bus_puzzle::GameState>,
     passengers: Query<&bus_puzzle::PathfindingAgent>,
     placed_segments: Query<&bus_puzzle::RouteSegment>,
+    buses: Query<&bus_puzzle::BusVehicle>, // 新增：公交车查询
+    bus_routes_manager: Res<bus_puzzle::BusRoutesManager>, // 新增：路线管理器
     current_state: Res<State<bus_puzzle::GameStateEnum>>,
     time: Res<Time>,
 ) {
@@ -64,6 +66,27 @@ fn debug_info_system(
         info!("目标完成情况: {:?}", game_state.objectives_completed);
         info!("当前得分: {}", game_state.score.total_score);
 
+        // 新增：公交车系统信息
+        info!("=== 公交车系统状态 ===");
+        info!("公交车数量: {}", buses.iter().count());
+        info!("路线数量: {}", bus_routes_manager.routes.len());
+
+        for (route_id, route) in &bus_routes_manager.routes {
+            info!(
+                "路线 {}: {} ({}个站点)",
+                route_id,
+                route.route_name,
+                route.stops.len()
+            );
+        }
+
+        for bus in buses.iter() {
+            info!(
+                "公交车 {}: 状态={:?}, 路线={}",
+                bus.vehicle_id, bus.state, bus.route_id
+            );
+        }
+
         // 关卡信息
         if let Some(level_data) = &game_state.current_level {
             info!("当前关卡: {} ({})", level_data.name, level_data.id);
@@ -81,28 +104,35 @@ fn debug_info_system(
             warn!("没有关卡数据！");
         }
 
-        info!("=== 按 F2 查看乘客生成详情，F3 手动生成测试乘客，F12 测试游戏失败菜单 ===");
+        info!("=== 按键提示 ===");
+        info!("F2: 乘客生成详情");
+        info!("F3: 手动生成测试乘客");
+        info!("F4: 重新发现公交路线并生成公交车 🚌");
+        info!("F5: 公交车系统详细状态");
+        info!("F6: 乘客-公交车交互调试 🚌👥");
+        info!("F12: 测试游戏失败菜单");
     }
 }
 
 // 添加快速切换游戏状态的调试功能
+#[allow(dead_code)]
 fn debug_state_switch(
     keyboard_input: Res<ButtonInput<KeyCode>>,
-    current_state: Res<State<bus_puzzle::GameStateEnum>>,
-    mut next_state: ResMut<NextState<bus_puzzle::GameStateEnum>>,
+    current_state: Res<State<GameStateEnum>>,
+    mut next_state: ResMut<NextState<GameStateEnum>>,
 ) {
     if keyboard_input.just_pressed(KeyCode::F4) {
         match current_state.get() {
-            bus_puzzle::GameStateEnum::MainMenu => {
-                next_state.set(bus_puzzle::GameStateEnum::Playing);
+            GameStateEnum::MainMenu => {
+                next_state.set(GameStateEnum::Playing);
                 info!("切换到游戏状态");
             }
-            bus_puzzle::GameStateEnum::Playing => {
-                next_state.set(bus_puzzle::GameStateEnum::MainMenu);
+            GameStateEnum::Playing => {
+                next_state.set(GameStateEnum::MainMenu);
                 info!("切换到主菜单");
             }
             _ => {
-                next_state.set(bus_puzzle::GameStateEnum::Playing);
+                next_state.set(GameStateEnum::Playing);
                 info!("强制切换到游戏状态");
             }
         }
@@ -137,6 +167,7 @@ fn debug_trigger_game_over(
 }
 
 /// F5 - 调试关卡重置功能
+#[allow(dead_code)]
 fn debug_level_reset(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut next_state: ResMut<NextState<GameStateEnum>>,

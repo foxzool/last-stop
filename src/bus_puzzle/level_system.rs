@@ -501,8 +501,8 @@ pub fn create_tutorial_level() -> LevelData {
         }
     }
 
-    terrain.insert(GridPos::new(4, 3), TerrainType::Building);
-    terrain.insert(GridPos::new(4, 4), TerrainType::Building);
+    // terrain.insert(GridPos::new(4, 3), TerrainType::Building);
+    // terrain.insert(GridPos::new(4, 4), TerrainType::Building);
     terrain.insert(GridPos::new(6, 2), TerrainType::Water);
     terrain.insert(GridPos::new(7, 2), TerrainType::Water);
 
@@ -535,8 +535,10 @@ pub fn create_tutorial_level() -> LevelData {
             destination: "B站".to_string(),
             spawn_rate: 0.5,
             patience: DEFAULT_PASSENGER_PATIENCE,
-            spawn_time_range: Some((5.0, 25.0)),
-            total_count: Some(3),
+            // spawn_time_range: Some((5.0, 25.0)),
+            spawn_time_range: None,
+            // total_count: Some(3),
+            total_count: None,
             spawned_count: 0, // 重要：每次都重置为0
         }],
         available_segments: vec![
