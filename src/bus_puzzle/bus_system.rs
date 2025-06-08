@@ -235,8 +235,9 @@ impl RouteDiscoverySystem {
 
             // 查找与当前位置相邻且未访问的路线段
             for segment in segments {
-                if !visited.contains(&segment.grid_pos) &&
-                    Self::is_adjacent(current_pos, segment.grid_pos) {
+                if !visited.contains(&segment.grid_pos)
+                    && Self::is_adjacent(current_pos, segment.grid_pos)
+                {
                     route_segments.push(segment.grid_pos);
                     visited.insert(segment.grid_pos);
                     current_pos = segment.grid_pos;
@@ -267,8 +268,9 @@ impl RouteDiscoverySystem {
 
         // 检查路线段末端是否有相邻的站点
         for (station_pos, station_name) in stations {
-            if Self::is_adjacent(current_pos, *station_pos) &&
-                !route_stops.iter().any(|stop| stop.position == *station_pos) {
+            if Self::is_adjacent(current_pos, *station_pos)
+                && !route_stops.iter().any(|stop| stop.position == *station_pos)
+            {
                 route_stops.push(BusStop {
                     position: *station_pos,
                     name: station_name.clone(),
@@ -285,7 +287,11 @@ impl RouteDiscoverySystem {
             processed.insert(pos);
         }
 
-        info!("路线构建完成: {} 个站点, {} 个路线段", route_stops.len(), route_segments.len());
+        info!(
+            "路线构建完成: {} 个站点, {} 个路线段",
+            route_stops.len(),
+            route_segments.len()
+        );
 
         // 输出路线详情
         for (i, stop) in route_stops.iter().enumerate() {
@@ -312,14 +318,18 @@ impl RouteDiscoverySystem {
         let route_id = format!("route_{}", route_stops[0].name);
         let route_name = format!("{}路", route_stops[0].name);
 
-        info!("成功构建路线: {} ({} 个站点)", route_name, route_stops.len());
+        info!(
+            "成功构建路线: {} ({} 个站点)",
+            route_name,
+            route_stops.len()
+        );
 
         Some(BusRoute {
             route_id: route_id.clone(),
             route_name,
             stops: route_stops,
             segments: route_segments,
-            frequency: 20.0, // 默认20秒一班
+            frequency: 20.0,    // 默认20秒一班
             is_circular: false, // 目前都是往返线路
             vehicles: Vec::new(),
             max_vehicles: 2,
@@ -533,7 +543,7 @@ pub fn spawn_bus_vehicle(
                 current_passengers: Vec::new(),
                 current_stop_index: 0,
                 direction: BusDirection::Forward,
-                state: BusState::Traveling,
+                state: BusState::Idle,
                 speed: 80.0,
                 dwell_time: 3.0,
                 remaining_dwell: 0.0,

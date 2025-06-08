@@ -496,7 +496,7 @@ fn update_passenger_movement(
             }
             AgentState::Traveling => {
                 // 如果乘客处于移动状态，将其重置为等车状态
-                warn!("乘客 {:?} 不应该自主移动，重置为等车状态", agent.color);
+                // warn!("乘客 {:?} 不应该自主移动，重置为等车状态", agent.color);
                 agent.state = AgentState::WaitingAtStation;
                 agent.current_path.clear();
                 agent.current_step = 0;
