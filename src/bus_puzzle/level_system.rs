@@ -1,7 +1,7 @@
 // src/bus_puzzle/level_system.rs
 
 use crate::bus_puzzle::{
-    get_passenger_color, reset_game_state, AgentState, GameState, GameStateEnum, GridPos, GridTile,
+    get_passenger_color, AgentState, GameState, GameStateEnum, GridPos, GridTile,
     LevelCompletedEvent, LevelManager, PassengerColor, PassengerEntity, PassengerSpawnedEvent,
     PathfindingAgent, RouteSegment, RouteSegmentType, StationEntity, StationType, TerrainType,
     PASSENGER_Z, ROUTE_Z, STATION_Z, TERRAIN_Z,
@@ -183,12 +183,7 @@ fn update_passenger_spawning(
                 // 在生成前增加计数
                 demand.spawned_count += 1;
 
-                spawn_passenger_with_icon(
-                    &mut commands,
-                    &asset_server,
-                    demand,
-                    &level_data_ref,
-                );
+                spawn_passenger_with_icon(&mut commands, &asset_server, demand, &level_data_ref);
 
                 info!(
                     "生成乘客 {:?}: {}/{:?} (游戏时间: {:.1}s)",
@@ -342,12 +337,7 @@ fn manual_spawn_passenger_debug(
     if keyboard_input.just_pressed(KeyCode::F3) {
         if let Some(level_data) = &game_state.current_level {
             if let Some(demand) = level_data.passenger_demands.first() {
-                spawn_passenger_with_icon(
-                    &mut commands,
-                    &asset_server,
-                    demand,
-                    level_data,
-                );
+                spawn_passenger_with_icon(&mut commands, &asset_server, demand, level_data);
                 info!("手动生成测试乘客: {:?}", demand.color);
             }
         }

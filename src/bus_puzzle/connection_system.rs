@@ -1,4 +1,13 @@
 // src/bus_puzzle/connection_system.rs
+//
+// 统一的连接系统 - 修复后的方向性连接处理
+//
+// 设计原理：
+// 1. 所有连接方向定义统一使用 components.rs 中的 RouteSegmentType 方法
+// 2. TSplit 在 0 度时的连接方向为：上(0,-1)、下(0,1)、右(1,0)
+// 3. Curve 在 0 度时的连接方向为：左(-1,0)、上(0,-1)
+// 4. 旋转通过 rotate_offset 函数统一处理
+// 5. 所有系统（寻路、连接、可视化）使用相同的连接定义
 
 use crate::bus_puzzle::{
     manhattan_distance, Connection, ConnectionType, GraphNode, GraphNodeType, GridPos,
@@ -44,23 +53,35 @@ fn debug_connections_with_directions(
             );
 
             // 显示该路线段的连接端口
-            let connection_ports = get_segment_connection_ports(
-                segment.grid_pos,
-                &segment.segment_type,
-                segment.rotation,
-            );
+            let connection_positions = segment.segment_type.get_connection_positions(segment.grid_pos, segment.rotation);
+            let connection_offsets = segment.segment_type.get_connection_offsets(segment.rotation);
 
             info!("  连接端口:");
-            for (direction, port_pos) in &connection_ports {
-                info!("    {:?}: {:?}", direction, port_pos);
+            for (offset, position) in connection_offsets.iter().zip(connection_positions.iter()) {
+                let direction_name = match offset {
+                    (0, -1) => "北(上)",
+                    (0, 1) => "南(下)",
+                    (1, 0) => "东(右)",
+                    (-1, 0) => "西(左)",
+                    _ => "未知",
+                };
+                info!("    {} {:?}: {:?}", direction_name, offset, position);
             }
 
             // 检查实际连接
             if let Some(connections) = pathfinding_graph.connections.get(&segment.grid_pos) {
                 info!("  实际连接 {} 个:", connections.len());
                 for conn in connections {
-                    let direction = get_direction_between(segment.grid_pos, conn.to);
-                    info!("    -> {:?} ({:?})", conn.to, direction);
+                    let dx = conn.to.x - segment.grid_pos.x;
+                    let dy = conn.to.y - segment.grid_pos.y;
+                    let direction_name = match (dx, dy) {
+                        (0, -1) => "北(上)",
+                        (0, 1) => "南(下)",
+                        (1, 0) => "东(右)",
+                        (-1, 0) => "西(左)",
+                        _ => "其他",
+                    };
+                    info!("    -> {:?} ({})", conn.to, direction_name);
                 }
             } else {
                 warn!("  ❌ 没有实际连接");
@@ -84,16 +105,24 @@ fn debug_connections_with_directions(
 
                 let distance = manhattan_distance(station_pos, segment.grid_pos);
                 if distance <= 2 {
-                    let can_connect =
-                        can_station_connect_to_segment_directional(station_pos, segment);
+                    let can_connect = can_station_connect_to_segment_directional(station_pos, segment);
 
-                    let direction = get_direction_between(station_pos, segment.grid_pos);
+                    let dx = segment.grid_pos.x - station_pos.x;
+                    let dy = segment.grid_pos.y - station_pos.y;
+                    let direction_name = match (dx, dy) {
+                        (0, -1) => "北(上)",
+                        (0, 1) => "南(下)",
+                        (1, 0) => "东(右)",
+                        (-1, 0) => "西(左)",
+                        _ => "其他",
+                    };
+
                     info!(
-                        "  距离{} {:?} at {:?} 方向{:?}: {}",
+                        "  距离{} {:?} at {:?} 方向{}: {}",
                         distance,
                         segment.segment_type,
                         segment.grid_pos,
-                        direction,
+                        direction_name,
                         if can_connect {
                             "✅可连接"
                         } else {
@@ -306,8 +335,8 @@ fn create_station_connections_directional(
 /// 方向枚举
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Direction {
-    North, // 上 (y+1)
-    South, // 下 (y-1)
+    North, // 上 (y-1)
+    South, // 下 (y+1)
     East,  // 右 (x+1)
     West,  // 左 (x-1)
 }
@@ -325,19 +354,19 @@ impl Direction {
 
     fn to_offset(self) -> (i32, i32) {
         match self {
-            Direction::North => (0, 1),
-            Direction::South => (0, -1),
-            Direction::East => (1, 0),
-            Direction::West => (-1, 0),
+            Direction::North => (0, -1), // 统一：North = 上 = y-1
+            Direction::South => (0, 1),  // 统一：South = 下 = y+1
+            Direction::East => (1, 0),   // 统一：East = 右 = x+1
+            Direction::West => (-1, 0),  // 统一：West = 左 = x-1
         }
     }
 
     fn from_offset(dx: i32, dy: i32) -> Option<Self> {
         match (dx, dy) {
-            (0, 1) => Some(Direction::North),
-            (0, -1) => Some(Direction::South),
-            (1, 0) => Some(Direction::East),
-            (-1, 0) => Some(Direction::West),
+            (0, -1) => Some(Direction::North), // 上
+            (0, 1) => Some(Direction::South),  // 下
+            (1, 0) => Some(Direction::East),   // 右
+            (-1, 0) => Some(Direction::West),  // 左
             _ => None,
         }
     }
@@ -349,65 +378,25 @@ fn get_segment_connection_ports(
     segment_type: &RouteSegmentType,
     rotation: u32,
 ) -> Vec<(Direction, GridPos)> {
-    // 定义基础方向（未旋转时）
-    let base_directions = match segment_type {
-        RouteSegmentType::Straight => vec![Direction::West, Direction::East], // 水平：左右连接
-        RouteSegmentType::Curve => vec![Direction::West, Direction::North],   // L型：左和下
-        RouteSegmentType::TSplit => vec![Direction::North, Direction::South, Direction::East],
-        RouteSegmentType::Cross => vec![
-            Direction::North,
-            Direction::South,
-            Direction::East,
-            Direction::West,
-        ],
-        RouteSegmentType::Bridge | RouteSegmentType::Tunnel => {
-            vec![Direction::West, Direction::East] // 和直线段一样
-        }
-    };
+    // 统一使用 components.rs 中的定义
+    let connection_offsets = segment_type.get_connection_offsets(rotation);
 
-    // 应用旋转
-    base_directions
+    connection_offsets
         .into_iter()
-        .map(|dir| {
-            let rotated_dir = rotate_direction(dir, rotation);
-            let (dx, dy) = rotated_dir.to_offset();
-            let port_pos = GridPos::new(pos.x + dx, pos.y + dy);
-            (rotated_dir, port_pos)
+        .filter_map(|(dx, dy)| {
+            Direction::from_offset(dx, dy).map(|dir| {
+                let port_pos = GridPos::new(pos.x + dx, pos.y + dy);
+                (dir, port_pos)
+            })
         })
         .collect()
 }
 
-/// 旋转方向
-fn rotate_direction(direction: Direction, rotation: u32) -> Direction {
-    let steps = (rotation / 90) % 4;
-    let mut result = direction;
 
-    for _ in 0..steps {
-        result = match result {
-            Direction::North => Direction::East,
-            Direction::East => Direction::South,
-            Direction::South => Direction::West,
-            Direction::West => Direction::North,
-        };
-    }
-
-    result
-}
 
 /// 检查路线段是否有朝向指定位置的端口
 fn segment_has_port_facing(segment: &RouteSegment, target_pos: GridPos) -> bool {
-    let direction_to_target = get_direction_between(segment.grid_pos, target_pos);
-
-    if let Some(direction) = direction_to_target {
-        let connection_ports =
-            get_segment_connection_ports(segment.grid_pos, &segment.segment_type, segment.rotation);
-
-        connection_ports
-            .iter()
-            .any(|(port_dir, _)| *port_dir == direction)
-    } else {
-        false
-    }
+    segment.segment_type.has_connection_to(segment.grid_pos, target_pos, segment.rotation)
 }
 
 /// 获取两点之间的方向
@@ -455,23 +444,16 @@ fn get_connection_reason(station_pos: GridPos, segment: &RouteSegment) -> String
     match distance {
         0 => "重叠位置".to_string(),
         1 => {
-            if segment_has_port_facing(segment, station_pos) {
+            if segment.segment_type.has_connection_to(segment.grid_pos, station_pos, segment.rotation) {
                 "直接相邻且路线段有朝向站点的端口".to_string()
             } else {
                 "直接相邻但路线段没有朝向站点的端口".to_string()
             }
         }
         _ => {
-            let connection_ports = get_segment_connection_ports(
-                segment.grid_pos,
-                &segment.segment_type,
-                segment.rotation,
-            );
+            let connection_positions = segment.segment_type.get_connection_positions(segment.grid_pos, segment.rotation);
 
-            if connection_ports
-                .iter()
-                .any(|(_, port_pos)| *port_pos == station_pos)
-            {
+            if connection_positions.contains(&station_pos) {
                 "站点位于路线段的端口位置".to_string()
             } else {
                 "距离过远且不在端口位置".to_string()
@@ -531,43 +513,28 @@ fn visualize_segment_ports(
         (10, 8)
     };
 
-    // 获取基础连接方向（未旋转的）
-    let base_directions = match segment.segment_type {
-        RouteSegmentType::Straight => vec![Direction::West, Direction::East], // 水平：左右连接
-        RouteSegmentType::Curve => vec![Direction::West, Direction::North],   // L型：左和上
-        RouteSegmentType::TSplit => vec![Direction::North, Direction::South, Direction::East],
-        RouteSegmentType::Cross => vec![
-            Direction::North,
-            Direction::South,
-            Direction::East,
-            Direction::West,
-        ],
-        RouteSegmentType::Bridge | RouteSegmentType::Tunnel => {
-            vec![Direction::West, Direction::East] // 和直线段一样，水平连接
-        }
-    };
+    // 使用统一的连接方向定义
+    let connection_offsets = segment.segment_type.get_connection_offsets(segment.rotation);
 
     let center_world = segment
         .grid_pos
         .to_world_pos(tile_size, grid_width, grid_height);
 
-    // 为每个基础连接方向创建箭头指示器
-    for (index, direction) in base_directions.iter().enumerate() {
+    // 为每个连接方向创建箭头指示器
+    for (index, (dx, dy)) in connection_offsets.iter().enumerate() {
         // 计算箭头位置（从路线段中心向外延伸）
-        let (dx, dy) = direction.to_offset();
-        let arrow_offset = Vec3::new(dx as f32 * 20.0, dy as f32 * 20.0, 0.0);
+        let arrow_offset = Vec3::new(*dx as f32 * 20.0, *dy as f32 * 20.0, 0.0);
 
-        // 计算箭头旋转角度（基础方向 + 路线段旋转）
-        let base_rotation = match direction {
-            Direction::North => 0.0,                        // 向上
-            Direction::East => -std::f32::consts::PI / 2.0, // 向右
-            Direction::South => std::f32::consts::PI,       // 向下
-            Direction::West => std::f32::consts::PI / 2.0,  // 向左
+        // 计算箭头旋转角度
+        let base_rotation = match (*dx, *dy) {
+            (0, -1) => 0.0,                        // 向上 (North)
+            (1, 0) => -std::f32::consts::PI / 2.0, // 向右 (East)
+            (0, 1) => std::f32::consts::PI,       // 向下 (South)
+            (-1, 0) => std::f32::consts::PI / 2.0, // 向左 (West)
+            _ => 0.0,
         };
 
-        // 添加路线段的旋转
-        let segment_rotation = (segment.rotation as f32) * std::f32::consts::PI / 180.0;
-        let final_rotation = base_rotation + segment_rotation;
+        let final_arrow_pos = center_world + arrow_offset;
 
         // 为每个连接方向使用不同颜色
         let color = match index % 4 {
@@ -578,14 +545,6 @@ fn visualize_segment_ports(
             _ => Color::WHITE,
         };
 
-        // 同时旋转箭头位置
-        let rotated_offset = Vec3::new(
-            arrow_offset.x * segment_rotation.cos() - arrow_offset.y * segment_rotation.sin(),
-            arrow_offset.x * segment_rotation.sin() + arrow_offset.y * segment_rotation.cos(),
-            arrow_offset.z,
-        );
-        let final_arrow_pos = center_world + rotated_offset;
-
         // 创建箭头形状（三角形指向连接方向）
         commands.spawn((
             Sprite {
@@ -594,11 +553,11 @@ fn visualize_segment_ports(
                 ..default()
             },
             Transform::from_translation(final_arrow_pos + Vec3::Z * 15.0)
-                .with_rotation(Quat::from_rotation_z(final_rotation)),
+                .with_rotation(Quat::from_rotation_z(base_rotation)),
             DirectionVisualization,
             Name::new(format!(
-                "Connection {:?} for {:?} (rot: {}°)",
-                direction, segment.segment_type, segment.rotation
+                "Connection ({},{}) for {:?} (rot: {}°)",
+                dx, dy, segment.segment_type, segment.rotation
             )),
         ));
     }

@@ -15,6 +15,7 @@ pub fn rotate_offset(dx: i32, dy: i32, rotation: u32) -> (i32, i32) {
 
 /// 方向枚举（用于可视化）
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[allow(dead_code)]
 pub enum ConnectionDirection {
     North, // 上 (y-1)
     South, // 下 (y+1)
@@ -23,6 +24,7 @@ pub enum ConnectionDirection {
 }
 
 impl ConnectionDirection {
+    #[allow(dead_code)]
     pub fn from_offset(dx: i32, dy: i32) -> Option<Self> {
         match (dx, dy) {
             (0, -1) => Some(ConnectionDirection::North),
@@ -33,6 +35,7 @@ impl ConnectionDirection {
         }
     }
 
+    #[allow(dead_code)]
     pub fn to_offset(self) -> (i32, i32) {
         match self {
             ConnectionDirection::North => (0, -1),
@@ -148,10 +151,26 @@ impl RouteSegmentType {
     }
 
     /// 获取连接方向（用于可视化）
+    #[allow(dead_code)]
     pub fn get_connection_directions(&self, rotation: u32) -> Vec<ConnectionDirection> {
         self.get_connection_offsets(rotation)
             .into_iter()
             .filter_map(|(dx, dy)| ConnectionDirection::from_offset(dx, dy))
+            .collect()
+    }
+
+    /// 检查路线段在指定旋转下是否有连接到目标位置的端口
+    pub fn has_connection_to(&self, segment_pos: GridPos, target_pos: GridPos, rotation: u32) -> bool {
+        let connection_offsets = self.get_connection_offsets(rotation);
+        let target_offset = (target_pos.x - segment_pos.x, target_pos.y - segment_pos.y);
+        connection_offsets.contains(&target_offset)
+    }
+
+    /// 获取路线段在指定位置和旋转下的所有连接位置
+    pub fn get_connection_positions(&self, segment_pos: GridPos, rotation: u32) -> Vec<GridPos> {
+        self.get_connection_offsets(rotation)
+            .into_iter()
+            .map(|(dx, dy)| GridPos::new(segment_pos.x + dx, segment_pos.y + dy))
             .collect()
     }
 }

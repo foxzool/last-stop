@@ -188,8 +188,9 @@ fn update_pathfinding_graph(
             for adj_pos in adjacent_positions {
                 if let Some(segment) = route_segments_by_pos.get(&adj_pos) {
                     let can_connect = segment_can_connect_to_station(segment, station_pos);
-                    let connection_points =
-                        get_segment_connections(adj_pos, &segment.segment_type, segment.rotation);
+                    let connection_positions = segment
+                        .segment_type
+                        .get_connection_positions(adj_pos, segment.rotation);
                     info!(
                         "    {:?}: {:?} 旋转{}° - {} (连接点: {:?})",
                         adj_pos,
@@ -200,7 +201,7 @@ fn update_pathfinding_graph(
                         } else {
                             "❌不可连接"
                         },
-                        connection_points
+                        connection_positions
                     );
                 } else {
                     info!("    {:?}: 空位置", adj_pos);
@@ -254,24 +255,54 @@ fn create_route_connections_improved(
     );
 
     for (pos, segment) in route_segments_by_pos {
-        let theoretical_connections =
-            get_segment_connections(*pos, &segment.segment_type, segment.rotation);
+        let connection_positions = segment
+            .segment_type
+            .get_connection_positions(*pos, segment.rotation);
         trace!(
-            "路线段 {:?} at {:?} 旋转{}° 理论连接: {:?}",
+            "路线段 {:?} at {:?} 旋转{}° 连接位置: {:?}",
             segment.segment_type,
             pos,
             segment.rotation,
-            theoretical_connections
+            connection_positions
         );
 
-        for connection_pos in theoretical_connections {
-            if route_segments_by_pos.contains_key(&connection_pos)
-                || pathfinding_graph
+        for connection_pos in connection_positions {
+            if let Some(target_segment) = route_segments_by_pos.get(&connection_pos) {
+                // 检查目标路线段是否也有朝向当前路线段的连接口
+                if target_segment.segment_type.has_connection_to(
+                    connection_pos,
+                    *pos,
+                    target_segment.rotation,
+                ) {
+                    // 创建双向连接
+                    add_connection_if_not_exists(
+                        pathfinding_graph,
+                        *pos,
+                        connection_pos,
+                        ConnectionType::BusRoute,
+                    );
+
+                    add_connection_if_not_exists(
+                        pathfinding_graph,
+                        connection_pos,
+                        *pos,
+                        ConnectionType::BusRoute,
+                    );
+
+                    trace!("双向连接建立: {:?} <-> {:?}", pos, connection_pos);
+                } else {
+                    trace!(
+                        "单向连接拒绝: {:?} -> {:?} (目标段没有回连接口)",
+                        pos,
+                        connection_pos
+                    );
+                }
+            } else if pathfinding_graph
                 .station_lookup
                 .values()
                 .any(|&station_pos| station_pos == connection_pos)
             {
-                // 创建双向连接
+                // 连接到站点的情况不需要双向检查
                 add_connection_if_not_exists(
                     pathfinding_graph,
                     *pos,
@@ -279,55 +310,7 @@ fn create_route_connections_improved(
                     ConnectionType::BusRoute,
                 );
 
-                add_connection_if_not_exists(
-                    pathfinding_graph,
-                    connection_pos,
-                    *pos,
-                    ConnectionType::BusRoute,
-                );
-
-                trace!("理论连接: {:?} <-> {:?}", pos, connection_pos);
-            }
-        }
-
-        // 重要：强制添加所有相邻路线段的连接
-        for other_pos in route_segments_by_pos.keys() {
-            if *other_pos != *pos {
-                let distance = manhattan_distance(*pos, *other_pos);
-                if distance == 1 {
-                    // 检查是否在同一行（水平连接）
-                    if pos.y == other_pos.y {
-                        add_connection_if_not_exists(
-                            pathfinding_graph,
-                            *pos,
-                            *other_pos,
-                            ConnectionType::BusRoute,
-                        );
-                        add_connection_if_not_exists(
-                            pathfinding_graph,
-                            *other_pos,
-                            *pos,
-                            ConnectionType::BusRoute,
-                        );
-                        trace!("强制水平连接: {:?} <-> {:?}", pos, other_pos);
-                    }
-                    // 检查是否在同一列（垂直连接）
-                    else if pos.x == other_pos.x {
-                        add_connection_if_not_exists(
-                            pathfinding_graph,
-                            *pos,
-                            *other_pos,
-                            ConnectionType::BusRoute,
-                        );
-                        add_connection_if_not_exists(
-                            pathfinding_graph,
-                            *other_pos,
-                            *pos,
-                            ConnectionType::BusRoute,
-                        );
-                        trace!("强制垂直连接: {:?} <-> {:?}", pos, other_pos);
-                    }
-                }
+                trace!("连接到站点: {:?} -> {:?}", pos, connection_pos);
             }
         }
     }
@@ -417,12 +400,9 @@ pub fn create_station_connections_improved(
 
 /// 检查路线段是否能连接到站点（检查路线段是否有朝向站点的端口）
 fn segment_can_connect_to_station(segment: &RouteSegment, station_pos: GridPos) -> bool {
-    let segment_pos = segment.grid_pos;
-    let connection_points =
-        get_segment_connections(segment_pos, &segment.segment_type, segment.rotation);
-
-    // 检查站点是否在路线段的连接点列表中
-    connection_points.contains(&station_pos)
+    segment
+        .segment_type
+        .has_connection_to(segment.grid_pos, station_pos, segment.rotation)
 }
 
 /// 检查站点是否可以连接到路线段
@@ -439,10 +419,11 @@ fn can_connect_station_to_segment(
     }
 
     // 检查是否在路线段的连接点附近
-    let connection_points =
-        get_segment_connections(segment_pos, &segment.segment_type, segment.rotation);
-    for connection_point in connection_points {
-        if manhattan_distance(station_pos, connection_point) <= 1 {
+    let connection_positions = segment
+        .segment_type
+        .get_connection_positions(segment_pos, segment.rotation);
+    for connection_position in connection_positions {
+        if manhattan_distance(station_pos, connection_position) <= 1 {
             return true;
         }
     }
@@ -603,14 +584,34 @@ fn update_passenger_movement(
     if keyboard_input.just_pressed(KeyCode::F7) {
         info!("=== 乘客移动调试 ===");
         for (agent, transform) in passengers.iter() {
-            if matches!(agent.state, AgentState::Traveling) {
-                info!("乘客 {:?}:", agent.color);
-                info!("  位置: {:?}", transform.translation);
-                info!(
-                    "  路径步骤: {}/{}",
-                    agent.current_step,
-                    agent.current_path.len()
-                );
+            info!("乘客 {:?}:", agent.color);
+            info!(
+                "  位置: {:.1}, {:.1}",
+                transform.translation.x, transform.translation.y
+            );
+            info!("  状态: {:?}", agent.state);
+            info!(
+                "  路径步骤: {}/{}",
+                agent.current_step,
+                agent.current_path.len()
+            );
+            info!("  耐心: {:.1}/{:.1}", agent.patience, agent.max_patience);
+
+            if !agent.current_path.is_empty() {
+                info!("  完整路径:");
+                for (i, node) in agent.current_path.iter().enumerate() {
+                    let marker = if i == agent.current_step {
+                        " -> "
+                    } else {
+                        "    "
+                    };
+                    let node_name = match &node.node_type {
+                        PathNodeType::Station(name) => format!("站点:{}", name),
+                        PathNodeType::RouteSegment => "路线段".to_string(),
+                        PathNodeType::TransferPoint => "换乘点".to_string(),
+                    };
+                    info!("{}步骤 {}: {:?} ({})", marker, i, node.position, node_name);
+                }
 
                 if agent.current_step < agent.current_path.len() {
                     let current_node = &agent.current_path[agent.current_step];
@@ -619,12 +620,7 @@ fn update_passenger_movement(
                             .position
                             .to_world_pos(tile_size, grid_width, grid_height);
                     let distance = transform.translation.distance(target_pos);
-
-                    info!(
-                        "  当前目标: {:?} (距离: {:.1})",
-                        current_node.position, distance
-                    );
-                    info!("  节点类型: {:?}", current_node.node_type);
+                    info!("  当前目标距离: {:.1}", distance);
 
                     // 检查是否是路口
                     let is_junction = route_segments.iter().any(|segment| {
@@ -639,10 +635,13 @@ fn update_passenger_movement(
                     });
 
                     if is_junction {
-                        info!("  这是一个路口！");
+                        info!("  当前位置是路口");
                     }
                 }
+            } else {
+                warn!("  没有路径！");
             }
+            info!(""); // 空行分隔
         }
     }
 
@@ -696,6 +695,7 @@ fn update_passenger_movement(
 
                 if agent.current_step < agent.current_path.len() {
                     let current_node = &agent.current_path[agent.current_step];
+                    let current_node_position = current_node.position.clone();
                     let target_pos =
                         current_node
                             .position
@@ -726,17 +726,18 @@ fn update_passenger_movement(
                             transform.translation.z = PASSENGER_Z;
                         } else {
                             // 接近路口，直接移动到下一个节点
-                            let next_step = agent.current_step + 1;
-                            if next_step >= agent.current_path.len() {
+                            agent.current_step += 1;
+                            if agent.current_step >= agent.current_path.len() {
                                 agent.state = AgentState::Arrived;
                                 info!("乘客 {:?} 到达路径终点", agent.color);
                             } else {
                                 info!(
-                                    "乘客 {:?} 通过路口 {:?}",
-                                    agent.color, agent.current_path[agent.current_step].position
+                                    "乘客 {:?} 通过路口 {:?} -> 下一站 {:?}",
+                                    agent.color,
+                                    current_node_position,
+                                    agent.current_path[agent.current_step].position
                                 );
                             }
-                            agent.current_step = next_step;
                         }
                     } else {
                         // 普通路段的移动逻辑
@@ -947,55 +948,6 @@ fn reconstruct_path(
 
 // ============ 辅助函数 ============
 
-pub fn get_segment_connections(
-    pos: GridPos,
-    segment_type: &RouteSegmentType,
-    rotation: u32,
-) -> Vec<GridPos> {
-    // 直线段的特殊处理：假设纹理默认是水平方向
-    let base_connections = match segment_type {
-        RouteSegmentType::Straight => {
-            // 假设直线段纹理默认是水平方向，所以基础连接是左右
-            match rotation % 180 {
-                0 => vec![(-1, 0), (1, 0)],  // 水平：左右连接 (纹理默认方向)
-                90 => vec![(0, -1), (0, 1)], // 垂直：上下连接 (旋转90度后)
-                _ => vec![(-1, 0), (1, 0)],  // 默认水平
-            }
-        }
-        RouteSegmentType::Curve => vec![(-1, 0), (0, 1)],
-        RouteSegmentType::TSplit => vec![(0, -1), (0, 1), (1, 0)], // T型：上下右
-        RouteSegmentType::Cross => vec![(0, -1), (0, 1), (-1, 0), (1, 0)], // 十字：四方向
-        RouteSegmentType::Bridge | RouteSegmentType::Tunnel => {
-            // 和直线段一样处理
-            match rotation % 180 {
-                0 => vec![(-1, 0), (1, 0)],  // 水平：左右连接
-                90 => vec![(0, -1), (0, 1)], // 垂直：上下连接
-                _ => vec![(-1, 0), (1, 0)],  // 默认水平
-            }
-        }
-    };
-
-    // 对于非直线段，应用旋转
-    let final_connections = if matches!(
-        segment_type,
-        RouteSegmentType::Straight | RouteSegmentType::Bridge | RouteSegmentType::Tunnel
-    ) {
-        // 直线段已经在上面处理了旋转
-        base_connections
-    } else {
-        // 其他类型应用旋转变换
-        base_connections
-            .into_iter()
-            .map(|(dx, dy)| rotate_offset(dx, dy, rotation))
-            .collect()
-    };
-
-    final_connections
-        .into_iter()
-        .map(|(dx, dy)| GridPos::new(pos.x + dx, pos.y + dy))
-        .collect()
-}
-
 pub fn rebuild_pathfinding_graph(
     pathfinding_graph: &mut PathfindingGraph,
     game_state: &super::GameState,
@@ -1053,10 +1005,11 @@ fn rebuild_connections(pathfinding_graph: &mut PathfindingGraph, game_state: &su
     let mut new_connections = Vec::new();
 
     for (pos, placed_segment) in &game_state.placed_segments {
-        let connections =
-            get_segment_connections(*pos, &placed_segment.segment_type, placed_segment.rotation);
+        let connection_positions = placed_segment
+            .segment_type
+            .get_connection_positions(*pos, placed_segment.rotation);
 
-        for connection_pos in connections {
+        for connection_pos in connection_positions {
             if game_state.placed_segments.contains_key(&connection_pos)
                 || pathfinding_graph
                 .station_lookup
@@ -1091,26 +1044,33 @@ fn rebuild_connections(pathfinding_graph: &mut PathfindingGraph, game_state: &su
         let adjacent_positions = get_neighbors(station_pos);
 
         for adj_pos in adjacent_positions {
-            if game_state.placed_segments.contains_key(&adj_pos) {
-                station_connections.push((
-                    station_pos,
-                    Connection {
-                        to: adj_pos,
-                        cost: 0.5,
-                        route_id: None,
-                        connection_type: ConnectionType::Walk,
-                    },
-                ));
-
-                station_connections.push((
+            if let Some(placed_segment) = game_state.placed_segments.get(&adj_pos) {
+                // 检查路线段是否有连接到站点的端口
+                if placed_segment.segment_type.has_connection_to(
                     adj_pos,
-                    Connection {
-                        to: station_pos,
-                        cost: 0.5,
-                        route_id: None,
-                        connection_type: ConnectionType::Walk,
-                    },
-                ));
+                    station_pos,
+                    placed_segment.rotation,
+                ) {
+                    station_connections.push((
+                        station_pos,
+                        Connection {
+                            to: adj_pos,
+                            cost: 0.5,
+                            route_id: None,
+                            connection_type: ConnectionType::Walk,
+                        },
+                    ));
+
+                    station_connections.push((
+                        adj_pos,
+                        Connection {
+                            to: station_pos,
+                            cost: 0.5,
+                            route_id: None,
+                            connection_type: ConnectionType::Walk,
+                        },
+                    ));
+                }
             }
         }
     }
