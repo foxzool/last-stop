@@ -6,7 +6,7 @@ use super::{
     InventoryCountText, InventorySlot, LevelCompletedEvent, LevelData, LevelManager,
     ObjectiveCompletedEvent, ObjectiveCondition, ObjectiveType, PassengerColor, PassengerCountText,
     PathfindingAgent, RouteSegmentType, ScoreText, SegmentPlacedEvent, SegmentRemovedEvent,
-    TimerText, UIElement,
+    TimerText, UIElement, INVENTORY_SLOT_SIZE,
 };
 use bevy::{
     audio::{PlaybackMode, Volume},
@@ -606,8 +606,8 @@ fn setup_gameplay_ui(mut commands: Commands, ui_assets: Res<UIAssets>, game_stat
                     .spawn((
                         Button,
                         Node {
-                            width: Px(80.0),
-                            height: Px(80.0),
+                            width: Px(INVENTORY_SLOT_SIZE),
+                            height: Px(INVENTORY_SLOT_SIZE),
                             justify_content: JustifyContent::Center,
                             align_items: AlignItems::Center,
                             border: UiRect::all(Px(2.0)),

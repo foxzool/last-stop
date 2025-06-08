@@ -8,9 +8,10 @@ use std::{
 };
 
 use super::{
-    get_neighbors, manhattan_distance, rotate_offset, AgentState, Connection, ConnectionType,
-    GameState, GameStateEnum, GraphNode, GraphNodeType, GridPos, LevelManager, PathfindingAgent,
-    PathfindingGraph, RouteSegment, RouteSegmentType, StationEntity, PASSENGER_Z,
+    get_neighbors, manhattan_distance, AgentState, Connection, ConnectionType, GameState,
+    GameStateEnum, GraphNode, GraphNodeType, GridPos, LevelManager, PathfindingAgent,
+    PathfindingGraph, RouteSegment, RouteSegmentType, StationEntity, BUS_SPEED, PASSENGER_Z,
+    WALKING_SPEED,
 };
 
 // ============ 寻路相关组件 ============
@@ -405,41 +406,6 @@ fn segment_can_connect_to_station(segment: &RouteSegment, station_pos: GridPos) 
         .has_connection_to(segment.grid_pos, station_pos, segment.rotation)
 }
 
-/// 检查站点是否可以连接到路线段
-fn can_connect_station_to_segment(
-    station_pos: GridPos,
-    segment_pos: GridPos,
-    segment: &RouteSegment,
-) -> bool {
-    let distance = manhattan_distance(station_pos, segment_pos);
-
-    // 直接相邻
-    if distance == 1 {
-        return true;
-    }
-
-    // 检查是否在路线段的连接点附近
-    let connection_positions = segment
-        .segment_type
-        .get_connection_positions(segment_pos, segment.rotation);
-    for connection_position in connection_positions {
-        if manhattan_distance(station_pos, connection_position) <= 1 {
-            return true;
-        }
-    }
-
-    // 对角连接也允许（距离为2但在对角线上）
-    if distance == 2 {
-        let dx = (station_pos.x - segment_pos.x).abs();
-        let dy = (station_pos.y - segment_pos.y).abs();
-        if dx == 1 && dy == 1 {
-            return true; // 对角连接
-        }
-    }
-
-    false
-}
-
 fn find_paths_for_new_passengers(
     pathfinding_graph: Res<PathfindingGraph>,
     mut passengers: Query<&mut PathfindingAgent, Added<PathfindingAgent>>,
@@ -720,7 +686,7 @@ fn update_passenger_movement(
                             // 距离较远，正常移动
                             let direction =
                                 (target_pos - transform.translation).normalize_or_zero();
-                            let speed = 100.0; // 在路口附近稍慢一些
+                            let speed = WALKING_SPEED * 2.0; // 在路口附近稍慢一些
                             let movement = Vec3::new(direction.x, direction.y, 0.0) * speed * dt;
                             transform.translation += movement;
                             transform.translation.z = PASSENGER_Z;
@@ -742,7 +708,7 @@ fn update_passenger_movement(
                     } else {
                         // 普通路段的移动逻辑
                         let direction = (target_pos - transform.translation).normalize_or_zero();
-                        let speed = 120.0;
+                        let speed = BUS_SPEED * 0.8; // 公交车速度稍微调低一些适合游戏体验
                         let distance_to_target = transform.translation.distance(target_pos);
 
                         if distance_to_target > 8.0 {

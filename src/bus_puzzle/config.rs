@@ -24,22 +24,48 @@ pub const MENU_UI_Z: f32 = 10.0;
 /// 调试层（调试信息显示）
 pub const DEBUG_Z: f32 = 20.0;
 
-// 游戏常量
-pub const GAME_VERSION: &str = env!("CARGO_PKG_VERSION");
-pub const DEFAULT_TILE_SIZE: f32 = 64.0;
-pub const MAX_PASSENGERS_PER_STATION: u32 = 20;
-pub const DEFAULT_PASSENGER_PATIENCE: f32 = 60.0;
-pub const SEGMENT_PLACEMENT_COST: [u32; 6] = [1, 2, 3, 4, 5, 6]; // 对应不同路线段类型
+// ============ 游戏核心常量 ============
 
-// 路径寻找相关常量
+/// 游戏版本号
+pub const GAME_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// 默认地图瓦片大小
+pub const DEFAULT_TILE_SIZE: f32 = 64.0;
+
+// ============ 游戏平衡性常量 ============
+
+/// 每个站点最大乘客容量
+pub const MAX_PASSENGERS_PER_STATION: u32 = 20;
+
+/// 默认乘客耐心值（秒）
+pub const DEFAULT_PASSENGER_PATIENCE: f32 = 60.0;
+
+/// 路线段放置成本数组 [直线, 转弯, T型, 十字, 桥梁, 隧道]
+pub const SEGMENT_PLACEMENT_COST: [u32; 6] = [1, 2, 3, 4, 5, 6];
+
+// ============ 寻路算法常量 ============
+
+/// 寻路算法最大迭代次数
 pub const MAX_PATHFINDING_ITERATIONS: usize = 1000;
+
+/// 换乘成本倍数
 pub const TRANSFER_COST_MULTIPLIER: f32 = 5.0;
+
+/// 步行速度 (像素/秒)
 pub const WALKING_SPEED: f32 = 50.0;
+
+/// 公交车速度 (像素/秒)
 pub const BUS_SPEED: f32 = 150.0;
 
-// UI 相关常量
+// ============ UI 相关常量 ============
+
+/// UI 动画持续时间（秒）
 pub const UI_ANIMATION_DURATION: f32 = 0.5;
+
+/// 按钮悬停时的缩放比例
 pub const BUTTON_HOVER_SCALE: f32 = 1.1;
+
+/// 库存槽位大小（像素）
 pub const INVENTORY_SLOT_SIZE: f32 = 80.0;
 
 #[cfg(test)]
@@ -55,5 +81,28 @@ mod tests {
         assert!(EFFECT_Z < GAME_UI_Z);
         assert!(GAME_UI_Z < MENU_UI_Z);
         assert!(MENU_UI_Z < DEBUG_Z);
+    }
+
+    #[test]
+    fn test_game_balance_constants() {
+        assert!(DEFAULT_PASSENGER_PATIENCE > 0.0);
+        assert!(MAX_PASSENGERS_PER_STATION > 0);
+        assert!(SEGMENT_PLACEMENT_COST.len() == 6);
+        assert!(SEGMENT_PLACEMENT_COST.iter().all(|&cost| cost > 0));
+    }
+
+    #[test]
+    fn test_pathfinding_constants() {
+        assert!(MAX_PATHFINDING_ITERATIONS > 0);
+        assert!(TRANSFER_COST_MULTIPLIER > 0.0);
+        assert!(WALKING_SPEED > 0.0);
+        assert!(BUS_SPEED > WALKING_SPEED); // 公交应该比步行快
+    }
+
+    #[test]
+    fn test_ui_constants() {
+        assert!(UI_ANIMATION_DURATION > 0.0);
+        assert!(BUTTON_HOVER_SCALE > 1.0); // 悬停时应该放大
+        assert!(INVENTORY_SLOT_SIZE > 0.0);
     }
 }

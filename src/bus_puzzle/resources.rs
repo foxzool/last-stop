@@ -1,4 +1,4 @@
-use crate::bus_puzzle::{GridPos, LevelData, RouteSegmentType};
+use crate::bus_puzzle::{GridPos, LevelData, RouteSegmentType, DEFAULT_TILE_SIZE};
 use bevy::{platform::collections::HashMap, prelude::*};
 
 // 游戏状态
@@ -97,7 +97,7 @@ impl Default for LevelManager {
     fn default() -> Self {
         Self {
             current_level: None,
-            tile_size: 64.0,
+            tile_size: DEFAULT_TILE_SIZE,
             available_levels: vec![
                 "tutorial_01".to_string(),
                 "level_02_transfer".to_string(),

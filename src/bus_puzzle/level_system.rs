@@ -4,7 +4,7 @@ use crate::bus_puzzle::{
     get_passenger_color, AgentState, GameState, GameStateEnum, GridPos, GridTile,
     LevelCompletedEvent, LevelManager, PassengerColor, PassengerEntity, PassengerSpawnedEvent,
     PathfindingAgent, RouteSegment, RouteSegmentType, StationEntity, StationType, TerrainType,
-    PASSENGER_Z, ROUTE_Z, STATION_Z, TERRAIN_Z,
+    PASSENGER_Z, ROUTE_Z, STATION_Z, TERRAIN_Z, DEFAULT_TILE_SIZE,
 };
 use bevy::{platform::collections::HashMap, prelude::*};
 use rand::Rng;
@@ -258,7 +258,7 @@ fn spawn_passenger_with_icon(
     level_data: &crate::bus_puzzle::LevelData,
 ) {
     if let Some(origin_station) = level_data.stations.iter().find(|s| s.name == demand.origin) {
-        let tile_size = 64.0;
+        let tile_size = DEFAULT_TILE_SIZE;
         let (grid_width, grid_height) = level_data.grid_size;
         let world_pos = origin_station
             .position

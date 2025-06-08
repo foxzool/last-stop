@@ -1,4 +1,4 @@
-use crate::bus_puzzle::{PathNode, Station};
+use crate::bus_puzzle::{PathNode, Station, SEGMENT_PLACEMENT_COST};
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -95,12 +95,12 @@ pub enum RouteSegmentType {
 impl RouteSegmentType {
     pub fn get_cost(&self) -> u32 {
         match self {
-            RouteSegmentType::Straight => 1,
-            RouteSegmentType::Curve => 2,
-            RouteSegmentType::TSplit => 3,
-            RouteSegmentType::Cross => 4,
-            RouteSegmentType::Bridge => 5,
-            RouteSegmentType::Tunnel => 6,
+            RouteSegmentType::Straight => SEGMENT_PLACEMENT_COST[0],
+            RouteSegmentType::Curve => SEGMENT_PLACEMENT_COST[1],
+            RouteSegmentType::TSplit => SEGMENT_PLACEMENT_COST[2],
+            RouteSegmentType::Cross => SEGMENT_PLACEMENT_COST[3],
+            RouteSegmentType::Bridge => SEGMENT_PLACEMENT_COST[4],
+            RouteSegmentType::Tunnel => SEGMENT_PLACEMENT_COST[5],
         }
     }
 
