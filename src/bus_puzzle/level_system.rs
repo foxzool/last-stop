@@ -156,7 +156,7 @@ fn update_passenger_spawning(
     // 重要：使用游戏时间而不是系统时间来判断乘客生成
     let game_time = game_state.game_time;
     if let Some(level_data) = &mut game_state.current_level {
-        let mut rng = rand::rng();
+        let mut rng = rand::thread_rng();
 
         // 提前获取不可变借用的数据
         let level_data_ref = level_data.clone();
@@ -178,7 +178,7 @@ fn update_passenger_spawning(
 
             // 计算生成概率
             let spawn_chance = demand.spawn_rate * time.delta_secs();
-            let random_value = rng.random::<f32>();
+            let random_value = rng.r#gen::<f32>();
 
             if random_value < spawn_chance {
                 // 在生成前增加计数

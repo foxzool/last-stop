@@ -419,12 +419,12 @@ pub fn create_station_connections_improved(
                         ConnectionType::Walk,
                     );
 
-                    info!(
+                    trace!(
                         "建立连接: 站点 {} {:?} <-> 路线段 {:?} {:?}",
                         station_name, station_pos, segment.segment_type, adj_pos
                     );
                 } else {
-                    info!(
+                    trace!(
                         "跳过连接: 站点 {} {:?} -> 路线段 {:?} {:?} (路线段没有朝向站点的端口)",
                         station_name, station_pos, segment.segment_type, adj_pos
                     );
