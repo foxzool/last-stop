@@ -149,8 +149,7 @@ fn sync_level_data(mut level_manager: ResMut<LevelManager>, game_state: Res<Game
 fn update_passenger_spawning(
     time: Res<Time>,
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
+    asset_server: Res<AssetServer>,
     mut game_state: ResMut<GameState>,
 ) {
     // 重要：使用游戏时间而不是系统时间来判断乘客生成
@@ -184,10 +183,9 @@ fn update_passenger_spawning(
                 // 在生成前增加计数
                 demand.spawned_count += 1;
 
-                spawn_passenger_no_texture(
+                spawn_passenger_with_icon(
                     &mut commands,
-                    &mut meshes,
-                    &mut materials,
+                    &asset_server,
                     demand,
                     &level_data_ref,
                 );
@@ -257,11 +255,10 @@ fn debug_passenger_spawning(
     }
 }
 
-// 无纹理的乘客生成函数（供其他模块使用）
-fn spawn_passenger_no_texture(
+// 使用图标的乘客生成函数
+fn spawn_passenger_with_icon(
     commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<ColorMaterial>>,
+    asset_server: &Res<AssetServer>,
     demand: &PassengerDemand,
     level_data: &crate::bus_puzzle::LevelData,
 ) {
@@ -273,7 +270,20 @@ fn spawn_passenger_no_texture(
             .to_world_pos(tile_size, grid_width, grid_height);
 
         let passenger_world_pos = Vec3::new(world_pos.x, world_pos.y, PASSENGER_Z);
-        let bevy_color = get_passenger_color(demand.color);
+
+        // 根据乘客颜色选择对应的图标纹理
+        let texture_path = match demand.color {
+            PassengerColor::Red => "textures/passengers/red.png",
+            PassengerColor::Blue => "textures/passengers/blue.png",
+            PassengerColor::Green => "textures/passengers/green.png",
+            PassengerColor::Yellow => "textures/passengers/yellow.png",
+            PassengerColor::Purple => "textures/passengers/purple.png",
+            PassengerColor::Orange => "textures/passengers/orange.png",
+        };
+
+        // 尝试加载乘客图标纹理，并设置颜色作为回退方案
+        let texture_handle = asset_server.load(texture_path);
+        let passenger_color = get_passenger_color(demand.color);
 
         let _entity = commands
             .spawn((
@@ -281,8 +291,12 @@ fn spawn_passenger_no_texture(
                     "Passenger {:?} {} -> {}",
                     demand.color, demand.origin, demand.destination
                 )),
-                Mesh2d(meshes.add(Circle::new(16.0))),
-                MeshMaterial2d(materials.add(bevy_color)),
+                Sprite {
+                    image: texture_handle,
+                    custom_size: Some(Vec2::new(32.0, 32.0)), // 设置合适的大小
+                    color: passenger_color, // 使用颜色作为着色，如果纹理加载失败会显示纯色方块
+                    ..default()
+                },
                 Transform::from_translation(passenger_world_pos),
                 PassengerEntity {
                     color: demand.color,
@@ -306,8 +320,8 @@ fn spawn_passenger_no_texture(
             .id();
 
         info!(
-            "生成乘客: {:?} {} -> {}",
-            demand.color, demand.origin, demand.destination
+            "生成乘客图标: {:?} {} -> {} (纹理: {})",
+            demand.color, demand.origin, demand.destination, texture_path
         );
         commands.send_event(PassengerSpawnedEvent {
             color: demand.color,
@@ -322,17 +336,15 @@ fn spawn_passenger_no_texture(
 fn manual_spawn_passenger_debug(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
+    asset_server: Res<AssetServer>,
     game_state: Res<GameState>,
 ) {
     if keyboard_input.just_pressed(KeyCode::F3) {
         if let Some(level_data) = &game_state.current_level {
             if let Some(demand) = level_data.passenger_demands.first() {
-                spawn_passenger_no_texture(
+                spawn_passenger_with_icon(
                     &mut commands,
-                    &mut meshes,
-                    &mut materials,
+                    &asset_server,
                     demand,
                     level_data,
                 );
