@@ -185,7 +185,10 @@ fn discover_bus_routes_pathfinding(
         if keyboard_input.just_pressed(KeyCode::F4) {
             info!("手动路线发现完成: {} 条路线", bus_manager.bus_routes.len());
         } else if should_auto_generate {
-            info!("教学关卡公交车自动生成完成: {} 条路线", bus_manager.bus_routes.len());
+            info!(
+                "教学关卡公交车自动生成完成: {} 条路线",
+                bus_manager.bus_routes.len()
+            );
         }
 
         let routes: Vec<BusRouteInfo> = bus_manager.bus_routes.values().cloned().collect();

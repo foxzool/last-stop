@@ -1,11 +1,10 @@
 // src/bus_puzzle/debug_info
 
-use crate::bus_puzzle::GameOverData;
 use crate::{
     bus_puzzle,
     bus_puzzle::{
-        calculate_network_efficiency, AgentState, GameState, GameStateEnum, LevelManager,
-        PathfindingAgent,
+        calculate_network_efficiency, AgentState, GameOverData, GameState, GameStateEnum,
+        LevelManager, PathfindingAgent,
     },
 };
 use bevy::prelude::*;

@@ -1,6 +1,9 @@
 // src/bus_puzzle/tips_system.rs - 游戏提示系统
 
-use crate::bus_puzzle::{GameState, GameStateEnum, LevelData};
+use crate::bus_puzzle::{
+    get_text, get_text_with_args, CurrentLanguage, GameState, GameStateEnum, LevelData,
+    BUDGET_WARNING, BUS_ROUTES_READY_INFO, PASSENGERS_GAVE_UP_WARNING, PASSENGERS_WAITING_HINT,
+};
 use bevy::prelude::{
     Val::{Percent, Px},
     *,
@@ -506,6 +509,7 @@ pub fn check_and_show_contextual_tips(
     segments: Query<&crate::bus_puzzle::RouteSegment>,
     mut last_tip_time: Local<f32>,
     time: Res<Time>,
+    current_language: Res<CurrentLanguage>,
 ) {
     // 每5秒检查一次，避免提示过于频繁
     if time.elapsed_secs() - *last_tip_time < 5.0 {
@@ -529,7 +533,14 @@ pub fn check_and_show_contextual_tips(
         show_contextual_tip(
             &mut commands,
             &ui_assets,
-            &format!("⚠️ 已有{}位乘客放弃！检查路线连接", gave_up_count),
+            &get_text_with_args(
+                &PASSENGERS_GAVE_UP_WARNING,
+                current_language.language,
+                &[
+                    &game_state.total_cost.to_string(),
+                    &gave_up_count.to_string(),
+                ],
+            ),
             TipType::Warning,
             4.0,
         );
@@ -538,7 +549,7 @@ pub fn check_and_show_contextual_tips(
         show_contextual_tip(
             &mut commands,
             &ui_assets,
-            "💡 很多乘客在等车，按F4发现公交路线",
+            &get_text(&PASSENGERS_WAITING_HINT, current_language.language),
             TipType::Strategy,
             4.0,
         );
@@ -547,7 +558,7 @@ pub fn check_and_show_contextual_tips(
         show_contextual_tip(
             &mut commands,
             &ui_assets,
-            "🚌 路线已建好，等待公交车开始运营",
+            &get_text(&BUS_ROUTES_READY_INFO, current_language.language),
             TipType::Strategy,
             3.0,
         );
@@ -563,7 +574,11 @@ pub fn check_and_show_contextual_tips(
                     show_contextual_tip(
                         &mut commands,
                         &ui_assets,
-                        &format!("💰 预算警告: {}/{}", game_state.total_cost, max_cost),
+                        &get_text_with_args(
+                            &BUDGET_WARNING,
+                            current_language.language,
+                            &[&game_state.total_cost.to_string(), &max_cost.to_string()],
+                        ),
                         TipType::Warning,
                         3.0,
                     );

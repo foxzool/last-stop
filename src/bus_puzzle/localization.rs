@@ -5,16 +5,11 @@ use serde::{Deserialize, Serialize};
 
 // ============ 语言枚举 ============
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Language {
+    #[default]
     English,
     Chinese,
-}
-
-impl Default for Language {
-    fn default() -> Self {
-        Language::English
-    }
 }
 
 impl Language {
@@ -125,10 +120,10 @@ pub const QUIT_GAME: LocalizedText = LocalizedText::new("Quit Game", "退出游�
 pub const LANGUAGE_SETTING: LocalizedText = LocalizedText::new("Language", "语言设置");
 
 // 游戏界面
-pub const SCORE: LocalizedText = LocalizedText::new("Score", "分数");
-pub const TIME: LocalizedText = LocalizedText::new("Time", "时间");
-pub const COST: LocalizedText = LocalizedText::new("Cost", "成本");
-pub const PASSENGERS: LocalizedText = LocalizedText::new("Passengers", "乘客");
+pub const SCORE: LocalizedText = LocalizedText::new("Score: {0}", "分数");
+pub const TIME: LocalizedText = LocalizedText::new("Time: {0}", "时间");
+pub const COST: LocalizedText = LocalizedText::new("Cost: {0}", "成本");
+pub const PASSENGERS: LocalizedText = LocalizedText::new("Passengers: {0}", "乘客");
 pub const PAUSE: LocalizedText = LocalizedText::new("Pause", "暂停");
 pub const ROUTE_SEGMENTS: LocalizedText = LocalizedText::new("Route Segments", "路线段");
 pub const OBJECTIVES: LocalizedText = LocalizedText::new("Objectives", "目标");
@@ -170,9 +165,9 @@ pub const DONT_GIVE_UP: LocalizedText =
     LocalizedText::new("Don't give up, try again!", "不要灰心，再试一次！");
 
 // 乘客状态
-pub const WAITING: LocalizedText = LocalizedText::new("Waiting", "等待");
-pub const ARRIVED: LocalizedText = LocalizedText::new("Arrived", "到达");
-pub const GAVE_UP: LocalizedText = LocalizedText::new("Gave Up", "放弃");
+pub const WAITING: LocalizedText = LocalizedText::new("Waiting: {0}", "等待: {0}");
+pub const ARRIVED: LocalizedText = LocalizedText::new("Arrived: {0}", "到达: {0}");
+pub const GAVE_UP: LocalizedText = LocalizedText::new("Gave Up: {0}", "放弃: {0}");
 
 // 关卡信息
 pub const LEVEL_TUTORIAL: LocalizedText = LocalizedText::new("First Connection", "第一次连接");
@@ -228,6 +223,25 @@ pub const TIME_PRESSURE_DESCRIPTION: LocalizedText = LocalizedText::new(
     "Quickly build an efficient transportation network within limited time",
     "在有限时间内快速建设高效的交通网络",
 );
+
+// 游戏提示和警告信息
+pub const PASSENGERS_GAVE_UP_WARNING: LocalizedText = LocalizedText::new(
+    "⚠️ {0} passengers have given up! Check route connections",
+    "⚠️ 已有{0}位乘客放弃！检查路线连接",
+);
+
+pub const PASSENGERS_WAITING_HINT: LocalizedText = LocalizedText::new(
+    "💡 Many passengers are waiting, press F4 to discover bus routes",
+    "💡 很多乘客在等车，按F4发现公交路线",
+);
+
+pub const BUS_ROUTES_READY_INFO: LocalizedText = LocalizedText::new(
+    "🚌 Routes are built, waiting for buses to start operating",
+    "🚌 路线已建好，等待公交车开始运营",
+);
+
+pub const BUDGET_WARNING: LocalizedText =
+    LocalizedText::new("💰 Budget Warning: {0}/{1}", "💰 预算警告: {0}/{1}");
 
 // ============ 本地化系统插件 ============
 

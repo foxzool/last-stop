@@ -834,7 +834,7 @@ fn update_hover_tooltip(
                 spawn_hover_tooltip(
                     &mut commands,
                     &asset_server,
-                    &placed_segment,
+                    placed_segment,
                     &keyboard_input,
                 );
             }

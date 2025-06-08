@@ -8,13 +8,13 @@ pub mod debug_info;
 pub mod events;
 pub mod interaction;
 pub mod level_system;
+#[allow(dead_code)]
 pub mod localization;
-pub mod smart_bus_generation;
-
 pub mod passenger_boarding_system;
 pub mod passenger_movement_debug;
 pub mod pathfinding;
 pub mod resources;
+pub mod smart_bus_generation;
 pub mod splash;
 pub mod tips_system;
 pub mod ui_audio;
@@ -411,8 +411,8 @@ fn load_current_level(
         match level_id.as_str() {
             "tutorial_01" => create_tutorial_level(),
             "level_02_transfer" => create_transfer_level(),
-            // "level_03_multiple_routes" => create_multiple_routes_level_localized(),
-            // "level_04_time_pressure" => create_time_pressure_level_localized(),
+            "level_03_multiple_routes" => create_multiple_routes_level(),
+            "level_04_time_pressure" => create_time_pressure_level(),
             _ => {
                 warn!("未知关卡ID: {}, 使用教学关卡", level_id);
                 create_tutorial_level()

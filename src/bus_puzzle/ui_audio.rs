@@ -2,14 +2,18 @@
 
 // 使用相对路径引用同模块下的其他文件
 use super::{
-    ease_out_back, format_time, localized_text, localized_text_with_args, AgentState, AudioAssets,
-    CostText, CurrentLanguage, GameState, GameStateEnum, InventoryCountText, InventorySlot,
-    Language, LanguageChangedEvent, LevelCompletedEvent, LevelData, LevelManager, LocalizedText,
-    LocalizedTextComponent, ObjectiveCompletedEvent, ObjectiveCondition, ObjectiveType,
-    PassengerColor, PassengerCountText, PathfindingAgent, RouteSegmentType, ScoreText,
-    SegmentPlacedEvent, SegmentRemovedEvent, TimerText, TipsPanel, UIElement, ALL_LEVELS_COMPLETE,
-    COMPLETION_TIME, CONGRATULATIONS, FINAL_SCORE, GAME_TITLE, INVENTORY_SLOT_SIZE, LEVEL_COMPLETE,
-    MAIN_MENU, NEXT_LEVEL, QUIT_GAME, RETRY, SCORE_BREAKDOWN, START_GAME, THANK_YOU, TOTAL_COST,
+    ease_out_back, format_time, get_text, get_text_with_args, localized_text,
+    localized_text_with_args, AgentState, AudioAssets, CostText, CurrentLanguage, GameState,
+    GameStateEnum, InventoryCountText, InventorySlot, Language, LanguageChangedEvent,
+    LevelCompletedEvent, LevelData, LevelManager, LocalizedText, LocalizedTextComponent,
+    ObjectiveCompletedEvent, ObjectiveCondition, ObjectiveType, PassengerColor, PassengerCountText,
+    PathfindingAgent, RouteSegmentType, ScoreText, SegmentPlacedEvent, SegmentRemovedEvent,
+    TimerText, TipsPanel, UIElement, ALL_LEVELS_COMPLETE, ARRIVED, COMPLETION_TIME,
+    CONGRATULATIONS, COST, DONT_GIVE_UP, FINAL_SCORE, GAME_DURATION, GAME_PAUSED, GAME_STATISTICS,
+    GAME_TITLE, INVENTORY_SLOT_SIZE, LEVEL_COMPLETE, MAIN_MENU, MISSION_FAILED, NEXT_LEVEL,
+    OBJECTIVES, PASSENGERS, PASSENGERS_GAVE_UP, PASSENGER_STATUS, PAUSE, QUIT_GAME, RESTART_LEVEL,
+    RESUME_GAME, RETRY, ROUTE_SEGMENTS, SCORE, SCORE_BREAKDOWN, SCORE_EARNED, START_GAME,
+    THANK_YOU, TIME, TOTAL_COST, WAITING,
 };
 use crate::bus_puzzle::{check_and_show_contextual_tips, create_tips_panel, TipsManager};
 use bevy::{
@@ -449,6 +453,7 @@ fn setup_gameplay_ui(
     ui_assets: Res<UIAssets>,
     game_state: Res<GameState>,
     tips_manager: Res<TipsManager>,
+    current_language: Res<CurrentLanguage>,
 ) {
     // 顶部状态栏
     commands
@@ -478,49 +483,18 @@ fn setup_gameplay_ui(
                     ..default()
                 })
                 .with_children(|parent| {
-                    parent.spawn((
-                        Text::new("分数: 0"),
-                        TextFont {
-                            font: ui_assets.font.clone(),
-                            font_size: 20.0,
-                            ..default()
-                        },
-                        TextColor(Color::WHITE),
-                        ScoreText,
-                    ));
-
-                    parent.spawn((
-                        Text::new("时间: 00:00"),
-                        TextFont {
-                            font: ui_assets.font.clone(),
-                            font_size: 20.0,
-                            ..default()
-                        },
-                        TextColor(Color::WHITE),
-                        TimerText,
-                    ));
-
-                    parent.spawn((
-                        Text::new("成本: 0"),
-                        TextFont {
-                            font: ui_assets.font.clone(),
-                            font_size: 20.0,
-                            ..default()
-                        },
-                        TextColor(Color::WHITE),
-                        CostText,
-                    ));
-
-                    parent.spawn((
-                        Text::new("乘客: 0/0"),
-                        TextFont {
-                            font: ui_assets.font.clone(),
-                            font_size: 20.0,
-                            ..default()
-                        },
-                        TextColor(Color::WHITE),
-                        PassengerCountText,
-                    ));
+                    let score = spawn_localized_score_text(parent, &ui_assets, &SCORE, 20.0);
+                    parent.commands().entity(score).insert(ScoreText);
+                    let time = spawn_localized_score_text(parent, &ui_assets, &TIME, 20.0);
+                    parent.commands().entity(time).insert(TimerText);
+                    let cost = spawn_localized_score_text(parent, &ui_assets, &COST, 20.0);
+                    parent.commands().entity(cost).insert(CostText);
+                    let passengers =
+                        spawn_localized_score_text(parent, &ui_assets, &PASSENGERS, 20.0);
+                    parent
+                        .commands()
+                        .entity(passengers)
+                        .insert(PassengerCountText);
 
                     // 新增：目标完成进度条
                     parent
@@ -562,7 +536,7 @@ fn setup_gameplay_ui(
 
                             // 进度条标签
                             parent.spawn((
-                                Text::new("目标"),
+                                Text::new(get_text(&OBJECTIVES, current_language.language)),
                                 TextFont {
                                     font: ui_assets.font.clone(),
                                     font_size: 12.0,
@@ -596,7 +570,7 @@ fn setup_gameplay_ui(
                 ))
                 .with_children(|parent| {
                     parent.spawn((
-                        Text::new("暂停"),
+                        Text::new(get_text(&PAUSE, current_language.language)),
                         TextFont {
                             font: ui_assets.font.clone(),
                             font_size: 16.0,
@@ -628,7 +602,7 @@ fn setup_gameplay_ui(
         ))
         .with_children(|parent| {
             parent.spawn((
-                Text::new("路线段"),
+                Text::new(get_text(&ROUTE_SEGMENTS, current_language.language)),
                 TextFont {
                     font: ui_assets.font.clone(),
                     font_size: 16.0,
@@ -737,7 +711,7 @@ fn setup_gameplay_ui(
             ))
             .with_children(|parent| {
                 parent.spawn((
-                    Text::new("目标"),
+                    Text::new(get_text(&OBJECTIVES, current_language.language)),
                     TextFont {
                         font: ui_assets.font.clone(),
                         font_size: 16.0, // 缩小字体
@@ -819,7 +793,7 @@ fn setup_gameplay_ui(
         commands
             .spawn((
                 Node {
-                    width: Px(230.0),  // 缩小宽度
+                    width: Px(280.0),  // 缩小宽度
                     height: Px(160.0), // 缩小高度
                     position_type: PositionType::Absolute,
                     right: Px(10.0),
@@ -836,7 +810,7 @@ fn setup_gameplay_ui(
             ))
             .with_children(|parent| {
                 parent.spawn((
-                    Text::new("乘客状态"),
+                    Text::new(get_text(&PASSENGER_STATUS, current_language.language)),
                     TextFont {
                         font: ui_assets.font.clone(),
                         font_size: 14.0, // 缩小字体
@@ -879,14 +853,14 @@ fn setup_gameplay_ui(
                                 },
                                 TextColor(Color::srgb(0.9, 0.9, 0.9)),
                                 Node {
-                                    width: Px(50.0),
+                                    width: Px(70.0),
                                     ..default()
                                 },
                             ));
 
                             // 等待数量
                             parent.spawn((
-                                Text::new("等待:0"),
+                                Text::new("Waiting: 0"),
                                 TextFont {
                                     font: ui_assets.font.clone(),
                                     font_size: 12.0,
@@ -895,14 +869,14 @@ fn setup_gameplay_ui(
                                 TextColor(Color::srgb(1.0, 1.0, 0.0)),
                                 PassengerColorCountText { color },
                                 Node {
-                                    width: Px(50.0),
+                                    width: Px(70.0),
                                     ..default()
                                 },
                             ));
 
                             // 到达数量
                             parent.spawn((
-                                Text::new("到达:0"),
+                                Text::new("Arrived:0"),
                                 TextFont {
                                     font: ui_assets.font.clone(),
                                     font_size: 12.0,
@@ -943,7 +917,11 @@ fn setup_gameplay_ui(
         });
 }
 
-fn setup_pause_menu(mut commands: Commands, ui_assets: Res<UIAssets>) {
+fn setup_pause_menu(
+    mut commands: Commands,
+    ui_assets: Res<UIAssets>,
+    current_language: Res<CurrentLanguage>,
+) {
     commands
         .spawn((
             Node {
@@ -977,27 +955,32 @@ fn setup_pause_menu(mut commands: Commands, ui_assets: Res<UIAssets>) {
                     ZIndex(3001), // 面板在背景之上
                 ))
                 .with_children(|parent| {
-                    spawn_title_text(parent, &ui_assets, "游戏暂停", 30.0);
+                    spawn_title_text(
+                        parent,
+                        &ui_assets,
+                        &get_text(&GAME_PAUSED, current_language.language),
+                        30.0,
+                    );
 
                     // 使用专用的暂停菜单按钮生成函数
                     spawn_pause_menu_button(
                         parent,
                         &ui_assets,
-                        "继续游戏",
+                        &get_text(&RESUME_GAME, current_language.language),
                         ButtonType::ResumeGame,
                         Color::srgb(0.2, 0.6, 0.2),
                     );
                     spawn_pause_menu_button(
                         parent,
                         &ui_assets,
-                        "重新开始",
+                        &get_text(&RESTART_LEVEL, current_language.language),
                         ButtonType::RestartLevel,
                         Color::srgb(0.6, 0.6, 0.2),
                     );
                     spawn_pause_menu_button(
                         parent,
                         &ui_assets,
-                        "主菜单",
+                        &get_text(&MAIN_MENU, current_language.language),
                         ButtonType::MainMenu,
                         Color::srgb(0.6, 0.2, 0.2),
                     );
@@ -1009,6 +992,7 @@ fn setup_pause_menu(mut commands: Commands, ui_assets: Res<UIAssets>) {
 fn update_passenger_stats_ui(
     passengers: Query<&PathfindingAgent>,
     mut passenger_count_texts: Query<(&PassengerColorCountText, &mut Text)>,
+    current_language: Res<CurrentLanguage>,
 ) {
     // 统计每种颜色的乘客状态
     let mut waiting_counts = HashMap::new();
@@ -1035,10 +1019,18 @@ fn update_passenger_stats_ui(
         let arrived_count = arrived_counts.get(&count_component.color).unwrap_or(&0);
 
         // 根据文本内容判断是等待还是到达的计数器
-        if text.0.starts_with("等待:") {
-            *text = Text::new(format!("等待:{}", waiting_count));
-        } else if text.0.starts_with("到达:") {
-            *text = Text::new(format!("到达:{}", arrived_count));
+        if text.0.starts_with("等待:") || text.0.starts_with("Waiting:") {
+            *text = Text::new(get_text_with_args(
+                &WAITING,
+                current_language.language,
+                &[waiting_count.to_string().as_str()],
+            ));
+        } else if text.0.starts_with("到达:") || text.0.starts_with("Arrived:") {
+            *text = Text::new(get_text_with_args(
+                &ARRIVED,
+                current_language.language,
+                &[arrived_count.to_string().as_str()],
+            ));
         }
     }
 }
@@ -1647,6 +1639,7 @@ fn setup_game_over_ui(
     ui_assets: Res<UIAssets>,
     game_state: Res<GameState>,
     game_over_data: Res<GameOverData>,
+    current_language: Res<CurrentLanguage>,
 ) {
     let game_over_entity = commands
         .spawn((
@@ -1680,7 +1673,12 @@ fn setup_game_over_ui(
                 ))
                 .with_children(|parent| {
                     // 失败标题
-                    spawn_title_text(parent, &ui_assets, "❌ 任务失败", 36.0);
+                    spawn_title_text(
+                        parent,
+                        &ui_assets,
+                        &get_text(&MISSION_FAILED, current_language.language),
+                        36.0,
+                    );
 
                     // 失败原因
                     spawn_score_text(
@@ -1701,26 +1699,43 @@ fn setup_game_over_ui(
                     ));
 
                     // 游戏统计
-                    spawn_score_text(parent, &ui_assets, "本次游戏统计:", 18.0);
+                    spawn_score_text(
+                        parent,
+                        &ui_assets,
+                        &get_text(&GAME_STATISTICS, current_language.language),
+                        18.0,
+                    );
 
                     spawn_score_text(
                         parent,
                         &ui_assets,
-                        &format!("获得分数: {}", game_over_data.final_score),
+                        &get_text_with_args(
+                            &SCORE_EARNED,
+                            current_language.language,
+                            &[&game_over_data.final_score.to_string()],
+                        ),
                         16.0,
                     );
 
                     spawn_score_text(
                         parent,
                         &ui_assets,
-                        &format!("游戏时长: {}", format_time(game_over_data.game_time)),
+                        &get_text_with_args(
+                            &GAME_DURATION,
+                            current_language.language,
+                            &[&format_time(game_over_data.game_time)],
+                        ),
                         16.0,
                     );
 
                     spawn_score_text(
                         parent,
                         &ui_assets,
-                        &format!("总成本: {}", game_state.total_cost),
+                        &get_text_with_args(
+                            &TOTAL_COST,
+                            current_language.language,
+                            &[&game_state.total_cost.to_string()],
+                        ),
                         16.0,
                     );
 
@@ -1728,7 +1743,11 @@ fn setup_game_over_ui(
                         spawn_score_text(
                             parent,
                             &ui_assets,
-                            &format!("放弃的乘客: {}", game_over_data.passengers_gave_up),
+                            &get_text_with_args(
+                                &PASSENGERS_GAVE_UP,
+                                current_language.language,
+                                &[&game_over_data.passengers_gave_up.to_string()],
+                            ),
                             16.0,
                         );
                     }
@@ -1744,15 +1763,30 @@ fn setup_game_over_ui(
                     ));
 
                     // 鼓励文字和提示
-                    spawn_score_text(parent, &ui_assets, "不要灰心，再试一次！", 18.0);
+                    spawn_score_text(
+                        parent,
+                        &ui_assets,
+                        &get_text(&DONT_GIVE_UP, current_language.language),
+                        18.0,
+                    );
 
                     // 根据失败原因显示提示
                     let tip = get_failure_tip(&game_over_data.reason);
                     spawn_score_text(parent, &ui_assets, tip, 14.0);
 
                     // 按钮组
-                    spawn_menu_button(parent, &ui_assets, "重新挑战", ButtonType::RestartLevel);
-                    spawn_menu_button(parent, &ui_assets, "主菜单", ButtonType::MainMenu);
+                    spawn_menu_button(
+                        parent,
+                        &ui_assets,
+                        &get_text(&RETRY, current_language.language),
+                        ButtonType::RestartLevel,
+                    );
+                    spawn_menu_button(
+                        parent,
+                        &ui_assets,
+                        &get_text(&MAIN_MENU, current_language.language),
+                        ButtonType::MainMenu,
+                    );
                 });
         })
         .id();
@@ -1767,6 +1801,10 @@ fn setup_game_over_ui(
     });
 
     info!("游戏失败UI创建完毕: {}", game_over_data.reason);
+
+    commands.send_event(LanguageChangedEvent {
+        new_language: current_language.language,
+    });
 }
 
 fn cleanup_game_over_ui(mut commands: Commands, ui_query: Query<Entity, With<GameOverUI>>) {
@@ -1843,7 +1881,7 @@ fn setup_level_complete_ui(
     game_state: Res<GameState>,
     level_manager: Res<LevelManager>,
     level_complete_data: Res<LevelCompleteData>,
-    // current_language: Res<CurrentLanguage>,
+    current_language: Res<CurrentLanguage>,
 ) {
     let level_complete_entity = commands
         .spawn((
@@ -1985,6 +2023,10 @@ fn setup_level_complete_ui(
         elapsed: 0.0,
         start_value: 0.8,
         target_value: 1.0,
+    });
+
+    commands.send_event(LanguageChangedEvent {
+        new_language: current_language.language,
     });
 }
 
@@ -2128,18 +2170,20 @@ fn spawn_localized_score_text(
     ui_assets: &UIAssets,
     text_key: &'static LocalizedText,
     size: f32,
-) {
+) -> Entity {
     let (localized_text, text) = localized_text(text_key);
-    parent.spawn((
-        text,
-        TextFont {
-            font: ui_assets.font.clone(),
-            font_size: size,
-            ..default()
-        },
-        TextColor(Color::WHITE),
-        localized_text,
-    ));
+    parent
+        .spawn((
+            text,
+            TextFont {
+                font: ui_assets.font.clone(),
+                font_size: size,
+                ..default()
+            },
+            TextColor(Color::WHITE),
+            localized_text,
+        ))
+        .id()
 }
 
 fn spawn_localized_score_text_with_args(

@@ -108,6 +108,7 @@ impl Station {
     }
 }
 
+#[allow(dead_code)]
 impl PassengerDemand {
     /// 获取本地化的起点名称
     pub fn get_localized_origin(&self, language: Language) -> String {
@@ -128,6 +129,7 @@ impl PassengerDemand {
     }
 }
 
+#[allow(dead_code)]
 impl ObjectiveCondition {
     /// 获取本地化的目标描述
     pub fn get_localized_description(&self, language: Language) -> String {
@@ -167,6 +169,7 @@ pub struct AvailableSegment {
     pub cost: u32,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum ObjectiveType {
     ConnectAllPassengers,
@@ -191,6 +194,7 @@ pub struct DynamicEvent {
     pub duration: Option<f32>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum EventType {
     SegmentFailure(GridPos),
@@ -829,8 +833,8 @@ pub fn create_multiple_routes_level() -> LevelData {
         id: "level_03_multiple_routes".to_string(),
         name: "Multiple Routes".to_string(),
         description:
-        "Manage multiple independent routes and optimize the entire transportation network"
-            .to_string(),
+            "Manage multiple independent routes and optimize the entire transportation network"
+                .to_string(),
         name_key: Some(&LEVEL_MULTIPLE),
         description_key: Some(&MULTIPLE_DESCRIPTION),
         difficulty: 3,
