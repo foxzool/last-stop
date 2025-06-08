@@ -422,11 +422,11 @@ fn find_paths_for_new_passengers(
         agent.state = AgentState::WaitingAtStation;
         agent.waiting_time = 0.0;
 
-        // 不进行寻路，让公交车来处理
-        warn!(
-            "乘客寻路已禁用 - 乘客 {:?} 需要等车从 {} 到 {}",
-            agent.color, agent.origin, agent.destination
-        );
+        // // 不进行寻路，让公交车来处理
+        // warn!(
+        //     "乘客寻路已禁用 - 乘客 {:?} 需要等车从 {} 到 {}",
+        //     agent.color, agent.origin, agent.destination
+        // );
     }
 }
 
@@ -434,8 +434,6 @@ fn update_passenger_movement(
     time: Res<Time>,
     mut passengers: Query<(&mut PathfindingAgent, &mut Transform)>,
     level_manager: Res<LevelManager>,
-    pathfinding_graph: Res<PathfindingGraph>,
-    route_segments: Query<&RouteSegment>,      // 添加路线段查询
     keyboard_input: Res<ButtonInput<KeyCode>>, // 添加键盘输入用于调试
 ) {
     let dt = time.delta_secs();
@@ -488,9 +486,12 @@ fn update_passenger_movement(
                 }
 
                 // 乘客只能等车，不能自主移动
-                info!(
+                trace!(
                     "乘客 {:?} 等车中: {} -> {} (等待 {:.1}s)",
-                    agent.color, agent.origin, agent.destination, agent.waiting_time
+                    agent.color,
+                    agent.origin,
+                    agent.destination,
+                    agent.waiting_time
                 );
             }
             AgentState::Traveling => {

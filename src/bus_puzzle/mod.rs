@@ -8,6 +8,8 @@ pub mod debug_info;
 pub mod events;
 pub mod interaction;
 pub mod level_system;
+
+pub mod passenger_boarding_system;
 pub mod passenger_bus_integration;
 pub mod passenger_movement_debug;
 pub mod pathfinding;
@@ -22,7 +24,6 @@ use bevy::{
 };
 // 重新导出主要类型
 pub use bus_pathfinding_system::*;
-// 新增：导出公交车寻路系统
 pub use bus_system::*;
 pub use components::*;
 pub use config::*;
@@ -30,6 +31,8 @@ pub use debug_info::*;
 pub use events::*;
 pub use interaction::*;
 pub use level_system::*;
+pub use passenger_boarding_system::*;
+// 新增：导出乘客上下车系统
 pub use passenger_movement_debug::*;
 pub use pathfinding::*;
 pub use resources::*;
@@ -64,7 +67,8 @@ impl Plugin for BusPuzzleGamePlugin {
             PassengerMovementDebugPlugin,
             FixedConnectionSystemPlugin,
             DebugInfoPlugin,
-            BusPathfindingPlugin, /* 新增：公交车智能寻路系统
+            BusPathfindingPlugin, // 公交车智能寻路系统
+            PassengerBoardingPlugin, /* 新增：乘客上下车系统
                                    * BusSystemPlugin,            // 注释掉：旧的公交车系统
                                    * PassengerBusIntegrationPlugin, // 注释掉：乘客-公交车交互 */
         ));
