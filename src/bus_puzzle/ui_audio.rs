@@ -1031,32 +1031,14 @@ fn setup_level_complete_ui(
 
                     // 根据是否有下一关显示不同的按钮
                     if !is_final_level {
-                        spawn_menu_button(
-                            parent,
-                            &ui_assets,
-                            "下一关",
-                            ButtonType::NextLevel,
-                            Color::srgb(0.2, 0.6, 0.2),
-                        );
+                        spawn_menu_button(parent, &ui_assets, "下一关", ButtonType::NextLevel);
                     } else {
                         // 最后一关完成后显示特殊信息
                         spawn_score_text(parent, &ui_assets, "感谢游玩！", 18.0);
                     }
 
-                    spawn_menu_button(
-                        parent,
-                        &ui_assets,
-                        "重新挑战",
-                        ButtonType::RestartLevel,
-                        Color::srgb(0.6, 0.6, 0.2),
-                    );
-                    spawn_menu_button(
-                        parent,
-                        &ui_assets,
-                        "主菜单",
-                        ButtonType::MainMenu,
-                        Color::srgb(0.6, 0.2, 0.2),
-                    );
+                    spawn_menu_button(parent, &ui_assets, "重新挑战", ButtonType::RestartLevel);
+                    spawn_menu_button(parent, &ui_assets, "主菜单", ButtonType::MainMenu);
                 });
         })
         .id();
@@ -1198,7 +1180,6 @@ fn spawn_menu_button(
     ui_assets: &UIAssets,
     text: &str,
     button_type: ButtonType,
-    color: Color,
 ) {
     parent
         .spawn((
@@ -1211,10 +1192,7 @@ fn spawn_menu_button(
                 margin: UiRect::all(Px(5.0)),
                 ..default()
             },
-            // 临时回退到背景色，等纹理文件准备好后可以切换
-            BackgroundColor(color),
-            // TODO: 当ui/button.png可用时，可以改为：
-            // ImageNode::new(ui_assets.button_texture.clone()),
+            ImageNode::new(ui_assets.button_texture.clone()),
             ButtonComponent {
                 button_type,
                 is_hovered: false,
@@ -1899,20 +1877,8 @@ fn setup_game_over_ui(
                     spawn_score_text(parent, &ui_assets, tip, 14.0);
 
                     // 按钮组
-                    spawn_menu_button(
-                        parent,
-                        &ui_assets,
-                        "重新挑战",
-                        ButtonType::RestartLevel,
-                        Color::srgb(0.2, 0.6, 0.2),
-                    );
-                    spawn_menu_button(
-                        parent,
-                        &ui_assets,
-                        "主菜单",
-                        ButtonType::MainMenu,
-                        Color::srgb(0.6, 0.2, 0.2),
-                    );
+                    spawn_menu_button(parent, &ui_assets, "重新挑战", ButtonType::RestartLevel);
+                    spawn_menu_button(parent, &ui_assets, "主菜单", ButtonType::MainMenu);
                 });
         })
         .id();
