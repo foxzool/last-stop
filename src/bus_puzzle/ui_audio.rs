@@ -1606,14 +1606,7 @@ fn update_gameplay_ui_values(
     if let Ok(mut text) = score_text.single_mut() {
         // 显示详细的分数分解
         let score = &game_state.score;
-        *text = Text::new(format!(
-            "分数: {} (基础:{} 效率:+{} 速度:+{} 成本:+{})",
-            score.total_score,
-            score.base_points,
-            score.efficiency_bonus,
-            score.speed_bonus,
-            score.cost_bonus
-        ));
+        *text = Text::new(format!("分数: {}", score.total_score));
     }
 
     if let Ok(mut text) = timer_text.single_mut() {

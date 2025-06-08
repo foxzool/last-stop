@@ -1,7 +1,5 @@
 // src/bus_puzzle/interaction.rs
 
-use bevy::{input::mouse::MouseWheel, prelude::*, window::PrimaryWindow};
-
 // 使用相对路径引用同模块下的其他文件
 use crate::bus_puzzle::{
     world_to_grid, AgentState, ButtonComponent, ButtonType, CameraController, DraggableSegment,
@@ -10,6 +8,15 @@ use crate::bus_puzzle::{
     ObjectiveCondition, ObjectiveTracker, ObjectiveType, PathNode, PathfindingAgent, PlacedSegment,
     RouteSegment, RouteSegmentType, SegmentPlacedEvent, SegmentPreview, SegmentRemovedEvent,
 };
+use bevy::{
+    input::mouse::MouseWheel,
+    prelude::{Val::Px, *},
+    window::PrimaryWindow,
+};
+
+// 悬停提示组件
+#[derive(Component)]
+pub struct HoverTooltip;
 
 // ============ 插件定义 ============
 
@@ -29,6 +36,8 @@ impl Plugin for PuzzleInteractionPlugin {
                     update_objectives,
                     update_game_timer,
                     handle_level_completion,
+                    handle_segment_hover_effects, // 新增：悬停效果
+                    update_hover_tooltip,         // 新增：悬停提示
                 )
                     .chain()
                     .run_if(in_state(GameStateEnum::Playing))
@@ -757,4 +766,134 @@ fn calculate_passenger_satisfaction(passengers: &Query<&PathfindingAgent>) -> f3
         .count();
 
     satisfied_count as f32 / passengers.iter().count() as f32
+}
+
+/// 处理路线段的鼠标悬停高亮效果
+fn handle_segment_hover_effects(
+    input_state: Res<InputState>,
+    game_state: Res<GameState>,
+    mut route_segments: Query<(&mut Sprite, &RouteSegment)>,
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+) {
+    // 获取鼠标当前网格位置
+    let mouse_grid_pos = if let Some(grid_pos) = input_state.grid_cursor_pos {
+        grid_pos
+    } else {
+        // 没有有效鼠标位置，重置所有路线段颜色
+        for (mut sprite, _) in route_segments.iter_mut() {
+            sprite.color = Color::WHITE;
+        }
+        return;
+    };
+
+    // 检测特殊键状态
+    let is_delete_mode =
+        keyboard_input.pressed(KeyCode::Delete) || keyboard_input.pressed(KeyCode::KeyX);
+    let has_selected_segment = input_state.selected_segment.is_some();
+
+    for (mut sprite, segment) in route_segments.iter_mut() {
+        let is_hovered = segment.grid_pos == mouse_grid_pos;
+        let is_placed_segment = game_state.placed_segments.contains_key(&segment.grid_pos);
+
+        if is_hovered && is_placed_segment && !has_selected_segment {
+            // 鼠标悬停在已放置的路线段上
+            if is_delete_mode {
+                // 删除模式 - 红色高亮
+                sprite.color = Color::srgb(1.3, 0.6, 0.6);
+            } else {
+                // 正常悬停 - 黄色高亮
+                sprite.color = Color::srgb(1.3, 1.3, 0.7);
+            }
+        } else {
+            // 重置为正常颜色
+            sprite.color = Color::WHITE;
+        }
+    }
+}
+
+/// 更新悬停提示工具栏
+fn update_hover_tooltip(
+    mut commands: Commands,
+    input_state: Res<InputState>,
+    game_state: Res<GameState>,
+    existing_tooltips: Query<Entity, With<HoverTooltip>>,
+    asset_server: Res<AssetServer>,
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+) {
+    // 清除现有的提示
+    for entity in existing_tooltips.iter() {
+        commands.entity(entity).despawn();
+    }
+
+    // 检查是否悬停在已放置的路线段上
+    if let Some(grid_pos) = input_state.grid_cursor_pos {
+        if let Some(placed_segment) = game_state.placed_segments.get(&grid_pos) {
+            // 如果没有选中其他路线段，显示操作提示
+            if input_state.selected_segment.is_none() {
+                spawn_hover_tooltip(
+                    &mut commands,
+                    &asset_server,
+                    &placed_segment,
+                    &keyboard_input,
+                );
+            }
+        }
+    }
+}
+
+/// 生成悬停提示UI
+fn spawn_hover_tooltip(
+    commands: &mut Commands,
+    asset_server: &Res<AssetServer>,
+    placed_segment: &PlacedSegment,
+    keyboard_input: &Res<ButtonInput<KeyCode>>,
+) {
+    // 确定提示文本和颜色
+    let (tooltip_text, tooltip_color) =
+        if keyboard_input.pressed(KeyCode::Delete) || keyboard_input.pressed(KeyCode::KeyX) {
+            ("按 Delete 或 X 删除此路线段", Color::srgb(1.0, 0.6, 0.6))
+        } else {
+            ("右键旋转 | Delete/X 删除", Color::srgb(1.0, 1.0, 0.8))
+        };
+
+    // 创建提示框
+    commands
+        .spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                top: Px(120.0),
+                left: Px(20.0),
+                padding: UiRect::all(Px(8.0)),
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.8)),
+            HoverTooltip,
+            Name::new("Segment Hover Tooltip"),
+        ))
+        .with_children(|parent| {
+            // 路线段信息
+            parent.spawn((
+                Text::new(format!(
+                    "{:?} (旋转: {}°, 成本: {})",
+                    placed_segment.segment_type, placed_segment.rotation, placed_segment.cost
+                )),
+                TextFont {
+                    font: asset_server.load("fonts/quan.ttf"),
+                    font_size: 14.0,
+                    ..default()
+                },
+                TextColor(Color::srgb(0.9, 0.9, 0.9)),
+            ));
+
+            // 操作提示
+            parent.spawn((
+                Text::new(tooltip_text),
+                TextFont {
+                    font: asset_server.load("fonts/quan.ttf"),
+                    font_size: 12.0,
+                    ..default()
+                },
+                TextColor(tooltip_color),
+            ));
+        });
 }
