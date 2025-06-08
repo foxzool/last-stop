@@ -195,7 +195,12 @@ impl Plugin for GameUIPlugin {
             )
             .add_systems(
                 Update,
-                (handle_pause_input, handle_pause_buttons).run_if(in_state(GameStateEnum::Paused)),
+                (
+                    handle_pause_input,
+                    handle_button_interactions.before(handle_pause_buttons), // 修复：确保交互处理在按钮逻辑之前
+                    handle_pause_buttons,
+                    debug_pause_menu_state, // 调试系统
+                ).run_if(in_state(GameStateEnum::Paused)),
             )
             .add_systems(
                 Update,
@@ -870,10 +875,12 @@ fn setup_pause_menu(mut commands: Commands, ui_assets: Res<UIAssets>) {
                 position_type: PositionType::Absolute,
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
+                top: Px(0.0),
+                left: Px(0.0),
                 ..default()
             },
             BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.7)),
-            ZIndex(2000),
+            ZIndex(3000), // 增加Z-index，确保在最上层
             PauseMenuUI,
         ))
         .with_children(|parent| {
@@ -890,24 +897,27 @@ fn setup_pause_menu(mut commands: Commands, ui_assets: Res<UIAssets>) {
                         ..default()
                     },
                     BackgroundColor(Color::srgb(0.2, 0.2, 0.3)),
+                    ZIndex(3001), // 面板在背景之上
                 ))
                 .with_children(|parent| {
                     spawn_title_text(parent, &ui_assets, "游戏暂停", 30.0);
-                    spawn_menu_button(
+
+                    // 使用专用的暂停菜单按钮生成函数
+                    spawn_pause_menu_button(
                         parent,
                         &ui_assets,
                         "继续游戏",
                         ButtonType::ResumeGame,
                         Color::srgb(0.2, 0.6, 0.2),
                     );
-                    spawn_menu_button(
+                    spawn_pause_menu_button(
                         parent,
                         &ui_assets,
                         "重新开始",
                         ButtonType::RestartLevel,
                         Color::srgb(0.6, 0.6, 0.2),
                     );
-                    spawn_menu_button(
+                    spawn_pause_menu_button(
                         parent,
                         &ui_assets,
                         "主菜单",
@@ -1225,6 +1235,49 @@ fn spawn_menu_button(
         });
 }
 
+// 专用的暂停菜单按钮生成函数
+fn spawn_pause_menu_button(
+    parent: &mut ChildSpawnerCommands<'_>,
+    ui_assets: &UIAssets,
+    text: &str,
+    button_type: ButtonType,
+    color: Color,
+) {
+    parent
+        .spawn((
+            Button,
+            Node {
+                width: Px(200.0),
+                height: Px(50.0),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                margin: UiRect::all(Px(5.0)),
+                ..default()
+            },
+            BackgroundColor(color),
+            ButtonComponent {
+                button_type: button_type.clone(),
+                is_hovered: false,
+                is_pressed: false,
+            },
+            ZIndex(3002), // 按钮在面板之上
+            // 添加名称以便调试
+            Name::new(format!("PauseMenuButton_{:?}", button_type)),
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Text::new(text),
+                TextFont {
+                    font: ui_assets.font.clone(),
+                    font_size: 18.0,
+                    ..default()
+                },
+                TextColor(Color::WHITE),
+                ZIndex(3003), // 文本在按钮之上
+            ));
+        });
+}
+
 // ============ 清理系统 ============
 
 fn cleanup_main_menu(mut commands: Commands, ui_query: Query<Entity, With<MainMenuUI>>) {
@@ -1311,15 +1364,20 @@ fn handle_button_interactions(
                 button_component.is_hovered = false;
                 button_component.is_pressed = false;
 
-                // 重置为正常状态
+                // 重置为原始颜色
                 if let Some(ref mut color) = bg_color {
-                    // 对于背景色按钮，重置为原始颜色
-                    if color.0 != Color::srgb(0.2, 0.6, 0.2)
-                        && color.0 != Color::srgb(0.6, 0.6, 0.2)
-                        && color.0 != Color::srgb(0.6, 0.2, 0.2)
-                    {
-                        **color = Color::srgb(0.3, 0.3, 0.5).into();
-                    }
+                    // 根据按钮类型重置颜色
+                    let original_color = match button_component.button_type {
+                        ButtonType::ResumeGame => Color::srgb(0.2, 0.6, 0.2),
+                        ButtonType::RestartLevel => Color::srgb(0.6, 0.6, 0.2),
+                        ButtonType::MainMenu => Color::srgb(0.6, 0.2, 0.2),
+                        ButtonType::StartGame => Color::srgb(0.2, 0.6, 0.2),
+                        ButtonType::QuitGame => Color::srgb(0.6, 0.2, 0.2),
+                        ButtonType::NextLevel => Color::srgb(0.2, 0.6, 0.2),
+                        ButtonType::PauseGame => Color::srgb(0.3, 0.3, 0.3),
+                        _ => Color::srgb(0.3, 0.3, 0.5),
+                    };
+                    **color = original_color.into();
                 } else if let Some(ref mut image) = image_node {
                     image.color = Color::WHITE; // 纹理按钮重置为正常白色
                 }
@@ -1367,21 +1425,26 @@ fn handle_pause_input(
 }
 
 fn handle_pause_buttons(
-    button_query: Query<&ButtonComponent, (Changed<ButtonComponent>, With<Button>)>,
+    mut button_query: Query<(&Interaction, &ButtonComponent), (Changed<Interaction>, With<Button>)>,
     mut next_state: ResMut<NextState<GameStateEnum>>,
     mut level_manager: ResMut<LevelManager>,
 ) {
-    for button in button_query.iter() {
-        if button.is_pressed {
-            match button.button_type {
+    for (interaction, button_component) in button_query.iter_mut() {
+        // 修复：使用 Interaction::Pressed 而不是 button_component.is_pressed
+        if matches!(*interaction, Interaction::Pressed) {
+            info!("暂停菜单按钮被点击: {:?}", button_component.button_type);
+
+            match button_component.button_type {
                 ButtonType::ResumeGame => {
+                    info!("继续游戏");
                     next_state.set(GameStateEnum::Playing);
                 }
                 ButtonType::RestartLevel => {
-                    // 重新加载当前关卡
+                    info!("重新开始关卡");
                     next_state.set(GameStateEnum::Loading);
                 }
                 ButtonType::MainMenu => {
+                    info!("返回主菜单");
                     next_state.set(GameStateEnum::MainMenu);
                 }
                 ButtonType::NextLevel => {
@@ -1389,7 +1452,6 @@ fn handle_pause_buttons(
                     if level_manager.current_level_index < level_manager.available_levels.len() {
                         next_state.set(GameStateEnum::Loading);
                     } else {
-                        // 游戏完成
                         next_state.set(GameStateEnum::MainMenu);
                     }
                 }
@@ -1902,5 +1964,30 @@ fn get_failure_tip(reason: &str) -> &'static str {
         "💡 提示：多使用便宜的直线段，减少昂贵的复杂路段"
     } else {
         "💡 提示：分析失败原因，调整策略后重新挑战"
+    }
+}
+
+// 调试用：添加暂停菜单状态检查系统
+fn debug_pause_menu_state(
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    current_state: Res<State<GameStateEnum>>,
+    buttons: Query<(Entity, &ButtonComponent, &Interaction), With<Button>>,
+    ui_elements: Query<Entity, With<PauseMenuUI>>,
+) {
+    if keyboard_input.just_pressed(KeyCode::F10) {
+        info!("=== 暂停菜单调试信息 ===");
+        info!("当前游戏状态: {:?}", current_state.get());
+        info!("暂停菜单UI实体数量: {}", ui_elements.iter().count());
+
+        for (entity, button_component, interaction) in buttons.iter() {
+            info!(
+                "按钮 {:?}: 实体 {:?}, 交互状态 {:?}, 悬停: {}, 按下: {}",
+                button_component.button_type,
+                entity,
+                interaction,
+                button_component.is_hovered,
+                button_component.is_pressed
+            );
+        }
     }
 }
