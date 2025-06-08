@@ -7,11 +7,7 @@ mod bus_puzzle;
 #[cfg(feature = "dev")]
 mod dev_tools;
 
-use bevy::{
-    asset::AssetMetaCheck,
-    prelude::*,
-    render::view::screenshot::{save_to_disk, Screenshot},
-};
+use bevy::{asset::AssetMetaCheck, prelude::*};
 
 fn main() -> AppExit {
     App::new().add_plugins(AppPlugin).run()
@@ -37,7 +33,7 @@ impl Plugin for AppPlugin {
                         fit_canvas_to_parent: true,
                         ..default()
                     }
-                        .into(),
+                    .into(),
                     ..default()
                 })
                 .set(ImagePlugin::default_nearest()),
@@ -68,6 +64,7 @@ fn spawn_camera(mut commands: Commands) {
 
 #[cfg(not(target_family = "wasm"))]
 fn screenshot_system(keyboard_input: Res<ButtonInput<KeyCode>>, mut commands: Commands) {
+    use bevy::render::view::screenshot::{save_to_disk, Screenshot};
     if keyboard_input.just_pressed(KeyCode::F12) {
         let path = format!(
             "screenshot_{}.png",
