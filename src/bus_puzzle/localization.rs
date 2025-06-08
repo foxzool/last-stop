@@ -35,7 +35,7 @@ impl Language {
 
 // ============ 本地化文本结构 ============
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct LocalizedText {
     pub en: &'static str,
     pub zh: &'static str,
@@ -142,7 +142,8 @@ pub const MAIN_MENU: LocalizedText = LocalizedText::new("Main Menu", "主菜单"
 
 // 关卡完成
 pub const LEVEL_COMPLETE: LocalizedText = LocalizedText::new("Level Complete!", "关卡完成！");
-pub const CONGRATULATIONS: LocalizedText = LocalizedText::new("🎉 Congratulations!", "🎉 恭喜通关！");
+pub const CONGRATULATIONS: LocalizedText =
+    LocalizedText::new("🎉 Congratulations!", "🎉 恭喜通关！");
 pub const FINAL_SCORE: LocalizedText = LocalizedText::new("Final Score: {0}", "最终得分: {0}");
 pub const SCORE_BREAKDOWN: LocalizedText = LocalizedText::new(
     "Score Details: Base:{0} Efficiency:+{1} Speed:+{2} Cost:+{3}",
@@ -152,17 +153,21 @@ pub const COMPLETION_TIME: LocalizedText = LocalizedText::new("Time: {0}", "用�
 pub const TOTAL_COST: LocalizedText = LocalizedText::new("Total Cost: {0}", "总成本: {0}");
 pub const NEXT_LEVEL: LocalizedText = LocalizedText::new("Next Level", "下一关");
 pub const RETRY: LocalizedText = LocalizedText::new("Retry", "重新挑战");
-pub const ALL_LEVELS_COMPLETE: LocalizedText = LocalizedText::new("You've completed all levels!", "您已完成所有关卡！");
+pub const ALL_LEVELS_COMPLETE: LocalizedText =
+    LocalizedText::new("You've completed all levels!", "您已完成所有关卡！");
 pub const THANK_YOU: LocalizedText = LocalizedText::new("Thank you for playing!", "感谢游玩！");
 
 // 游戏失败
 pub const MISSION_FAILED: LocalizedText = LocalizedText::new("❌ Mission Failed", "❌ 任务失败");
-pub const FAILURE_REASON: LocalizedText = LocalizedText::new("Failure Reason: {0}", "失败原因: {0}");
+pub const FAILURE_REASON: LocalizedText =
+    LocalizedText::new("Failure Reason: {0}", "失败原因: {0}");
 pub const GAME_STATISTICS: LocalizedText = LocalizedText::new("Game Statistics:", "本次游戏统计:");
 pub const SCORE_EARNED: LocalizedText = LocalizedText::new("Score Earned: {0}", "获得分数: {0}");
 pub const GAME_DURATION: LocalizedText = LocalizedText::new("Game Duration: {0}", "游戏时长: {0}");
-pub const PASSENGERS_GAVE_UP: LocalizedText = LocalizedText::new("Passengers Gave Up: {0}", "放弃的乘客: {0}");
-pub const DONT_GIVE_UP: LocalizedText = LocalizedText::new("Don't give up, try again!", "不要灰心，再试一次！");
+pub const PASSENGERS_GAVE_UP: LocalizedText =
+    LocalizedText::new("Passengers Gave Up: {0}", "放弃的乘客: {0}");
+pub const DONT_GIVE_UP: LocalizedText =
+    LocalizedText::new("Don't give up, try again!", "不要灰心，再试一次！");
 
 // 乘客状态
 pub const WAITING: LocalizedText = LocalizedText::new("Waiting", "等待");
@@ -195,26 +200,16 @@ pub const OBJECTIVE_CONNECT_ALL: LocalizedText = LocalizedText::new(
     "Connect all passengers to destinations",
     "连接所有乘客到目的地",
 );
-pub const OBJECTIVE_MAX_TRANSFERS: LocalizedText = LocalizedText::new(
-    "Maximum {0} transfers",
-    "最多使用{0}次换乘",
-);
-pub const OBJECTIVE_MAX_SEGMENTS: LocalizedText = LocalizedText::new(
-    "Use at most {0} route segments",
-    "最多使用{0}个路线段",
-);
-pub const OBJECTIVE_MAX_COST: LocalizedText = LocalizedText::new(
-    "Total cost ≤ {0}",
-    "总成本不超过{0}",
-);
-pub const OBJECTIVE_TIME_LIMIT: LocalizedText = LocalizedText::new(
-    "Complete within {0} seconds",
-    "在{0}秒内完成",
-);
-pub const OBJECTIVE_PASSENGER_SATISFACTION: LocalizedText = LocalizedText::new(
-    "Passenger satisfaction ≥ {0}%",
-    "乘客满意度达到{0}%",
-);
+pub const OBJECTIVE_MAX_TRANSFERS: LocalizedText =
+    LocalizedText::new("Maximum {0} transfers", "最多使用{0}次换乘");
+pub const OBJECTIVE_MAX_SEGMENTS: LocalizedText =
+    LocalizedText::new("Use at most {0} route segments", "最多使用{0}个路线段");
+pub const OBJECTIVE_MAX_COST: LocalizedText =
+    LocalizedText::new("Total cost ≤ {0}", "总成本不超过{0}");
+pub const OBJECTIVE_TIME_LIMIT: LocalizedText =
+    LocalizedText::new("Complete within {0} seconds", "在{0}秒内完成");
+pub const OBJECTIVE_PASSENGER_SATISFACTION: LocalizedText =
+    LocalizedText::new("Passenger satisfaction ≥ {0}%", "乘客满意度达到{0}%");
 
 // 关卡描述
 pub const TUTORIAL_DESCRIPTION: LocalizedText = LocalizedText::new(
@@ -242,10 +237,10 @@ impl Plugin for LocalizationPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<CurrentLanguage>()
             .add_event::<LanguageChangedEvent>()
-            .add_systems(Update, (
-                update_localized_texts,
-                handle_language_change_events,
-            ));
+            .add_systems(
+                Update,
+                (update_localized_texts, handle_language_change_events),
+            );
     }
 }
 
@@ -254,7 +249,10 @@ impl Plugin for LocalizationPlugin {
 /// 更新所有本地化文本
 fn update_localized_texts(
     current_language: Res<CurrentLanguage>,
-    mut localized_texts: Query<(&LocalizedTextComponent, &mut Text), Changed<LocalizedTextComponent>>,
+    mut localized_texts: Query<
+        (&LocalizedTextComponent, &mut Text),
+        Changed<LocalizedTextComponent>,
+    >,
 ) {
     if current_language.is_changed() {
         // 语言改变时，更新所有文本

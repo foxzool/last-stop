@@ -1,55 +1,172 @@
 // src/bus_puzzle/level_system.rs
 
 use crate::bus_puzzle::{
-    get_passenger_color, AgentState, GameState, GameStateEnum, GridPos, GridTile,
-    LevelCompletedEvent, LevelManager, PassengerColor, PassengerEntity, PassengerSpawnedEvent,
-    PathfindingAgent, RouteSegment, RouteSegmentType, StationEntity, StationType, TerrainType,
-    DEFAULT_PASSENGER_PATIENCE, DEFAULT_TILE_SIZE, PASSENGER_Z, ROUTE_Z, STATION_Z, TERRAIN_Z,
+    get_passenger_color, get_text_with_args, AgentState, GameState, GameStateEnum, GridPos,
+    GridTile, Language, LevelCompletedEvent, LevelManager, LocalizedText, PassengerColor,
+    PassengerEntity, PassengerSpawnedEvent, PathfindingAgent, RouteSegment, RouteSegmentType,
+    StationEntity, StationType, TerrainType, CENTRAL_HUB, DEFAULT_PASSENGER_PATIENCE,
+    DEFAULT_TILE_SIZE, LEVEL_MULTIPLE, LEVEL_TRANSFER, LEVEL_TUTORIAL, MULTIPLE_DESCRIPTION,
+    NORTHEAST_STATION, NORTH_STATION, OBJECTIVE_CONNECT_ALL, OBJECTIVE_MAX_COST,
+    OBJECTIVE_MAX_SEGMENTS, OBJECTIVE_MAX_TRANSFERS, OBJECTIVE_PASSENGER_SATISFACTION,
+    OBJECTIVE_TIME_LIMIT, PASSENGER_Z, ROUTE_Z, SOUTHEAST_STATION, SOUTH_STATION, START_STATION,
+    STATION_A, STATION_B, STATION_C, STATION_Z, TARGET_STATION_A, TARGET_STATION_B,
+    TARGET_STATION_C, TERRAIN_Z, TIME_PRESSURE_DESCRIPTION, TRANSFER_DESCRIPTION, TRANSFER_HUB,
+    TUTORIAL_DESCRIPTION,
 };
 use bevy::{platform::collections::HashMap, prelude::*};
 use rand::Rng;
-use serde::{Deserialize, Serialize};
 
 // ============ 关卡数据结构 ============
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+// 直接在现有的LevelData中添加本地化支持
+#[derive(Debug, Clone, PartialEq, Resource)]
+pub struct LevelData {
+    pub id: String,
+    // 保留原有字段作为默认值，添加可选的本地化键
+    pub name: String,                             // 保留：用作fallback或默认语言
+    pub description: String,                      // 保留：用作fallback
+    pub name_key: Option<&'static LocalizedText>, // 新增：可选的本地化键
+    pub description_key: Option<&'static LocalizedText>, // 新增：可选的本地化键
+
+    pub difficulty: u32,
+    pub grid_size: (u32, u32),
+    pub terrain: HashMap<GridPos, TerrainType>,
+    pub stations: Vec<Station>,                  // 保持现有结构
+    pub passenger_demands: Vec<PassengerDemand>, // 保持现有结构
+    pub available_segments: Vec<AvailableSegment>,
+    pub objectives: Vec<ObjectiveCondition>, // 保持现有结构
+    pub preset_routes: Vec<PresetRoute>,
+    pub dynamic_events: Vec<DynamicEvent>,
+    pub scoring: ScoringConfig,
+}
+
+// 现有的Station结构也保持不变，但添加本地化支持
+#[derive(Debug, Clone, PartialEq)]
 pub struct Station {
     pub position: GridPos,
     pub station_type: StationType,
-    pub name: String,
+    pub name: String,                             // 保留：作为默认值
+    pub name_key: Option<&'static LocalizedText>, // 新增：可选的本地化键
     pub capacity: u32,
     pub passenger_types: Vec<PassengerColor>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+// PassengerDemand同样处理
+#[derive(Debug, Clone, PartialEq)]
 pub struct PassengerDemand {
     pub color: PassengerColor,
-    pub origin: String,
-    pub destination: String,
+    pub origin: String,                                  // 保留：作为默认值
+    pub destination: String,                             // 保留：作为默认值
+    pub origin_key: Option<&'static LocalizedText>,      // 新增：可选的本地化键
+    pub destination_key: Option<&'static LocalizedText>, // 新增：可选的本地化键
     pub spawn_rate: f32,
     pub patience: f32,
-    // 生成时间范围
     pub spawn_time_range: Option<(f32, f32)>,
-    // 总生成数量限制
     pub total_count: Option<u32>,
-    // 已生成数量
     pub spawned_count: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+// ObjectiveCondition同样处理
+#[derive(Debug, Clone, PartialEq)]
+pub struct ObjectiveCondition {
+    pub description: String,                             // 保留：作为默认值
+    pub description_key: Option<&'static LocalizedText>, // 新增：可选的本地化键
+    pub condition_type: ObjectiveType,
+}
+
+// ============ 实现本地化获取方法 ============
+
+impl LevelData {
+    /// 获取本地化的关卡名称
+    pub fn get_localized_name(&self, language: Language) -> String {
+        if let Some(name_key) = self.name_key {
+            name_key.get(language).to_string()
+        } else {
+            self.name.clone() // fallback到原始名称
+        }
+    }
+
+    /// 获取本地化的关卡描述
+    pub fn get_localized_description(&self, language: Language) -> String {
+        if let Some(desc_key) = self.description_key {
+            desc_key.get(language).to_string()
+        } else {
+            self.description.clone() // fallback到原始描述
+        }
+    }
+}
+
+impl Station {
+    /// 获取本地化的站点名称
+    pub fn get_localized_name(&self, language: Language) -> String {
+        if let Some(name_key) = self.name_key {
+            name_key.get(language).to_string()
+        } else {
+            self.name.clone() // fallback到原始名称
+        }
+    }
+}
+
+impl PassengerDemand {
+    /// 获取本地化的起点名称
+    pub fn get_localized_origin(&self, language: Language) -> String {
+        if let Some(origin_key) = self.origin_key {
+            origin_key.get(language).to_string()
+        } else {
+            self.origin.clone()
+        }
+    }
+
+    /// 获取本地化的终点名称
+    pub fn get_localized_destination(&self, language: Language) -> String {
+        if let Some(dest_key) = self.destination_key {
+            dest_key.get(language).to_string()
+        } else {
+            self.destination.clone()
+        }
+    }
+}
+
+impl ObjectiveCondition {
+    /// 获取本地化的目标描述
+    pub fn get_localized_description(&self, language: Language) -> String {
+        if let Some(desc_key) = self.description_key {
+            match &self.condition_type {
+                ObjectiveType::ConnectAllPassengers => desc_key.get(language).to_string(),
+                ObjectiveType::MaxTransfers(count) => {
+                    get_text_with_args(desc_key, language, &[&count.to_string()])
+                }
+                ObjectiveType::MaxSegments(count) => {
+                    get_text_with_args(desc_key, language, &[&count.to_string()])
+                }
+                ObjectiveType::MaxCost(cost) => {
+                    get_text_with_args(desc_key, language, &[&cost.to_string()])
+                }
+                ObjectiveType::TimeLimit(time) => {
+                    get_text_with_args(desc_key, language, &[&time.to_string()])
+                }
+                ObjectiveType::PassengerSatisfaction(satisfaction) => {
+                    let percentage = (*satisfaction * 100.0) as u32;
+                    get_text_with_args(desc_key, language, &[&percentage.to_string()])
+                }
+                _ => desc_key.get(language).to_string(),
+            }
+        } else {
+            self.description.clone() // fallback到原始描述
+        }
+    }
+}
+
+// ============ 优化后的关卡创建函数 ============
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct AvailableSegment {
     pub segment_type: RouteSegmentType,
     pub count: u32,
     pub cost: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ObjectiveCondition {
-    pub description: String,
-    pub condition_type: ObjectiveType,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ObjectiveType {
     ConnectAllPassengers,
     MaxTransfers(u32),
@@ -60,20 +177,20 @@ pub enum ObjectiveType {
     PassengerSatisfaction(f32),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PresetRoute {
     pub segments: Vec<(GridPos, RouteSegmentType, u32)>,
     pub is_removable: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct DynamicEvent {
     pub trigger_time: f32,
     pub event_type: EventType,
     pub duration: Option<f32>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum EventType {
     SegmentFailure(GridPos),
     SurgePassengers(PassengerColor, f32),
@@ -81,29 +198,12 @@ pub enum EventType {
     StationOverload(String),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ScoringConfig {
     pub base_points: u32,
     pub efficiency_bonus: u32,
     pub speed_bonus: u32,
     pub cost_bonus: u32,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Resource)]
-pub struct LevelData {
-    pub id: String,
-    pub name: String,
-    pub description: String,
-    pub difficulty: u32,
-    pub grid_size: (u32, u32),
-    pub terrain: HashMap<GridPos, TerrainType>,
-    pub stations: Vec<Station>,
-    pub passenger_demands: Vec<PassengerDemand>,
-    pub available_segments: Vec<AvailableSegment>,
-    pub objectives: Vec<ObjectiveCondition>,
-    pub preset_routes: Vec<PresetRoute>,
-    pub dynamic_events: Vec<DynamicEvent>,
-    pub scoring: ScoringConfig,
 }
 
 // ============ 地图生成插件 ============
@@ -508,8 +608,12 @@ pub fn create_tutorial_level() -> LevelData {
 
     LevelData {
         id: "tutorial_01".to_string(),
-        name: "第一次连接".to_string(),
-        description: "学习基本的路线连接操作，将红色乘客从A站送到B站".to_string(),
+        // 设置默认文本和本地化键
+        name: "First Connection".to_string(), // 默认英文
+        description: "Learn basic route connection".to_string(), // 默认英文
+        name_key: Some(&LEVEL_TUTORIAL),      // 本地化键
+        description_key: Some(&TUTORIAL_DESCRIPTION), // 本地化键
+
         difficulty: 1,
         grid_size: (10, 8),
         terrain,
@@ -517,29 +621,31 @@ pub fn create_tutorial_level() -> LevelData {
             Station {
                 position: GridPos::new(1, 4),
                 station_type: StationType::Terminal,
-                name: "A站".to_string(),
+                name: "Station A".to_string(), // 默认英文
+                name_key: Some(&STATION_A),    // 本地化键
                 capacity: 10,
                 passenger_types: vec![PassengerColor::Red],
             },
             Station {
                 position: GridPos::new(8, 4),
                 station_type: StationType::Terminal,
-                name: "B站".to_string(),
+                name: "Station B".to_string(), // 默认英文
+                name_key: Some(&STATION_B),    // 本地化键
                 capacity: 10,
                 passenger_types: vec![],
             },
         ],
         passenger_demands: vec![PassengerDemand {
             color: PassengerColor::Red,
-            origin: "A站".to_string(),
-            destination: "B站".to_string(),
+            origin: "Station A".to_string(),      // 默认英文
+            destination: "Station B".to_string(), // 默认英文
+            origin_key: Some(&STATION_A),         // 本地化键
+            destination_key: Some(&STATION_B),    // 本地化键
             spawn_rate: 0.5,
             patience: DEFAULT_PASSENGER_PATIENCE,
-            // spawn_time_range: Some((5.0, 25.0)),
             spawn_time_range: None,
             total_count: Some(3),
-            // total_count: None,
-            spawned_count: 0, // 重要：每次都重置为0
+            spawned_count: 0,
         }],
         available_segments: vec![
             AvailableSegment {
@@ -564,7 +670,8 @@ pub fn create_tutorial_level() -> LevelData {
             },
         ],
         objectives: vec![ObjectiveCondition {
-            description: "连接所有乘客到目的地".to_string(),
+            description: "Connect all passengers to destinations".to_string(), // 默认英文
+            description_key: Some(&OBJECTIVE_CONNECT_ALL),                     // 本地化键
             condition_type: ObjectiveType::ConnectAllPassengers,
         }],
         preset_routes: vec![],
@@ -595,8 +702,10 @@ pub fn create_transfer_level() -> LevelData {
 
     LevelData {
         id: "level_02_transfer".to_string(),
-        name: "学会换乘".to_string(),
-        description: "学习使用换乘系统，通过中转站连接不同的路线".to_string(),
+        name: "".to_string(),
+        description: "".to_string(),
+        name_key: Some(&LEVEL_TRANSFER),
+        description_key: Some(&TRANSFER_DESCRIPTION),
         difficulty: 2,
         grid_size: (12, 10),
         terrain,
@@ -604,28 +713,32 @@ pub fn create_transfer_level() -> LevelData {
             Station {
                 position: GridPos::new(1, 2),
                 station_type: StationType::Terminal,
-                name: "A站".to_string(),
+                name: "Station A".to_string(),
+                name_key: Some(&STATION_A),
                 capacity: 15,
                 passenger_types: vec![PassengerColor::Red, PassengerColor::Blue],
             },
             Station {
                 position: GridPos::new(5, 7),
                 station_type: StationType::TransferHub,
-                name: "中转站".to_string(),
+                name: "Transfer Hub".to_string(),
+                name_key: Some(&TRANSFER_HUB),
                 capacity: 20,
                 passenger_types: vec![],
             },
             Station {
                 position: GridPos::new(10, 2),
                 station_type: StationType::Terminal,
-                name: "B站".to_string(),
+                name: "Station B".to_string(),
+                name_key: Some(&STATION_B),
                 capacity: 15,
                 passenger_types: vec![],
             },
             Station {
                 position: GridPos::new(10, 8),
                 station_type: StationType::Terminal,
-                name: "C站".to_string(),
+                name: "Station C".to_string(),
+                name_key: Some(&STATION_C),
                 capacity: 15,
                 passenger_types: vec![],
             },
@@ -633,8 +746,10 @@ pub fn create_transfer_level() -> LevelData {
         passenger_demands: vec![
             PassengerDemand {
                 color: PassengerColor::Red,
-                origin: "A站".to_string(),
-                destination: "B站".to_string(),
+                origin: "Station A".to_string(),
+                destination: "Station B".to_string(),
+                origin_key: Some(&STATION_A),
+                destination_key: Some(&STATION_B),
                 spawn_rate: 0.3,
                 patience: 150.0,
                 spawn_time_range: Some((3.0, 20.0)),
@@ -643,8 +758,10 @@ pub fn create_transfer_level() -> LevelData {
             },
             PassengerDemand {
                 color: PassengerColor::Blue,
-                origin: "A站".to_string(),
-                destination: "C站".to_string(),
+                origin: "Station A".to_string(),
+                destination: "Station B".to_string(),
+                origin_key: Some(&STATION_A),
+                destination_key: Some(&STATION_C),
                 spawn_rate: 0.3,
                 patience: 150.0,
                 spawn_time_range: Some((8.0, 25.0)),
@@ -671,11 +788,13 @@ pub fn create_transfer_level() -> LevelData {
         ],
         objectives: vec![
             ObjectiveCondition {
-                description: "连接所有乘客到目的地".to_string(),
+                description: "Connect all passengers to destinations".to_string(),
+                description_key: Some(&OBJECTIVE_CONNECT_ALL),
                 condition_type: ObjectiveType::ConnectAllPassengers,
             },
             ObjectiveCondition {
-                description: "最多使用2次换乘".to_string(),
+                description: "Maximum 2 transfers".to_string(),
+                description_key: Some(&OBJECTIVE_MAX_TRANSFERS),
                 condition_type: ObjectiveType::MaxTransfers(2),
             },
         ],
@@ -707,8 +826,12 @@ pub fn create_multiple_routes_level() -> LevelData {
 
     LevelData {
         id: "level_03_multiple_routes".to_string(),
-        name: "多条路线".to_string(),
-        description: "管理多条独立路线，优化整个交通网络".to_string(),
+        name: "Multiple Routes".to_string(),
+        description:
+        "Manage multiple independent routes and optimize the entire transportation network"
+            .to_string(),
+        name_key: Some(&LEVEL_MULTIPLE),
+        description_key: Some(&MULTIPLE_DESCRIPTION),
         difficulty: 3,
         grid_size: (14, 12),
         terrain,
@@ -716,35 +839,40 @@ pub fn create_multiple_routes_level() -> LevelData {
             Station {
                 position: GridPos::new(2, 2),
                 station_type: StationType::Terminal,
-                name: "北站".to_string(),
+                name: "North Station".to_string(),
+                name_key: Some(&NORTH_STATION),
                 capacity: 20,
                 passenger_types: vec![PassengerColor::Red, PassengerColor::Green],
             },
             Station {
                 position: GridPos::new(2, 9),
                 station_type: StationType::Terminal,
-                name: "南站".to_string(),
+                name: "South Station".to_string(),
+                name_key: Some(&SOUTH_STATION),
                 capacity: 20,
                 passenger_types: vec![PassengerColor::Blue, PassengerColor::Yellow],
             },
             Station {
                 position: GridPos::new(11, 2),
                 station_type: StationType::Terminal,
-                name: "东北站".to_string(),
+                name: "Northeast Station".to_string(),
+                name_key: Some(&NORTHEAST_STATION),
                 capacity: 20,
                 passenger_types: vec![],
             },
             Station {
                 position: GridPos::new(11, 9),
                 station_type: StationType::Terminal,
-                name: "东南站".to_string(),
+                name: "Southeast Station".to_string(),
+                name_key: Some(&SOUTHEAST_STATION),
                 capacity: 20,
                 passenger_types: vec![],
             },
             Station {
                 position: GridPos::new(6, 11),
                 station_type: StationType::TransferHub,
-                name: "中央枢纽".to_string(),
+                name: "Central Hub".to_string(),
+                name_key: Some(&CENTRAL_HUB),
                 capacity: 30,
                 passenger_types: vec![],
             },
@@ -752,8 +880,10 @@ pub fn create_multiple_routes_level() -> LevelData {
         passenger_demands: vec![
             PassengerDemand {
                 color: PassengerColor::Red,
-                origin: "北站".to_string(),
-                destination: "东北站".to_string(),
+                origin: "North Station".to_string(),
+                destination: "Northeast Station".to_string(),
+                origin_key: Some(&NORTH_STATION),
+                destination_key: Some(&NORTHEAST_STATION),
                 spawn_rate: 0.4,
                 patience: 180.0,
                 spawn_time_range: Some((5.0, 30.0)),
@@ -762,8 +892,10 @@ pub fn create_multiple_routes_level() -> LevelData {
             },
             PassengerDemand {
                 color: PassengerColor::Blue,
-                origin: "南站".to_string(),
-                destination: "东南站".to_string(),
+                origin: "South Station".to_string(),
+                destination: "Southeast Station".to_string(),
+                origin_key: Some(&SOUTH_STATION),
+                destination_key: Some(&SOUTHEAST_STATION),
                 spawn_rate: 0.4,
                 patience: 180.0,
                 spawn_time_range: Some((8.0, 35.0)),
@@ -772,8 +904,10 @@ pub fn create_multiple_routes_level() -> LevelData {
             },
             PassengerDemand {
                 color: PassengerColor::Green,
-                origin: "北站".to_string(),
-                destination: "东南站".to_string(),
+                origin: "North Station".to_string(),
+                destination: "Southeast Station".to_string(),
+                origin_key: Some(&NORTH_STATION),
+                destination_key: Some(&SOUTHEAST_STATION),
                 spawn_rate: 0.3,
                 patience: 200.0,
                 spawn_time_range: Some((10.0, 40.0)),
@@ -782,8 +916,10 @@ pub fn create_multiple_routes_level() -> LevelData {
             },
             PassengerDemand {
                 color: PassengerColor::Yellow,
-                origin: "南站".to_string(),
-                destination: "东北站".to_string(),
+                origin: "South Station".to_string(),
+                destination: "Northeast Station".to_string(),
+                origin_key: Some(&SOUTH_STATION),
+                destination_key: Some(&NORTHEAST_STATION),
                 spawn_rate: 0.3,
                 patience: 200.0,
                 spawn_time_range: Some((12.0, 45.0)),
@@ -820,15 +956,18 @@ pub fn create_multiple_routes_level() -> LevelData {
         ],
         objectives: vec![
             ObjectiveCondition {
-                description: "连接所有乘客到目的地".to_string(),
+                description: "Connect all passengers to destinations".to_string(),
+                description_key: Some(&OBJECTIVE_CONNECT_ALL),
                 condition_type: ObjectiveType::ConnectAllPassengers,
             },
             ObjectiveCondition {
-                description: "总成本不超过35".to_string(),
+                description: "Total cost ≤ 35".to_string(),
+                description_key: Some(&OBJECTIVE_MAX_COST),
                 condition_type: ObjectiveType::MaxCost(35),
             },
             ObjectiveCondition {
-                description: "最多使用20个路线段".to_string(),
+                description: "Use at most 20 route segments".to_string(),
+                description_key: Some(&OBJECTIVE_MAX_SEGMENTS),
                 condition_type: ObjectiveType::MaxSegments(20),
             },
         ],
@@ -860,8 +999,11 @@ pub fn create_time_pressure_level() -> LevelData {
 
     LevelData {
         id: "level_04_time_pressure".to_string(),
-        name: "时间挑战".to_string(),
-        description: "在有限时间内快速建设高效的交通网络".to_string(),
+        name: "Time Challenge".to_string(),
+        description: "Quickly build an efficient transportation network within limited time"
+            .to_string(),
+        name_key: Some(&OBJECTIVE_TIME_LIMIT),
+        description_key: Some(&TIME_PRESSURE_DESCRIPTION),
         difficulty: 4,
         grid_size: (10, 8),
         terrain,
@@ -869,7 +1011,8 @@ pub fn create_time_pressure_level() -> LevelData {
             Station {
                 position: GridPos::new(1, 1),
                 station_type: StationType::Terminal,
-                name: "起点站".to_string(),
+                name: "Start Station".to_string(),
+                name_key: Some(&START_STATION),
                 capacity: 25,
                 passenger_types: vec![
                     PassengerColor::Red,
@@ -880,21 +1023,24 @@ pub fn create_time_pressure_level() -> LevelData {
             Station {
                 position: GridPos::new(8, 1),
                 station_type: StationType::Terminal,
-                name: "目标站A".to_string(),
+                name: "Target Station A".to_string(),
+                name_key: Some(&TARGET_STATION_A),
                 capacity: 15,
                 passenger_types: vec![],
             },
             Station {
                 position: GridPos::new(8, 6),
                 station_type: StationType::Terminal,
-                name: "目标站B".to_string(),
+                name: "Target Station B".to_string(),
+                name_key: Some(&TARGET_STATION_B),
                 capacity: 15,
                 passenger_types: vec![],
             },
             Station {
                 position: GridPos::new(1, 6),
                 station_type: StationType::Terminal,
-                name: "目标站C".to_string(),
+                name: "Target Station C".to_string(),
+                name_key: Some(&TARGET_STATION_C),
                 capacity: 15,
                 passenger_types: vec![],
             },
@@ -902,8 +1048,10 @@ pub fn create_time_pressure_level() -> LevelData {
         passenger_demands: vec![
             PassengerDemand {
                 color: PassengerColor::Red,
-                origin: "起点站".to_string(),
-                destination: "目标站A".to_string(),
+                origin: "Start Station".to_string(),
+                destination: "Target Station A".to_string(),
+                origin_key: Some(&START_STATION),
+                destination_key: Some(&TARGET_STATION_A),
                 spawn_rate: 0.6,
                 patience: 100.0, // 较短的耐心
                 spawn_time_range: Some((2.0, 15.0)),
@@ -912,8 +1060,10 @@ pub fn create_time_pressure_level() -> LevelData {
             },
             PassengerDemand {
                 color: PassengerColor::Blue,
-                origin: "起点站".to_string(),
-                destination: "目标站B".to_string(),
+                origin: "Start Station".to_string(),
+                destination: "Target Station B".to_string(),
+                origin_key: Some(&START_STATION),
+                destination_key: Some(&TARGET_STATION_B),
                 spawn_rate: 0.6,
                 patience: 100.0,
                 spawn_time_range: Some((5.0, 20.0)),
@@ -922,8 +1072,10 @@ pub fn create_time_pressure_level() -> LevelData {
             },
             PassengerDemand {
                 color: PassengerColor::Green,
-                origin: "起点站".to_string(),
-                destination: "目标站C".to_string(),
+                origin: "Start Station".to_string(),
+                destination: "Target Station C".to_string(),
+                origin_key: Some(&START_STATION),
+                destination_key: Some(&TARGET_STATION_C),
                 spawn_rate: 0.6,
                 patience: 100.0,
                 spawn_time_range: Some((8.0, 25.0)),
@@ -955,15 +1107,18 @@ pub fn create_time_pressure_level() -> LevelData {
         ],
         objectives: vec![
             ObjectiveCondition {
-                description: "连接所有乘客到目的地".to_string(),
+                description: "Connect all passengers to destinations".to_string(),
+                description_key: Some(&OBJECTIVE_CONNECT_ALL),
                 condition_type: ObjectiveType::ConnectAllPassengers,
             },
             ObjectiveCondition {
-                description: "在60秒内完成".to_string(),
+                description: "Complete within 60 seconds".to_string(),
+                description_key: Some(&OBJECTIVE_TIME_LIMIT),
                 condition_type: ObjectiveType::TimeLimit(60.0),
             },
             ObjectiveCondition {
-                description: "乘客满意度达到80%".to_string(),
+                description: "Passenger satisfaction ≥ 80%".to_string(),
+                description_key: Some(&OBJECTIVE_PASSENGER_SATISFACTION),
                 condition_type: ObjectiveType::PassengerSatisfaction(0.8),
             },
         ],
