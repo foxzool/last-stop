@@ -9,10 +9,8 @@ impl Plugin for PassengerMovementDebugPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            (
-                debug_passenger_states,
-                debug_pathfinding_status,
-            ).run_if(in_state(GameStateEnum::Playing)),
+            (debug_passenger_states, debug_pathfinding_status)
+                .run_if(in_state(GameStateEnum::Playing)),
         );
     }
 }
@@ -32,15 +30,26 @@ fn debug_passenger_states(
             info!("  状态: {:?}", agent.state);
             info!("  位置: {:?}", transform.translation);
             info!("  路径长度: {}", agent.current_path.len());
-            info!("  当前步骤: {}/{}", agent.current_step, agent.current_path.len());
+            info!(
+                "  当前步骤: {}/{}",
+                agent.current_step,
+                agent.current_path.len()
+            );
             info!("  耐心: {:.1}/{:.1}", agent.patience, agent.max_patience);
             info!("  等待时间: {:.1}", agent.waiting_time);
 
             if !agent.current_path.is_empty() {
                 info!("  路径详情:");
                 for (i, node) in agent.current_path.iter().enumerate() {
-                    let marker = if i == agent.current_step { " -> " } else { "    " };
-                    info!("{}步骤 {}: {:?} 类型: {:?}", marker, i, node.position, node.node_type);
+                    let marker = if i == agent.current_step {
+                        " -> "
+                    } else {
+                        "    "
+                    };
+                    info!(
+                        "{}步骤 {}: {:?} 类型: {:?}",
+                        marker, i, node.position, node.node_type
+                    );
                 }
             } else {
                 warn!("  没有路径！");
@@ -69,7 +78,9 @@ fn debug_pathfinding_status(
         info!("乘客状态统计:");
         let mut state_counts = std::collections::HashMap::new();
         for agent in passengers.iter() {
-            *state_counts.entry(format!("{:?}", agent.state)).or_insert(0) += 1;
+            *state_counts
+                .entry(format!("{:?}", agent.state))
+                .or_insert(0) += 1;
         }
         for (state, count) in state_counts {
             info!("  {}: {} 个乘客", state, count);
