@@ -230,7 +230,9 @@ fn handle_button_interactions(
                 }
                 ButtonType::InventorySlot(segment_type) => {
                     // 重要：只在游戏进行状态下处理库存槽位按钮
-                    if matches!(current_state.get(), GameStateEnum::Playing) && !game_state.is_paused {
+                    if matches!(current_state.get(), GameStateEnum::Playing)
+                        && !game_state.is_paused
+                    {
                         let available_count = game_state
                             .player_inventory
                             .get(segment_type)
@@ -930,12 +932,7 @@ fn spawn_hover_tooltip(
 }
 
 /// 新增：坐标转换调试函数
-fn debug_coordinate_conversion(
-    world_pos: Vec3,
-    tile_size: f32,
-    grid_width: u32,
-    grid_height: u32,
-) {
+fn debug_coordinate_conversion(world_pos: Vec3, tile_size: f32, grid_width: u32, grid_height: u32) {
     info!("=== 坐标转换调试 ===");
     info!("  世界坐标: {:?}", world_pos);
     info!("  瓦片大小: {}", tile_size);
@@ -964,7 +961,7 @@ fn clear_segment_selection(
     mut input_state: ResMut<InputState>,
     existing_previews: Query<Entity, With<SegmentPreview>>,
     existing_tooltips: Query<Entity, With<HoverTooltip>>,
-    mut inventory_slots: Query<(&InventorySlot, &mut Sprite, &mut BorderColor)>, // 更新：同时处理边框
+    mut inventory_slots: Query<(&InventorySlot, &mut Sprite, &mut BorderColor)>, /* 更新：同时处理边框 */
 ) {
     // 清空选中的路线段
     if input_state.selected_segment.is_some() {

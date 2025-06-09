@@ -9,11 +9,11 @@ use super::{
     ObjectiveCompletedEvent, ObjectiveCondition, ObjectiveType, PassengerColor, PassengerCountText,
     PathfindingAgent, RouteSegmentType, ScoreText, SegmentPlacedEvent, SegmentRemovedEvent,
     TimerText, TipsPanel, UIElement, ALL_LEVELS_COMPLETE, ARRIVED, COMPLETION_TIME,
-    CONGRATULATIONS, COST, DONT_GIVE_UP, FINAL_SCORE, GAME_DURATION, GAME_PAUSED, GAME_STATISTICS,
-    GAME_TITLE, INVENTORY_SLOT_SIZE, LEVEL_COMPLETE, MAIN_MENU, MISSION_FAILED, NEXT_LEVEL,
-    OBJECTIVES, PASSENGERS, PASSENGERS_GAVE_UP, PASSENGER_STATUS, PAUSE, QUIT_GAME, RESTART_LEVEL,
-    RESUME_GAME, RETRY, ROUTE_SEGMENTS, SCORE, SCORE_BREAKDOWN, SCORE_EARNED, START_GAME,
-    THANK_YOU, TIME, TOTAL_COST, WAITING,
+    CONGRATULATIONS, COST, DONT_GIVE_UP, FAILURE_REASON, FINAL_SCORE, GAME_DURATION, GAME_PAUSED,
+    GAME_STATISTICS, GAME_TITLE, INVENTORY_SLOT_SIZE, LEVEL_COMPLETE, MAIN_MENU, MISSION_FAILED,
+    NEXT_LEVEL, OBJECTIVES, PASSENGERS, PASSENGERS_GAVE_UP, PASSENGER_STATUS, PAUSE, QUIT_GAME,
+    RESTART_LEVEL, RESUME_GAME, RETRY, ROUTE_SEGMENTS, SCORE, SCORE_BREAKDOWN, SCORE_EARNED,
+    START_GAME, THANK_YOU, TIME, TOTAL_COST, WAITING,
 };
 use crate::bus_puzzle::{check_and_show_contextual_tips, create_tips_panel, TipsManager};
 use bevy::{
@@ -1685,7 +1685,11 @@ fn setup_game_over_ui(
                     spawn_score_text(
                         parent,
                         &ui_assets,
-                        &format!("失败原因: {}", game_over_data.reason),
+                        &get_text_with_args(
+                            &FAILURE_REASON,
+                            current_language.language,
+                            &[game_over_data.reason.as_str()],
+                        ),
                         20.0,
                     );
 
