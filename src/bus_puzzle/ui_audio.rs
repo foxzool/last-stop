@@ -4,7 +4,7 @@
 use super::{
     ease_out_back, format_time, get_text, get_text_with_args, localized_text,
     localized_text_with_args, AgentState, AudioAssets, CostText, CurrentLanguage, GameState,
-    GameStateEnum, InventoryCountText, InventorySlot, Language, LanguageChangedEvent,
+    GameStateEnum, GAME_VERSION, InventoryCountText, InventorySlot, Language, LanguageChangedEvent,
     LevelCompletedEvent, LevelData, LevelManager, LocalizedText, LocalizedTextComponent,
     ObjectiveCompletedEvent, ObjectiveCondition, ObjectiveType, PassengerColor, PassengerCountText,
     PathfindingAgent, RouteSegmentType, ScoreText, SegmentPlacedEvent, SegmentRemovedEvent,
@@ -446,6 +446,24 @@ fn setup_main_menu(
                         LanguageToggleText, // 特殊组件，需要单独处理
                     ));
                 });
+
+            // 版本号显示 - 右下角
+            parent.spawn((
+                Text::new(format!("v{}", GAME_VERSION)),
+                TextFont {
+                    font: ui_assets.font.clone(),
+                    font_size: 14.0,
+                    ..default()
+                },
+                TextColor(Color::srgba(1.0, 1.0, 1.0, 0.6)), // 半透明白色
+                Node {
+                    position_type: PositionType::Absolute,
+                    bottom: Px(20.0),
+                    right: Px(20.0),
+                    ..default()
+                },
+                Name::new("VersionText"),
+            ));
         });
 }
 
