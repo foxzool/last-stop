@@ -367,16 +367,7 @@ fn spawn_pathfinding_bus(
 
         let vehicle_id = format!("智能公交_{}", route_info.route_id);
 
-        // 生成到第二个站点的初始路径
-        let initial_target = if route_info.stations.len() > 1 {
-            route_info.stations[1].clone()
-        } else {
-            start_station.clone()
-        };
-
-        let initial_path = find_optimal_path(pathfinding_graph, start_station, &initial_target)
-            .unwrap_or_default();
-
+        // 🔧 修复：车辆生成时应该在起始站停靠，而不是立即前往下一站
         commands.spawn((
             Name::new(format!("Smart Bus {}", vehicle_id)),
             Sprite {
@@ -393,21 +384,23 @@ fn spawn_pathfinding_bus(
                 current_passengers: Vec::new(),
                 current_stop_index: 0,
                 direction: BusDirection::Forward,
-                state: BusState::Traveling,
+                // 🔧 关键修复：车辆生成时应该在站点停靠
+                state: BusState::AtStop,
                 speed: 80.0,
-                dwell_time: 3.0,
-                remaining_dwell: 0.0,
+                dwell_time: 5.0, // 增加停靠时间，确保乘客有足够时间上车
+                remaining_dwell: 5.0, // 初始停靠时间
                 target_position: None,
             },
             BusPathfindingAgent {
                 vehicle_id: vehicle_id.clone(),
                 route_id: route_info.route_id.clone(),
-                current_path: initial_path,
+                current_path: Vec::new(), // 🔧 修复：初始路径为空
                 current_step: 0,
-                target_station: initial_target,
-                state: BusPathfindingState::Following,
+                target_station: start_station.clone(), // 🔧 修复：当前目标是起始站
+                // 🔧 关键修复：车辆生成时应该在站点停靠
+                state: BusPathfindingState::AtStation,
                 path_progress: 0.0,
-                next_station_index: 1,
+                next_station_index: 0, // 🔧 修复：从第0个站点开始
                 stations_to_visit: route_info.stations.clone(),
                 direction: BusDirection::Forward,
                 is_returning: false,
@@ -415,10 +408,8 @@ fn spawn_pathfinding_bus(
         ));
 
         info!(
-            "生成智能公交车: {} 路线: {} -> {}",
-            vehicle_id,
-            start_station,
-            route_info.stations.get(1).unwrap_or(&"终点".to_string())
+            "🚌 生成智能公交车: {} 在起始站 {} 停靠中，准备载客",
+            vehicle_id, start_station
         );
     }
 }
@@ -442,13 +433,36 @@ fn update_bus_pathfinding(
                 // 跟随当前路径，无需额外处理，移动在另一个系统中处理
             }
             BusPathfindingState::AtStation => {
-                // 在站点停靠，等待一段时间后继续
+                // 🔧 修复：在站点停靠的处理逻辑
                 bus_vehicle.remaining_dwell -= dt;
+
+                // 🔧 新增：停靠期间的调试信息
+                if bus_vehicle.remaining_dwell % 2.0 < dt {  // 每2秒打印一次
+                    debug!(
+                        "🚏 公交车 {} 在 {} 停靠中，剩余时间: {:.1}s，载客: {}/{}",
+                        agent.vehicle_id,
+                        agent.target_station,
+                        bus_vehicle.remaining_dwell,
+                        bus_vehicle.current_passengers.len(),
+                        bus_vehicle.capacity
+                    );
+                }
+
                 if bus_vehicle.remaining_dwell <= 0.0 {
+                    // 🔧 修复：停靠结束后，更新站点索引
+                    match agent.direction {
+                        BusDirection::Forward => {
+                            agent.next_station_index += 1;
+                        }
+                        BusDirection::Backward => {
+                            agent.next_station_index = agent.next_station_index.saturating_sub(1);
+                        }
+                    }
+
                     agent.state = BusPathfindingState::Planning;
                     info!(
-                        "公交车 {} 离开站点 {}",
-                        agent.vehicle_id, agent.target_station
+                        "🚌 公交车 {} 离开站点 {}，下一站索引: {}",
+                        agent.vehicle_id, agent.target_station, agent.next_station_index
                     );
                 }
             }
@@ -470,8 +484,8 @@ fn update_bus_pathfinding(
 fn plan_next_route(agent: &mut BusPathfindingAgent, pathfinding_graph: &PathfindingGraph) {
     let current_station = agent.target_station.clone();
 
-    // 确定下一个目标站点
-    let next_target = get_next_station_target(agent);
+    // 🔧 修复：确定下一个目标站点
+    let next_target = get_next_station_target_fixed(agent);
 
     if let Some(target) = next_target {
         // 使用乘客的寻路算法计算路径
@@ -483,7 +497,7 @@ fn plan_next_route(agent: &mut BusPathfindingAgent, pathfinding_graph: &Pathfind
             agent.path_progress = 0.0;
 
             info!(
-                "公交车 {} 规划新路径: {} -> {} ({}步)",
+                "🚌 公交车 {} 规划新路径: {} -> {} ({}步)",
                 agent.vehicle_id,
                 current_station,
                 target,
@@ -491,7 +505,7 @@ fn plan_next_route(agent: &mut BusPathfindingAgent, pathfinding_graph: &Pathfind
             );
         } else {
             warn!(
-                "公交车 {} 无法找到从 {} 到 {} 的路径",
+                "🚌 公交车 {} 无法找到从 {} 到 {} 的路径",
                 agent.vehicle_id, current_station, target
             );
             agent.state = BusPathfindingState::WaitingForPath;
@@ -499,6 +513,35 @@ fn plan_next_route(agent: &mut BusPathfindingAgent, pathfinding_graph: &Pathfind
     } else {
         // 没有下一个站点，可能需要调头
         agent.state = BusPathfindingState::TurningAround;
+    }
+}
+
+/// 🔧 新增：修复后的下一站点获取逻辑
+fn get_next_station_target_fixed(agent: &BusPathfindingAgent) -> Option<String> {
+    let stations = &agent.stations_to_visit;
+
+    if stations.is_empty() {
+        return None;
+    }
+
+    match agent.direction {
+        BusDirection::Forward => {
+            // 🔧 修复：正确计算下一个站点索引
+            let next_index = agent.next_station_index + 1;
+            if next_index < stations.len() {
+                Some(stations[next_index].clone())
+            } else {
+                None // 到达终点，需要调头
+            }
+        }
+        BusDirection::Backward => {
+            // 🔧 修复：反向行驶时的下一站点计算
+            if agent.next_station_index > 0 {
+                Some(stations[agent.next_station_index - 1].clone())
+            } else {
+                None // 回到起点，需要调头
+            }
+        }
     }
 }
 
@@ -528,15 +571,17 @@ fn get_next_station_target(agent: &BusPathfindingAgent) -> Option<String> {
     }
 }
 
-/// 调头处理
+/// 🔧 修复：调头处理逻辑
 fn turn_around_pathfinding(agent: &mut BusPathfindingAgent) {
     agent.direction = match agent.direction {
         BusDirection::Forward => {
+            // 🔧 修复：正向到反向，应该从最后一个站点开始倒退
             agent.next_station_index = agent.stations_to_visit.len().saturating_sub(1);
             BusDirection::Backward
         }
         BusDirection::Backward => {
-            agent.next_station_index = 1;
+            // 🔧 修复：反向到正向，应该从第一个站点开始前进
+            agent.next_station_index = 0;
             BusDirection::Forward
         }
     };
@@ -545,7 +590,7 @@ fn turn_around_pathfinding(agent: &mut BusPathfindingAgent) {
     agent.state = BusPathfindingState::Planning;
 
     info!(
-        "公交车 {} 调头，新方向: {:?}，下一站索引: {}",
+        "🔄 公交车 {} 调头完成，新方向: {:?}，当前站点索引: {}",
         agent.vehicle_id, agent.direction, agent.next_station_index
     );
 }
@@ -565,24 +610,14 @@ fn move_buses_along_paths(
         }
 
         if agent.current_step >= agent.current_path.len() {
-            // 到达路径终点
+            // 🔧 修复：到达路径终点时的处理
             agent.state = BusPathfindingState::AtStation;
             bus_vehicle.state = BusState::AtStop;
             bus_vehicle.remaining_dwell = bus_vehicle.dwell_time;
 
-            // 更新下一站索引
-            match agent.direction {
-                BusDirection::Forward => {
-                    agent.next_station_index += 1;
-                }
-                BusDirection::Backward => {
-                    agent.next_station_index = agent.next_station_index.saturating_sub(1);
-                }
-            }
-
             info!(
-                "公交车 {} 到达站点: {}",
-                agent.vehicle_id, agent.target_station
+                "🚏 公交车 {} 到达站点: {} (站点索引: {})",
+                agent.vehicle_id, agent.target_station, agent.next_station_index
             );
             continue;
         }
