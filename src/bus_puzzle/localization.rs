@@ -120,10 +120,10 @@ pub const QUIT_GAME: LocalizedText = LocalizedText::new("Quit Game", "退出游�
 pub const LANGUAGE_SETTING: LocalizedText = LocalizedText::new("Language", "语言设置");
 
 // 游戏界面
-pub const SCORE: LocalizedText = LocalizedText::new("Score: {0}", "分数");
-pub const TIME: LocalizedText = LocalizedText::new("Time: {0}", "时间");
-pub const COST: LocalizedText = LocalizedText::new("Cost: {0}", "成本");
-pub const PASSENGERS: LocalizedText = LocalizedText::new("Passengers: {0}", "乘客");
+pub const SCORE: LocalizedText = LocalizedText::new("Score: {0}", "分数: {0}");
+pub const TIME: LocalizedText = LocalizedText::new("Time: {0}", "时间: {0}");
+pub const COST: LocalizedText = LocalizedText::new("Cost: {0}", "成本: {0}");
+pub const PASSENGERS: LocalizedText = LocalizedText::new("Passengers: {0}", "乘客: {0}");
 pub const PAUSE: LocalizedText = LocalizedText::new("Pause", "暂停");
 pub const ROUTE_SEGMENTS: LocalizedText = LocalizedText::new("Route Segments", "路线段");
 pub const OBJECTIVES: LocalizedText = LocalizedText::new("Objectives", "目标");
