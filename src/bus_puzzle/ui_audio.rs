@@ -185,6 +185,7 @@ impl Plugin for GameUIPlugin {
                     update_background_music,
                     capture_level_complete_data, // 新增：捕获关卡完成数据
                     check_and_show_contextual_tips, // 新增：上下文感知提示
+                    update_inventory_selection_state, // 新增：更新库存选中状态
                 )
                     .run_if(in_state(GameStateEnum::Playing)),
             )
@@ -2260,4 +2261,26 @@ pub enum ButtonType {
     QuitGame,
     ToggleLanguage, // 新增：语言切换按钮
     InventorySlot(RouteSegmentType),
+}
+
+// ============ 库存选中状态更新系统 ============
+
+/// 更新库存槽位的选中状态视觉效果
+fn update_inventory_selection_state(
+    input_state: Res<crate::bus_puzzle::InputState>,
+    mut inventory_slots: Query<(&InventorySlot, &mut BorderColor)>,
+) {
+    for (slot, mut border_color) in inventory_slots.iter_mut() {
+        if let Some(slot_segment_type) = &slot.segment_type {
+            let is_selected = input_state.selected_segment == Some(*slot_segment_type);
+
+            if is_selected {
+                // 选中状态：金黄色边框
+                *border_color = Color::srgb(1.0, 0.8, 0.0).into();
+            } else {
+                // 未选中状态：正常白色边框
+                *border_color = Color::WHITE.into();
+            }
+        }
+    }
 }

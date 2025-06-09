@@ -43,15 +43,19 @@ impl Plugin for PuzzleInteractionPlugin {
                     .run_if(in_state(GameStateEnum::Playing))
                     .run_if(not(is_paused)),
             )
+            // 新增：在状态变化时清理选择
+            .add_systems(OnEnter(GameStateEnum::Paused), clear_segment_selection)
+            .add_systems(OnEnter(GameStateEnum::MainMenu), clear_segment_selection)
+            .add_systems(OnEnter(GameStateEnum::Loading), clear_segment_selection)
             .add_systems(
                 Update,
                 (
                     handle_camera_controls,
                     update_mouse_world_position,
-                    handle_button_interactions, // 统一的按钮交互处理
+                    // 将 handle_button_interactions 移动到全局，但添加状态检查
+                    handle_button_interactions,
                 )
-                    .chain()
-                    .run_if(in_state(GameStateEnum::Playing)),
+                    .chain(),
             )
             .add_systems(
                 PostUpdate,
@@ -97,7 +101,7 @@ fn update_mouse_world_position(
 
                 // F10 调试坐标转换精度
                 if keyboard_input.just_pressed(KeyCode::F10) {
-                    crate::bus_puzzle::debug_coordinate_conversion(
+                    debug_coordinate_conversion(
                         input_state.mouse_world_pos,
                         level_manager.tile_size,
                         level_data.grid_size.0,
@@ -191,6 +195,7 @@ fn handle_button_interactions(
     mut app_exit_events: EventWriter<AppExit>,
     mut level_manager: ResMut<LevelManager>,
     game_state: Res<GameState>,
+    current_state: Res<State<GameStateEnum>>,
 ) {
     for (interaction, button_component) in button_query.iter() {
         if matches!(*interaction, Interaction::Pressed) {
@@ -224,17 +229,23 @@ fn handle_button_interactions(
                     }
                 }
                 ButtonType::InventorySlot(segment_type) => {
-                    let available_count = game_state
-                        .player_inventory
-                        .get(segment_type)
-                        .copied()
-                        .unwrap_or(0);
+                    // 重要：只在游戏进行状态下处理库存槽位按钮
+                    if matches!(current_state.get(), GameStateEnum::Playing) && !game_state.is_paused {
+                        let available_count = game_state
+                            .player_inventory
+                            .get(segment_type)
+                            .copied()
+                            .unwrap_or(0);
 
-                    if available_count > 0 {
-                        input_state.selected_segment = Some(*segment_type);
-                        info!("Selected route segment: {:?}", segment_type);
+                        if available_count > 0 {
+                            input_state.selected_segment = Some(*segment_type);
+                            info!("Selected route segment: {:?}", segment_type);
+                        } else {
+                            warn!("Insufficient inventory: {:?}", segment_type);
+                        }
                     } else {
-                        warn!("Insufficient inventory: {:?}", segment_type);
+                        // 在暂停状态下，不处理库存槽位按钮
+                        trace!("Inventory slot button ignored - game is paused or not playing");
                     }
                 }
                 _ => {}
@@ -538,6 +549,7 @@ fn update_inventory_ui(
     mut inventory_slots: Query<(&mut InventorySlot, &mut Sprite)>,
     mut inventory_count_text: Query<(&InventoryCountText, &mut Text)>,
     mut inventory_updated_events: EventReader<InventoryUpdatedEvent>,
+    input_state: Res<InputState>, // 新增：获取输入状态
 ) {
     for event in inventory_updated_events.read() {
         // 更新库存槽位
@@ -557,6 +569,24 @@ fn update_inventory_ui(
         for (count_text, mut text) in inventory_count_text.iter_mut() {
             if count_text.segment_type == event.segment_type {
                 *text = Text::new(format!("{}", event.new_count));
+            }
+        }
+    }
+
+    // 新增：更新选中状态的视觉反馈
+    for (slot, mut sprite) in inventory_slots.iter_mut() {
+        if let Some(slot_segment_type) = &slot.segment_type {
+            let is_selected = input_state.selected_segment == Some(*slot_segment_type);
+
+            if is_selected {
+                // 选中状态：高亮边框效果
+                sprite.color = Color::srgb(1.2, 1.2, 0.8); // 淡黄色高亮
+            } else if slot.available_count > 0 {
+                // 有库存：正常白色
+                sprite.color = Color::WHITE;
+            } else {
+                // 无库存：灰色
+                sprite.color = Color::srgb(0.5, 0.5, 0.5);
             }
         }
     }
@@ -897,4 +927,77 @@ fn spawn_hover_tooltip(
                 TextColor(tooltip_color),
             ));
         });
+}
+
+/// 新增：坐标转换调试函数
+fn debug_coordinate_conversion(
+    world_pos: Vec3,
+    tile_size: f32,
+    grid_width: u32,
+    grid_height: u32,
+) {
+    info!("=== 坐标转换调试 ===");
+    info!("  世界坐标: {:?}", world_pos);
+    info!("  瓦片大小: {}", tile_size);
+    info!("  网格尺寸: {}x{}", grid_width, grid_height);
+
+    let grid_pos = world_to_grid(world_pos, tile_size, grid_width, grid_height);
+    info!("  计算网格坐标: {:?}", grid_pos);
+
+    // 反向计算检验
+    let back_world_pos = grid_pos.to_world_pos(tile_size, grid_width, grid_height);
+    info!("  反向世界坐标: {:?}", back_world_pos);
+
+    let distance = world_pos.distance(back_world_pos);
+    info!("  坐标差异: {:.2} 像素", distance);
+
+    if distance > tile_size * 0.1 {
+        warn!("  ⚠️ 坐标转换精度可能有问题");
+    } else {
+        info!("  ✅ 坐标转换精度正常");
+    }
+}
+
+/// 清理路线段选择状态 - 在暂停游戏或切换状态时调用
+fn clear_segment_selection(
+    mut commands: Commands,
+    mut input_state: ResMut<InputState>,
+    existing_previews: Query<Entity, With<SegmentPreview>>,
+    existing_tooltips: Query<Entity, With<HoverTooltip>>,
+    mut inventory_slots: Query<(&InventorySlot, &mut Sprite, &mut BorderColor)>, // 更新：同时处理边框
+) {
+    // 清空选中的路线段
+    if input_state.selected_segment.is_some() {
+        info!("清理路线段选择状态: {:?}", input_state.selected_segment);
+        input_state.selected_segment = None;
+    }
+
+    // 清空拖拽状态
+    input_state.is_dragging = false;
+    input_state.drag_entity = None;
+
+    // 清除所有预览实体
+    for entity in existing_previews.iter() {
+        commands.entity(entity).despawn();
+    }
+
+    // 清除所有悬停提示
+    for entity in existing_tooltips.iter() {
+        commands.entity(entity).despawn();
+    }
+
+    // 更新：重置库存槽位的视觉状态（包括边框）
+    for (slot, mut sprite, mut border_color) in inventory_slots.iter_mut() {
+        // 重置边框颜色为正常白色
+        *border_color = Color::WHITE.into();
+
+        // 重置背景颜色
+        if slot.available_count > 0 {
+            sprite.color = Color::WHITE; // 重置为正常白色
+        } else {
+            sprite.color = Color::srgb(0.5, 0.5, 0.5); // 无库存保持灰色
+        }
+    }
+
+    info!("已清理所有路线段选择状态、预览和库存UI状态（包括边框）");
 }

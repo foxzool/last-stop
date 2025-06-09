@@ -22,28 +22,6 @@ pub fn world_to_grid(
     )
 }
 
-/// 调试用：验证坐标转换的准确性
-pub fn debug_coordinate_conversion(
-    world_pos: Vec3,
-    tile_size: f32,
-    grid_width: u32,
-    grid_height: u32,
-) {
-    let grid_pos = world_to_grid(world_pos, tile_size, grid_width, grid_height);
-    let back_to_world = grid_pos.to_world_pos(tile_size, grid_width, grid_height);
-
-    let distance = world_pos.distance(back_to_world);
-
-    info!(
-        "坐标转换验证: 世界 {:?} -> 网格 {:?} -> 世界 {:?}, 距离差: {:.2}",
-        world_pos, grid_pos, back_to_world, distance
-    );
-
-    if distance > tile_size * 0.1 {
-        warn!("坐标转换精度可能有问题，距离差过大: {:.2}", distance);
-    }
-}
-
 /// 计算两点间的曼哈顿距离
 pub fn manhattan_distance(pos1: GridPos, pos2: GridPos) -> u32 {
     ((pos1.x - pos2.x).abs() + (pos1.y - pos2.y).abs()) as u32

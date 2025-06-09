@@ -299,7 +299,7 @@ fn discover_routes_using_pathfinding(
 }
 
 // 同时需要添加这个函数来检查乘客需求覆盖率
-fn check_passenger_coverage(routes: &[BusRouteInfo], game_state: &crate::bus_puzzle::GameState) {
+fn check_passenger_coverage(routes: &[BusRouteInfo], game_state: &GameState) {
     if let Some(level_data) = &game_state.current_level {
         info!("=== 乘客需求覆盖分析 ===");
 
@@ -387,7 +387,7 @@ fn spawn_pathfinding_bus(
                 // 🔧 关键修复：车辆生成时应该在站点停靠
                 state: BusState::AtStop,
                 speed: 80.0,
-                dwell_time: 5.0, // 增加停靠时间，确保乘客有足够时间上车
+                dwell_time: 5.0,      // 增加停靠时间，确保乘客有足够时间上车
                 remaining_dwell: 5.0, // 初始停靠时间
                 target_position: None,
             },
@@ -437,7 +437,8 @@ fn update_bus_pathfinding(
                 bus_vehicle.remaining_dwell -= dt;
 
                 // 🔧 新增：停靠期间的调试信息
-                if bus_vehicle.remaining_dwell % 2.0 < dt {  // 每2秒打印一次
+                if bus_vehicle.remaining_dwell % 2.0 < dt {
+                    // 每2秒打印一次
                     debug!(
                         "🚏 公交车 {} 在 {} 停靠中，剩余时间: {:.1}s，载客: {}/{}",
                         agent.vehicle_id,
@@ -536,32 +537,6 @@ fn get_next_station_target_fixed(agent: &BusPathfindingAgent) -> Option<String> 
         }
         BusDirection::Backward => {
             // 🔧 修复：反向行驶时的下一站点计算
-            if agent.next_station_index > 0 {
-                Some(stations[agent.next_station_index - 1].clone())
-            } else {
-                None // 回到起点，需要调头
-            }
-        }
-    }
-}
-
-/// 获取下一个站点目标
-fn get_next_station_target(agent: &BusPathfindingAgent) -> Option<String> {
-    let stations = &agent.stations_to_visit;
-
-    if stations.is_empty() {
-        return None;
-    }
-
-    match agent.direction {
-        BusDirection::Forward => {
-            if agent.next_station_index < stations.len() {
-                Some(stations[agent.next_station_index].clone())
-            } else {
-                None // 到达终点，需要调头
-            }
-        }
-        BusDirection::Backward => {
             if agent.next_station_index > 0 {
                 Some(stations[agent.next_station_index - 1].clone())
             } else {
