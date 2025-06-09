@@ -1776,8 +1776,8 @@ fn setup_game_over_ui(
                     );
 
                     // 根据失败原因显示提示
-                    let tip = get_failure_tip(&game_over_data.reason);
-                    spawn_score_text(parent, &ui_assets, tip, 14.0);
+                    let tip = get_failure_tip(&game_over_data.reason, current_language.language);
+                    spawn_score_text(parent, &ui_assets, &tip, 14.0);
 
                     // 按钮组
                     spawn_menu_button(
@@ -1840,16 +1840,40 @@ fn handle_game_over_buttons(
     }
 }
 
-// 辅助函数：根据失败原因提供建议
-fn get_failure_tip(reason: &str) -> &'static str {
-    if reason.contains("乘客放弃") {
-        "💡 提示：尝试建设更短的路径，或者增加换乘站点来减少等待时间"
-    } else if reason.contains("时间超限") {
-        "💡 提示：优先连接最重要的站点，不要追求完美的网络设计"
-    } else if reason.contains("预算超支") {
-        "💡 提示：多使用便宜的直线段，减少昂贵的复杂路段"
+// 辅助函数：根据失败原因提供建议（支持多语言）
+fn get_failure_tip(reason: &str, language: Language) -> String {
+    // 首先判断失败原因（支持中英文关键词）
+    let tip_key = if reason.contains("乘客放弃") || reason.contains("passengers gave up") {
+        "TIP_PASSENGERS_GAVE_UP"
+    } else if reason.contains("时间超限") || reason.contains("time limit") {
+        "TIP_TIME_LIMIT"
+    } else if reason.contains("预算超支") || reason.contains("budget") {
+        "TIP_BUDGET_EXCEEDED"
     } else {
-        "💡 提示：分析失败原因，调整策略后重新挑战"
+        "TIP_GENERAL"
+    };
+
+    // 根据语言返回对应的提示文本
+    match (tip_key, language) {
+        ("TIP_PASSENGERS_GAVE_UP", Language::Chinese) =>
+            "💡 提示：尝试建设更短的路径，或者增加换乘站点来减少等待时间".to_string(),
+        ("TIP_PASSENGERS_GAVE_UP", Language::English) =>
+            "💡 Tip: Try building shorter paths or adding transfer stations to reduce waiting time".to_string(),
+
+        ("TIP_TIME_LIMIT", Language::Chinese) =>
+            "💡 提示：优先连接最重要的站点，不要追求完美的网络设计".to_string(),
+        ("TIP_TIME_LIMIT", Language::English) =>
+            "💡 Tip: Focus on connecting the most important stations, don't aim for perfect network design".to_string(),
+
+        ("TIP_BUDGET_EXCEEDED", Language::Chinese) =>
+            "💡 提示：多使用便宜的直线段，减少昂贵的复杂路段".to_string(),
+        ("TIP_BUDGET_EXCEEDED", Language::English) =>
+            "💡 Tip: Use more cheap straight segments and reduce expensive complex segments".to_string(),
+
+        (_, Language::Chinese) =>
+            "💡 提示：分析失败原因，调整策略后重新挑战".to_string(),
+        (_, Language::English) =>
+            "💡 Tip: Analyze the failure reason and adjust your strategy before retrying".to_string(),
     }
 }
 
