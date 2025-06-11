@@ -466,6 +466,11 @@ fn setup_main_menu(
                 Name::new("VersionText"),
             ));
         });
+
+    // 发送语言切换事件以初始化本地化文本
+    commands.send_event(LanguageChangedEvent {
+        new_language: current_language.language,
+    });
 }
 
 fn setup_gameplay_ui(

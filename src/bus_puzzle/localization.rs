@@ -1,8 +1,8 @@
+use crate::bus_puzzle::LanguageToggleText;
 #[allow(dead_code)]
 // src/bus_puzzle/localization.rs - 本地化系统核心
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
-
 // ============ 语言枚举 ============
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -281,13 +281,25 @@ fn handle_language_change_events(
     mut language_events: EventReader<LanguageChangedEvent>,
     mut current_language: ResMut<CurrentLanguage>,
     mut localized_texts: Query<(&LocalizedTextComponent, &mut Text)>,
+    mut toggle_texts: Query<&mut Text, (With<LanguageToggleText>, Without<LocalizedTextComponent>)>,
 ) {
     for event in language_events.read() {
+        info!("处理语言切换事件: {:?}", event.new_language);
         current_language.language = event.new_language;
 
-        // 立即更新所有文本
+        // 立即更新所有本地化文本
         for (localized, mut text) in localized_texts.iter_mut() {
-            *text = Text::new(localized.get_text(event.new_language));
+            let new_text = localized.get_text(event.new_language);
+            *text = Text::new(new_text);
+        }
+
+        // 更新语言切换按钮文本
+        for mut text in toggle_texts.iter_mut() {
+            let next_language_text = match event.new_language {
+                Language::English => "中文",
+                Language::Chinese => "English",
+            };
+            *text = Text::new(next_language_text);
         }
 
         info!("Language changed to: {:?}", event.new_language);
