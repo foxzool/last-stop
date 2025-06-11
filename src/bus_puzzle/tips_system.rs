@@ -8,6 +8,7 @@ use bevy::prelude::{
     Val::{Percent, Px},
     *,
 };
+
 // ============ Tips 组件和资源 ============
 
 #[derive(Component)]
@@ -81,7 +82,7 @@ struct TipTimer(Timer);
 
 // ============ 上下文感知提示 ============
 
-// 添加清理过期提示的系统
+// 添加清理过期提示的系统（安全删除）
 fn cleanup_expired_tips(
     mut commands: Commands,
     mut timers: Query<(Entity, &mut TipTimer), With<TipTimer>>,
@@ -90,6 +91,7 @@ fn cleanup_expired_tips(
     for (entity, mut timer) in timers.iter_mut() {
         timer.tick(time.delta());
         if timer.just_finished() {
+            // 安全删除：递归删除实体及其子实体
             commands.entity(entity).despawn();
         }
     }
@@ -619,18 +621,20 @@ pub struct LocalizedTipText {
 #[derive(Component)]
 pub struct LocalizedTipsPanel;
 
-// 响应语言切换的更新系统
+// 响应语言切换的更新系统（修复层级关系问题）
 fn update_tips_panel_language(
     current_language: Res<CurrentLanguage>,
     tips_manager: Res<LocalizedTipsManager>,
     mut commands: Commands,
     ui_assets: Res<crate::bus_puzzle::UIAssets>,
-    existing_panels: Query<Entity, With<LocalizedTipsPanel>>,
+    // 修复：查找使用 TipsPanel 组件的实体
+    existing_panels: Query<Entity, With<TipsPanel>>,
 ) {
-    // 如果语言发生变化，重新创建整个面板
+    // 如果语言发生变化，重新创建整个面板内容
     if current_language.is_changed() {
         for entity in existing_panels.iter() {
-            commands.entity(entity).despawn();
+            // 修复：只清除子实体，保留面板本身，避免层级关系警告
+            commands.entity(entity).despawn_related::<Children>();
 
             // 重新创建面板内容
             commands.entity(entity).with_children(|parent| {
@@ -642,7 +646,7 @@ fn update_tips_panel_language(
     }
 }
 
-// ============ 完整的本地化 Tips 系统插件 ============
+// ============ 完整的本地化 Tips 系统插件（修复版） ============
 
 pub struct LocalizedTipsSystemPlugin;
 
@@ -652,26 +656,48 @@ impl Plugin for LocalizedTipsSystemPlugin {
             Update,
             (
                 update_localized_tips_for_level,
-                handle_tips_panel_toggle,
-                update_tips_display,
-                update_tips_panel_language, // 新增：语言切换响应
+                handle_tips_panel_toggle,   // F1键切换
+                update_tips_display,        // 更新可见性
+                update_tips_panel_language, // 语言切换响应
                 cleanup_expired_tips,
+                debug_tips_panel_state, // F2调试信息
             )
                 .run_if(in_state(GameStateEnum::Playing)),
         );
     }
 }
 
-// ============ 修改后的 Tips 更新系统 ============
+// ============ 修复后的 Tips 更新系统 ============
 
 fn update_localized_tips_for_level(
     mut tips_manager: ResMut<LocalizedTipsManager>,
     game_state: Res<GameState>,
+    mut commands: Commands,
+    ui_assets: Res<crate::bus_puzzle::UIAssets>,
+    current_language: Res<CurrentLanguage>,
+    existing_panels: Query<Entity, With<TipsPanel>>,
 ) {
     if let Some(level_data) = &game_state.current_level {
         // 只在关卡改变时更新提示
         if tips_manager.last_level_id != level_data.id {
             tips_manager.generate_localized_tips_for_level(level_data);
+            // 确保新关卡开始时面板是展开的
+            tips_manager.is_expanded = true;
+
+            // 修复：关卡切换时重新创建面板内容
+            for entity in existing_panels.iter() {
+                commands.entity(entity).despawn_related::<Children>();
+                commands.entity(entity).with_children(|parent| {
+                    create_localized_tips_panel(
+                        parent,
+                        &ui_assets,
+                        &tips_manager,
+                        &current_language,
+                    );
+                });
+            }
+
+            info!("关卡切换：{} - 已更新Tips内容", level_data.id);
         }
     }
 }
@@ -679,36 +705,74 @@ fn update_localized_tips_for_level(
 fn handle_tips_panel_toggle(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut tips_manager: ResMut<LocalizedTipsManager>,
+    mut commands: Commands,
+    ui_assets: Res<crate::bus_puzzle::UIAssets>,
+    current_language: Res<CurrentLanguage>,
+    existing_panels: Query<Entity, With<TipsPanel>>,
 ) {
     if keyboard_input.just_pressed(KeyCode::F1) {
         tips_manager.is_expanded = !tips_manager.is_expanded;
-        info!(
-            "Tips面板切换: {}",
-            if tips_manager.is_expanded {
-                "展开"
-            } else {
-                "收起"
+
+        // 修复：F1切换时重新创建面板内容，确保完全显示/隐藏
+        if tips_manager.is_expanded {
+            // 显示时：重新创建内容
+            for entity in existing_panels.iter() {
+                commands.entity(entity).despawn_related::<Children>();
+                commands.entity(entity).with_children(|parent| {
+                    create_localized_tips_panel(
+                        parent,
+                        &ui_assets,
+                        &tips_manager,
+                        &current_language,
+                    );
+                });
             }
-        );
+            info!("F1 Tips面板展开，内容已重新创建");
+        } else {
+            // 隐藏时：清除所有内容
+            for entity in existing_panels.iter() {
+                commands.entity(entity).despawn_related::<Children>();
+            }
+            info!("F1 Tips面板隐藏，内容已清除");
+        }
     }
 }
 
 fn update_tips_display(
     tips_manager: Res<LocalizedTipsManager>,
-    mut tips_panels: Query<(&mut Visibility, &Children), With<LocalizedTipsPanel>>,
-    mut tip_items: Query<&mut Visibility, (Without<LocalizedTipsPanel>, With<LocalizedTipText>)>,
+    mut tips_panels: Query<&mut Visibility, With<TipsPanel>>,
 ) {
-    for (mut visibility, children) in tips_panels.iter_mut() {
-        *visibility = if tips_manager.is_expanded {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+    // 简化：只控制面板本身的可见性，内容通过F1切换时的重建来管理
+    let target_visibility = if tips_manager.is_expanded {
+        Visibility::Visible
+    } else {
+        Visibility::Hidden
+    };
 
-        for child in children {
-            if let Ok(mut child_visibility) = tip_items.get_mut(*child) {
-                *child_visibility = *visibility;
-            }
+    for mut visibility in tips_panels.iter_mut() {
+        *visibility = target_visibility;
+    }
+}
+
+// ============ 调试系统 ============
+
+fn debug_tips_panel_state(
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    tips_manager: Res<LocalizedTipsManager>,
+    tips_panels: Query<(Entity, &Visibility), With<TipsPanel>>,
+) {
+    if keyboard_input.just_pressed(KeyCode::F2) {
+        info!("=== Tips面板调试信息 ===");
+        info!("Tips管理器状态: is_expanded = {}", tips_manager.is_expanded);
+        info!("Tips提示数量: {}", tips_manager.current_tips.len());
+        info!("当前关卡ID: {}", tips_manager.last_level_id);
+
+        for (entity, visibility) in tips_panels.iter() {
+            info!("Tips面板实体 {:?}: 可见性 = {:?}", entity, visibility);
+        }
+
+        if tips_panels.is_empty() {
+            warn!("❌ 没有找到Tips面板实体！");
         }
     }
 }
