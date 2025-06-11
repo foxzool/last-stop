@@ -2,12 +2,12 @@
 
 // 使用相对路径引用同模块下的其他文件
 use crate::bus_puzzle::{
-    world_to_grid, AgentState, ButtonComponent, ButtonType, CameraController, DraggableSegment,
-    GameState, GameStateEnum, GridPos, InputState, InventoryCountText, InventorySlot,
-    InventoryUpdatedEvent, LevelCompletedEvent, LevelManager, ObjectiveCompletedEvent,
-    ObjectiveCondition, ObjectiveTracker, ObjectiveType, PathNode, PathfindingAgent, PlacedSegment,
-    RotationHintUI, RouteSegment, RouteSegmentType, SegmentPlacedEvent, SegmentPreview,
-    SegmentRemovedEvent,
+    world_to_grid, AgentState, ButtonComponent, ButtonType, CameraController, CurrentLanguage,
+    DraggableSegment, GameState, GameStateEnum, GridPos, InputState, InventoryCountText,
+    InventorySlot, InventoryUpdatedEvent, Language, LevelCompletedEvent, LevelManager,
+    ObjectiveCompletedEvent, ObjectiveCondition, ObjectiveTracker, ObjectiveType, PathNode,
+    PathfindingAgent, PlacedSegment, RotationHintUI, RouteSegment, RouteSegmentType,
+    SegmentPlacedEvent, SegmentPreview, SegmentRemovedEvent,
 };
 use bevy::{
     input::mouse::MouseWheel,
@@ -40,7 +40,9 @@ impl Plugin for PuzzleInteractionPlugin {
                     handle_segment_hover_effects,       // 新增：悬停效果
                     update_hover_tooltip,               // 新增：悬停提示
                     reset_preview_rotation_on_deselect, // 改进的取消选择
-                    show_rotation_hint_ui,              // 旋转提示UI
+                    show_rotation_hint_ui,              // 中英文旋转提示UI
+                    update_rotation_hint_text,          // 实时更新提示文本
+                    update_rotation_angle_display,      // 更新角度显示
                     handle_inventory_selection,
                     handle_quick_rotation_keys,
                 )
@@ -1191,11 +1193,12 @@ fn handle_inventory_selection(
     }
 }
 
-// 添加旋转提示UI的系统
+// 最终推荐实现：直接集成的版本
 fn show_rotation_hint_ui(
     mut commands: Commands,
     input_state: Res<InputState>,
     ui_assets: Res<crate::bus_puzzle::UIAssets>,
+    current_language: Res<CurrentLanguage>,
     existing_hints: Query<Entity, With<RotationHintUI>>,
 ) {
     // 清除现有提示
@@ -1211,26 +1214,120 @@ fn show_rotation_hint_ui(
                     position_type: PositionType::Absolute,
                     bottom: Px(20.0),
                     left: Px(50.0),
-                    padding: UiRect::all(Px(10.0)),
+                    padding: UiRect::all(Px(12.0)),
+                    border: UiRect::all(Px(2.0)),
                     ..default()
                 },
-                BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.7)),
+                BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.85)),
+                BorderColor(Color::srgb(0.4, 0.6, 0.8)),
                 ZIndex(100),
                 RotationHintUI,
+                Name::new("Rotation Hint UI"),
             ))
             .with_children(|parent| {
-                parent.spawn((
-                    Text::new(format!(
-                        "右键/R键/空格旋转 (当前: {}°) | 左键放置 | ESC取消",
+                // 主要操作提示行
+                let main_hint = match current_language.language {
+                    Language::English => format!(
+                        "🔄 Right/R/Space to Rotate (Current: {}°) | 📍 Left Click to Place | ❌ ESC to Cancel",
                         input_state.preview_rotation
-                    )),
+                    ),
+                    Language::Chinese => format!(
+                        "🔄 右键/R键/空格旋转 (当前: {}°) | 📍 左键放置 | ❌ ESC取消",
+                        input_state.preview_rotation
+                    ),
+                };
+
+                parent.spawn((
+                    Text::new(main_hint),
                     TextFont {
                         font: ui_assets.font.clone(),
-                        font_size: 16.0,
+                        font_size: 14.0,
                         ..default()
                     },
                     TextColor(Color::WHITE),
+                    Node {
+                        margin: UiRect::bottom(Px(4.0)),
+                        ..default()
+                    },
+                ));
+
+                // 快速旋转提示行
+                let quick_hint = match current_language.language {
+                    Language::English => "💡 Tip: Press 1-4 for quick rotation (0°/90°/180°/270°)",
+                    Language::Chinese => "💡 提示: 按数字键1-4快速旋转 (0°/90°/180°/270°)",
+                };
+
+                parent.spawn((
+                    Text::new(quick_hint),
+                    TextFont {
+                        font: ui_assets.font.clone(),
+                        font_size: 11.0,
+                        ..default()
+                    },
+                    TextColor(Color::srgb(0.8, 0.8, 1.0)),
                 ));
             });
+    }
+}
+
+// 实时更新提示文本的系统（处理语言切换）
+fn update_rotation_hint_text(
+    mut hint_texts: Query<&mut Text, With<RotationHintUI>>,
+    input_state: Res<InputState>,
+    current_language: Res<CurrentLanguage>,
+) {
+    // 如果语言发生变化，更新提示文本
+    if current_language.is_changed() && input_state.selected_segment.is_some() {
+        for mut text in hint_texts.iter_mut() {
+            // 根据文本内容判断是主提示还是次提示
+            if text.0.contains("🔄") {
+                // 主要操作提示
+                let new_text = match current_language.language {
+                    Language::English => format!(
+                        "🔄 Right/R/Space to Rotate (Current: {}°) | 📍 Left Click to Place | ❌ ESC to Cancel",
+                        input_state.preview_rotation
+                    ),
+                    Language::Chinese => format!(
+                        "🔄 右键/R键/空格旋转 (当前: {}°) | 📍 左键放置 | ❌ ESC取消",
+                        input_state.preview_rotation
+                    ),
+                };
+                *text = Text::new(new_text);
+            } else if text.0.contains("💡") {
+                // 快速旋转提示
+                let new_text = match current_language.language {
+                    Language::English => "💡 Tip: Press 1-4 for quick rotation (0°/90°/180°/270°)",
+                    Language::Chinese => "💡 提示: 按数字键1-4快速旋转 (0°/90°/180°/270°)",
+                };
+                *text = Text::new(new_text);
+            }
+        }
+    }
+}
+
+// 更新角度显示的系统
+fn update_rotation_angle_display(
+    mut hint_texts: Query<&mut Text, With<RotationHintUI>>,
+    input_state: Res<InputState>,
+    current_language: Res<CurrentLanguage>,
+) {
+    // 如果预览旋转角度发生变化，更新显示
+    if input_state.is_changed() && input_state.selected_segment.is_some() {
+        for mut text in hint_texts.iter_mut() {
+            if text.0.contains("🔄") {
+                // 更新主要操作提示中的角度显示
+                let new_text = match current_language.language {
+                    Language::English => format!(
+                        "🔄 Right/R/Space to Rotate (Current: {}°) | 📍 Left Click to Place | ❌ ESC to Cancel",
+                        input_state.preview_rotation
+                    ),
+                    Language::Chinese => format!(
+                        "🔄 右键/R键/空格旋转 (当前: {}°) | 📍 左键放置 | ❌ ESC取消",
+                        input_state.preview_rotation
+                    ),
+                };
+                *text = Text::new(new_text);
+            }
+        }
     }
 }
