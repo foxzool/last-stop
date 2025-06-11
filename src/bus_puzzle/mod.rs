@@ -328,7 +328,7 @@ fn initialize_game(
     level_manager.current_level_index = 0;
 
     // 使用本地化的关卡创建函数
-    let mut tutorial_level = create_tutorial_level();
+    let mut tutorial_level = create_tutorial_level(current_language.language);
 
     // 确保初始化时所有乘客需求计数都为0
     for demand in &mut tutorial_level.passenger_demands {
@@ -410,13 +410,13 @@ fn load_current_level(
         .get(level_manager.current_level_index)
     {
         match level_id.as_str() {
-            "tutorial_01" => create_tutorial_level(),
-            "level_02_transfer" => create_transfer_level(),
-            "level_03_multiple_routes" => create_multiple_routes_level(),
-            "level_04_time_pressure" => create_time_pressure_level(),
+            "tutorial_01" => create_tutorial_level(current_language.language),
+            "level_02_transfer" => create_transfer_level(current_language.language),
+            "level_03_multiple_routes" => create_multiple_routes_level(current_language.language),
+            "level_04_time_pressure" => create_time_pressure_level(current_language.language),
             _ => {
                 warn!("未知关卡ID: {}, 使用教学关卡", level_id);
-                create_tutorial_level()
+                create_tutorial_level(current_language.language)
             }
         }
     } else {

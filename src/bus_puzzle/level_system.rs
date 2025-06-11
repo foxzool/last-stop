@@ -1,17 +1,17 @@
 // src/bus_puzzle/level_system.rs
 
 use crate::bus_puzzle::{
-    get_passenger_color, get_text_with_args, AgentState, GameState, GameStateEnum, GridPos,
-    GridTile, Language, LevelCompletedEvent, LevelManager, LocalizedText, PassengerColor,
-    PassengerEntity, PassengerSpawnedEvent, PathfindingAgent, RouteSegment, RouteSegmentType,
-    StationEntity, StationType, TerrainType, CENTRAL_HUB, DEFAULT_PASSENGER_PATIENCE,
-    DEFAULT_TILE_SIZE, LEVEL_MULTIPLE, LEVEL_TRANSFER, LEVEL_TUTORIAL, MULTIPLE_DESCRIPTION,
-    NORTHEAST_STATION, NORTH_STATION, OBJECTIVE_CONNECT_ALL, OBJECTIVE_MAX_COST,
-    OBJECTIVE_MAX_SEGMENTS, OBJECTIVE_MAX_TRANSFERS, OBJECTIVE_PASSENGER_SATISFACTION,
-    OBJECTIVE_TIME_LIMIT, PASSENGER_Z, ROUTE_Z, SOUTHEAST_STATION, SOUTH_STATION, START_STATION,
-    STATION_A, STATION_B, STATION_C, STATION_Z, TARGET_STATION_A, TARGET_STATION_B,
-    TARGET_STATION_C, TERRAIN_Z, TIME_PRESSURE_DESCRIPTION, TRANSFER_DESCRIPTION, TRANSFER_HUB,
-    TUTORIAL_DESCRIPTION,
+    get_passenger_color, get_text, get_text_with_args, AgentState, CurrentLanguage, GameState,
+    GameStateEnum, GridPos, GridTile, Language, LevelCompletedEvent, LevelManager, LocalizedText,
+    PassengerColor, PassengerEntity, PassengerSpawnedEvent, PathfindingAgent, RouteSegment,
+    RouteSegmentType, StationEntity, StationType, TerrainType, CENTRAL_HUB,
+    DEFAULT_PASSENGER_PATIENCE, DEFAULT_TILE_SIZE, LEVEL_MULTIPLE, LEVEL_TRANSFER, LEVEL_TUTORIAL,
+    MULTIPLE_DESCRIPTION, NORTHEAST_STATION, NORTH_STATION, OBJECTIVE_CONNECT_ALL,
+    OBJECTIVE_MAX_COST, OBJECTIVE_MAX_SEGMENTS, OBJECTIVE_MAX_TRANSFERS,
+    OBJECTIVE_PASSENGER_SATISFACTION, OBJECTIVE_TIME_LIMIT, PASSENGER_Z, ROUTE_Z,
+    SOUTHEAST_STATION, SOUTH_STATION, START_STATION, STATION_A, STATION_B, STATION_C, STATION_Z,
+    TARGET_STATION_A, TARGET_STATION_B, TARGET_STATION_C, TERRAIN_Z, TIME_PRESSURE_DESCRIPTION,
+    TRANSFER_DESCRIPTION, TRANSFER_HUB, TUTORIAL_DESCRIPTION,
 };
 use bevy::{platform::collections::HashMap, prelude::*};
 use rand::Rng;
@@ -449,8 +449,12 @@ fn manual_spawn_passenger_debug(
     }
 }
 
-fn setup_debug_level(mut level_manager: ResMut<LevelManager>, mut game_state: ResMut<GameState>) {
-    let tutorial_level = create_tutorial_level();
+fn setup_debug_level(
+    mut level_manager: ResMut<LevelManager>,
+    mut game_state: ResMut<GameState>,
+    current_language: Res<CurrentLanguage>,
+) {
+    let tutorial_level = create_tutorial_level(current_language.language);
 
     level_manager.current_level = Some(tutorial_level.clone());
     game_state.current_level = Some(tutorial_level.clone());
@@ -597,7 +601,7 @@ fn get_station_texture(station_type: &StationType) -> &'static str {
 
 // ============ 示例关卡创建函数 ============
 
-pub fn create_tutorial_level() -> LevelData {
+pub fn create_tutorial_level(current_language: Language) -> LevelData {
     let mut terrain = HashMap::new();
 
     for x in 0..10 {
@@ -675,8 +679,8 @@ pub fn create_tutorial_level() -> LevelData {
             },
         ],
         objectives: vec![ObjectiveCondition {
-            description: "Connect all passengers to destinations".to_string(), // 默认英文
-            description_key: Some(&OBJECTIVE_CONNECT_ALL),                     // 本地化键
+            description: get_text(&OBJECTIVE_CONNECT_ALL, current_language), // 默认英文
+            description_key: Some(&OBJECTIVE_CONNECT_ALL),                   // 本地化键
             condition_type: ObjectiveType::ConnectAllPassengers,
         }],
         preset_routes: vec![],
@@ -690,7 +694,7 @@ pub fn create_tutorial_level() -> LevelData {
     }
 }
 
-pub fn create_transfer_level() -> LevelData {
+pub fn create_transfer_level(language: Language) -> LevelData {
     let mut terrain = HashMap::new();
 
     for x in 0..12 {
@@ -718,7 +722,7 @@ pub fn create_transfer_level() -> LevelData {
             Station {
                 position: GridPos::new(1, 2),
                 station_type: StationType::Terminal,
-                name: "Station A".to_string(),
+                name: get_text(&STATION_A, language),
                 name_key: Some(&STATION_A),
                 capacity: 15,
                 passenger_types: vec![PassengerColor::Red, PassengerColor::Blue],
@@ -726,7 +730,7 @@ pub fn create_transfer_level() -> LevelData {
             Station {
                 position: GridPos::new(5, 7),
                 station_type: StationType::TransferHub,
-                name: "Transfer Hub".to_string(),
+                name: get_text(&TRANSFER_HUB, language),
                 name_key: Some(&TRANSFER_HUB),
                 capacity: 20,
                 passenger_types: vec![],
@@ -734,7 +738,7 @@ pub fn create_transfer_level() -> LevelData {
             Station {
                 position: GridPos::new(10, 2),
                 station_type: StationType::Terminal,
-                name: "Station B".to_string(),
+                name: get_text(&STATION_B, language),
                 name_key: Some(&STATION_B),
                 capacity: 15,
                 passenger_types: vec![],
@@ -742,7 +746,7 @@ pub fn create_transfer_level() -> LevelData {
             Station {
                 position: GridPos::new(10, 8),
                 station_type: StationType::Terminal,
-                name: "Station C".to_string(),
+                name: get_text(&STATION_C, language),
                 name_key: Some(&STATION_C),
                 capacity: 15,
                 passenger_types: vec![],
@@ -751,8 +755,8 @@ pub fn create_transfer_level() -> LevelData {
         passenger_demands: vec![
             PassengerDemand {
                 color: PassengerColor::Red,
-                origin: "Station A".to_string(),
-                destination: "Station B".to_string(),
+                origin: get_text(&STATION_A, language),
+                destination: get_text(&STATION_B, language),
                 origin_key: Some(&STATION_A),
                 destination_key: Some(&STATION_B),
                 spawn_rate: 0.3,
@@ -763,8 +767,8 @@ pub fn create_transfer_level() -> LevelData {
             },
             PassengerDemand {
                 color: PassengerColor::Blue,
-                origin: "Station A".to_string(),
-                destination: "Station B".to_string(),
+                origin: get_text(&STATION_A, language),
+                destination: get_text(&STATION_B, language),
                 origin_key: Some(&STATION_A),
                 destination_key: Some(&STATION_C),
                 spawn_rate: 0.3,
@@ -793,12 +797,12 @@ pub fn create_transfer_level() -> LevelData {
         ],
         objectives: vec![
             ObjectiveCondition {
-                description: "Connect all passengers to destinations".to_string(),
+                description: get_text(&OBJECTIVE_CONNECT_ALL, language),
                 description_key: Some(&OBJECTIVE_CONNECT_ALL),
                 condition_type: ObjectiveType::ConnectAllPassengers,
             },
             ObjectiveCondition {
-                description: "Maximum 2 transfers".to_string(),
+                description: get_text(&OBJECTIVE_MAX_TRANSFERS, language),
                 description_key: Some(&OBJECTIVE_MAX_TRANSFERS),
                 condition_type: ObjectiveType::MaxTransfers(2),
             },
@@ -814,7 +818,7 @@ pub fn create_transfer_level() -> LevelData {
     }
 }
 
-pub fn create_multiple_routes_level() -> LevelData {
+pub fn create_multiple_routes_level(language: Language) -> LevelData {
     let mut terrain = HashMap::new();
 
     for x in 0..14 {
@@ -831,10 +835,8 @@ pub fn create_multiple_routes_level() -> LevelData {
 
     LevelData {
         id: "level_03_multiple_routes".to_string(),
-        name: "Multiple Routes".to_string(),
-        description:
-            "Manage multiple independent routes and optimize the entire transportation network"
-                .to_string(),
+        name: get_text(&LEVEL_MULTIPLE, language),
+        description: get_text(&MULTIPLE_DESCRIPTION, language),
         name_key: Some(&LEVEL_MULTIPLE),
         description_key: Some(&MULTIPLE_DESCRIPTION),
         difficulty: 3,
@@ -844,7 +846,7 @@ pub fn create_multiple_routes_level() -> LevelData {
             Station {
                 position: GridPos::new(2, 2),
                 station_type: StationType::Terminal,
-                name: "North Station".to_string(),
+                name: get_text(&NORTH_STATION, language),
                 name_key: Some(&NORTH_STATION),
                 capacity: 20,
                 passenger_types: vec![PassengerColor::Red, PassengerColor::Green],
@@ -852,7 +854,7 @@ pub fn create_multiple_routes_level() -> LevelData {
             Station {
                 position: GridPos::new(2, 9),
                 station_type: StationType::Terminal,
-                name: "South Station".to_string(),
+                name: get_text(&SOUTH_STATION, language),
                 name_key: Some(&SOUTH_STATION),
                 capacity: 20,
                 passenger_types: vec![PassengerColor::Blue, PassengerColor::Yellow],
@@ -860,7 +862,7 @@ pub fn create_multiple_routes_level() -> LevelData {
             Station {
                 position: GridPos::new(11, 2),
                 station_type: StationType::Terminal,
-                name: "Northeast Station".to_string(),
+                name: get_text(&NORTHEAST_STATION, language),
                 name_key: Some(&NORTHEAST_STATION),
                 capacity: 20,
                 passenger_types: vec![],
@@ -868,7 +870,7 @@ pub fn create_multiple_routes_level() -> LevelData {
             Station {
                 position: GridPos::new(11, 9),
                 station_type: StationType::Terminal,
-                name: "Southeast Station".to_string(),
+                name: get_text(&SOUTHEAST_STATION, language),
                 name_key: Some(&SOUTHEAST_STATION),
                 capacity: 20,
                 passenger_types: vec![],
@@ -876,7 +878,7 @@ pub fn create_multiple_routes_level() -> LevelData {
             Station {
                 position: GridPos::new(6, 11),
                 station_type: StationType::TransferHub,
-                name: "Central Hub".to_string(),
+                name: get_text(&CENTRAL_HUB, language),
                 name_key: Some(&CENTRAL_HUB),
                 capacity: 30,
                 passenger_types: vec![],
@@ -885,8 +887,8 @@ pub fn create_multiple_routes_level() -> LevelData {
         passenger_demands: vec![
             PassengerDemand {
                 color: PassengerColor::Red,
-                origin: "North Station".to_string(),
-                destination: "Northeast Station".to_string(),
+                origin: get_text(&NORTH_STATION, language),
+                destination: get_text(&NORTHEAST_STATION, language),
                 origin_key: Some(&NORTH_STATION),
                 destination_key: Some(&NORTHEAST_STATION),
                 spawn_rate: 0.4,
@@ -897,8 +899,8 @@ pub fn create_multiple_routes_level() -> LevelData {
             },
             PassengerDemand {
                 color: PassengerColor::Blue,
-                origin: "South Station".to_string(),
-                destination: "Southeast Station".to_string(),
+                origin: get_text(&SOUTH_STATION, language),
+                destination: get_text(&SOUTHEAST_STATION, language),
                 origin_key: Some(&SOUTH_STATION),
                 destination_key: Some(&SOUTHEAST_STATION),
                 spawn_rate: 0.4,
@@ -909,8 +911,8 @@ pub fn create_multiple_routes_level() -> LevelData {
             },
             PassengerDemand {
                 color: PassengerColor::Green,
-                origin: "North Station".to_string(),
-                destination: "Southeast Station".to_string(),
+                origin: get_text(&NORTH_STATION, language),
+                destination: get_text(&SOUTHEAST_STATION, language),
                 origin_key: Some(&NORTH_STATION),
                 destination_key: Some(&SOUTHEAST_STATION),
                 spawn_rate: 0.3,
@@ -921,8 +923,8 @@ pub fn create_multiple_routes_level() -> LevelData {
             },
             PassengerDemand {
                 color: PassengerColor::Yellow,
-                origin: "South Station".to_string(),
-                destination: "Northeast Station".to_string(),
+                origin: get_text(&SOUTH_STATION, language),
+                destination: get_text(&NORTHEAST_STATION, language),
                 origin_key: Some(&SOUTH_STATION),
                 destination_key: Some(&NORTHEAST_STATION),
                 spawn_rate: 0.3,
@@ -987,7 +989,7 @@ pub fn create_multiple_routes_level() -> LevelData {
     }
 }
 
-pub fn create_time_pressure_level() -> LevelData {
+pub fn create_time_pressure_level(language: Language) -> LevelData {
     let mut terrain = HashMap::new();
 
     for x in 0..10 {
@@ -1004,9 +1006,8 @@ pub fn create_time_pressure_level() -> LevelData {
 
     LevelData {
         id: "level_04_time_pressure".to_string(),
-        name: "Time Challenge".to_string(),
-        description: "Quickly build an efficient transportation network within limited time"
-            .to_string(),
+        name: get_text(&OBJECTIVE_TIME_LIMIT, language),
+        description: get_text(&TIME_PRESSURE_DESCRIPTION, language),
         name_key: Some(&OBJECTIVE_TIME_LIMIT),
         description_key: Some(&TIME_PRESSURE_DESCRIPTION),
         difficulty: 4,
@@ -1016,7 +1017,7 @@ pub fn create_time_pressure_level() -> LevelData {
             Station {
                 position: GridPos::new(1, 1),
                 station_type: StationType::Terminal,
-                name: "Start Station".to_string(),
+                name: get_text(&START_STATION, language),
                 name_key: Some(&START_STATION),
                 capacity: 25,
                 passenger_types: vec![
@@ -1028,7 +1029,7 @@ pub fn create_time_pressure_level() -> LevelData {
             Station {
                 position: GridPos::new(8, 1),
                 station_type: StationType::Terminal,
-                name: "Target Station A".to_string(),
+                name: get_text(&TARGET_STATION_A, language),
                 name_key: Some(&TARGET_STATION_A),
                 capacity: 15,
                 passenger_types: vec![],
@@ -1036,7 +1037,7 @@ pub fn create_time_pressure_level() -> LevelData {
             Station {
                 position: GridPos::new(8, 6),
                 station_type: StationType::Terminal,
-                name: "Target Station B".to_string(),
+                name: get_text(&TARGET_STATION_B, language),
                 name_key: Some(&TARGET_STATION_B),
                 capacity: 15,
                 passenger_types: vec![],
@@ -1044,7 +1045,7 @@ pub fn create_time_pressure_level() -> LevelData {
             Station {
                 position: GridPos::new(1, 6),
                 station_type: StationType::Terminal,
-                name: "Target Station C".to_string(),
+                name: get_text(&TARGET_STATION_C, language),
                 name_key: Some(&TARGET_STATION_C),
                 capacity: 15,
                 passenger_types: vec![],
@@ -1053,8 +1054,8 @@ pub fn create_time_pressure_level() -> LevelData {
         passenger_demands: vec![
             PassengerDemand {
                 color: PassengerColor::Red,
-                origin: "Start Station".to_string(),
-                destination: "Target Station A".to_string(),
+                origin: get_text(&START_STATION, language),
+                destination: get_text(&TARGET_STATION_A, language),
                 origin_key: Some(&START_STATION),
                 destination_key: Some(&TARGET_STATION_A),
                 spawn_rate: 0.6,
@@ -1065,8 +1066,8 @@ pub fn create_time_pressure_level() -> LevelData {
             },
             PassengerDemand {
                 color: PassengerColor::Blue,
-                origin: "Start Station".to_string(),
-                destination: "Target Station B".to_string(),
+                origin: get_text(&START_STATION, language),
+                destination: get_text(&TARGET_STATION_B, language),
                 origin_key: Some(&START_STATION),
                 destination_key: Some(&TARGET_STATION_B),
                 spawn_rate: 0.6,
@@ -1077,8 +1078,8 @@ pub fn create_time_pressure_level() -> LevelData {
             },
             PassengerDemand {
                 color: PassengerColor::Green,
-                origin: "Start Station".to_string(),
-                destination: "Target Station C".to_string(),
+                origin: get_text(&START_STATION, language),
+                destination: get_text(&TARGET_STATION_C, language),
                 origin_key: Some(&START_STATION),
                 destination_key: Some(&TARGET_STATION_C),
                 spawn_rate: 0.6,
@@ -1112,17 +1113,17 @@ pub fn create_time_pressure_level() -> LevelData {
         ],
         objectives: vec![
             ObjectiveCondition {
-                description: "Connect all passengers to destinations".to_string(),
+                description: get_text(&OBJECTIVE_CONNECT_ALL, language),
                 description_key: Some(&OBJECTIVE_CONNECT_ALL),
                 condition_type: ObjectiveType::ConnectAllPassengers,
             },
             ObjectiveCondition {
-                description: "Complete within 60 seconds".to_string(),
+                description: get_text(&OBJECTIVE_TIME_LIMIT, language),
                 description_key: Some(&OBJECTIVE_TIME_LIMIT),
                 condition_type: ObjectiveType::TimeLimit(60.0),
             },
             ObjectiveCondition {
-                description: "Passenger satisfaction ≥ 80%".to_string(),
+                description: get_text(&OBJECTIVE_PASSENGER_SATISFACTION, language),
                 description_key: Some(&OBJECTIVE_PASSENGER_SATISFACTION),
                 condition_type: ObjectiveType::PassengerSatisfaction(0.8),
             },

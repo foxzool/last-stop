@@ -453,7 +453,7 @@ pub fn show_contextual_tip(
         .spawn((
             Node {
                 position_type: PositionType::Absolute,
-                right: Px(300.0),               // 调整位置，避免与右侧面板重叠
+                right: Px(70.0),               // 调整位置，避免与右侧面板重叠
                 top: Px(450.0),                 // 调整位置，适应1280x720窗口
                 width: Px(250.0),               // 稍微缩小宽度
                 padding: UiRect::all(Px(10.0)), // 减少内边距
@@ -461,7 +461,7 @@ pub fn show_contextual_tip(
             },
             BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.8)),
             BorderColor(tip_color),
-            Outline::new(Val::Px(2.0), Val::ZERO, tip_color),
+            Outline::new(Px(2.0), Val::ZERO, tip_color),
             ZIndex(200),
             Name::new("Contextual Tip"),
         ))
