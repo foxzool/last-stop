@@ -69,7 +69,7 @@ impl Plugin for BusPuzzleGamePlugin {
             BusPathfindingPlugin, // 公交车智能寻路系统
             PassengerBoardingPlugin,
             SmartBusGenerationPlugin,
-            TipsSystemPlugin,
+            LocalizedTipsSystemPlugin,
             LocalizationPlugin, // 新增：提示系统
         ));
 

@@ -1,7 +1,7 @@
 // src/bus_puzzle/tips_system.rs - 游戏提示系统
 
 use crate::bus_puzzle::{
-    get_text, get_text_with_args, CurrentLanguage, GameState, GameStateEnum, LevelData,
+    get_text, get_text_with_args, CurrentLanguage, GameState, GameStateEnum, Language, LevelData,
     BUDGET_WARNING, BUS_ROUTES_READY_INFO, PASSENGERS_GAVE_UP_WARNING, PASSENGERS_WAITING_HINT,
 };
 use bevy::prelude::{
@@ -27,412 +27,6 @@ pub enum TipType {
     Warning,   // 注意事项
 }
 
-#[derive(Resource, Default)]
-pub struct TipsManager {
-    pub current_tips: Vec<GameTip>,
-    pub is_expanded: bool,
-    pub last_level_id: String,
-}
-
-#[derive(Debug, Clone)]
-pub struct GameTip {
-    pub tip_type: TipType,
-    pub title: String,
-    pub content: String,
-    pub icon: String,
-    pub color: Color,
-}
-
-// ============ Tips 系统插件 ============
-
-pub struct TipsSystemPlugin;
-
-impl Plugin for TipsSystemPlugin {
-    fn build(&self, app: &mut App) {
-        app.init_resource::<TipsManager>().add_systems(
-            Update,
-            (
-                update_tips_for_level,
-                handle_tips_panel_toggle,
-                update_tips_display,
-                cleanup_expired_tips, // 新增：清理过期提示
-            )
-                .run_if(in_state(GameStateEnum::Playing)),
-        );
-    }
-}
-
-// ============ Tips 内容生成 ============
-
-impl TipsManager {
-    pub fn generate_tips_for_level(&mut self, level_data: &LevelData) {
-        self.current_tips.clear();
-
-        match level_data.id.as_str() {
-            "tutorial_01" => {
-                self.current_tips = vec![
-                    GameTip {
-                        tip_type: TipType::LevelGoal,
-                        title: "关卡目标".to_string(),
-                        content: "连接A站和B站，让红色乘客能够到达目的地".to_string(),
-                        icon: "🎯".to_string(),
-                        color: Color::srgb(0.2, 0.8, 0.2),
-                    },
-                    GameTip {
-                        tip_type: TipType::Strategy,
-                        title: "建设策略".to_string(),
-                        content: "使用直线段是最经济的选择，只需要简单的直线连接即可".to_string(),
-                        icon: "💡".to_string(),
-                        color: Color::srgb(0.9, 0.7, 0.2),
-                    },
-                    GameTip {
-                        tip_type: TipType::Controls,
-                        title: "操作提示".to_string(),
-                        content: "左键放置路段，右键旋转方向，Delete键删除路段".to_string(),
-                        icon: "🎮".to_string(),
-                        color: Color::srgb(0.2, 0.6, 0.9),
-                    },
-                ];
-            }
-            "level_02_transfer" => {
-                self.current_tips = vec![
-                    GameTip {
-                        tip_type: TipType::LevelGoal,
-                        title: "关卡目标".to_string(),
-                        content: "学会使用换乘：乘客需要在中转站换乘前往不同目的地".to_string(),
-                        icon: "🎯".to_string(),
-                        color: Color::srgb(0.2, 0.8, 0.2),
-                    },
-                    GameTip {
-                        tip_type: TipType::Strategy,
-                        title: "换乘策略".to_string(),
-                        content: "规划两条路线：A站→中转站，中转站→B站/C站，让乘客在中转站换乘"
-                            .to_string(),
-                        icon: "🔄".to_string(),
-                        color: Color::srgb(0.9, 0.7, 0.2),
-                    },
-                    GameTip {
-                        tip_type: TipType::Warning,
-                        title: "避免绕路".to_string(),
-                        content: "避免让乘客换乘太多次，每次换乘都会增加等待时间".to_string(),
-                        icon: "⚠️".to_string(),
-                        color: Color::srgb(0.9, 0.3, 0.2),
-                    },
-                ];
-            }
-            "level_03_multiple_routes" => {
-                self.current_tips = vec![
-                    GameTip {
-                        tip_type: TipType::LevelGoal,
-                        title: "关卡目标".to_string(),
-                        content: "管理多条路线，优化整个交通网络的效率".to_string(),
-                        icon: "🎯".to_string(),
-                        color: Color::srgb(0.2, 0.8, 0.2),
-                    },
-                    GameTip {
-                        tip_type: TipType::Strategy,
-                        title: "网络规划".to_string(),
-                        content: "善用中央枢纽作为换乘点，可以减少总的路线段数量".to_string(),
-                        icon: "🗺️".to_string(),
-                        color: Color::srgb(0.9, 0.7, 0.2),
-                    },
-                    GameTip {
-                        tip_type: TipType::Warning,
-                        title: "预算控制".to_string(),
-                        content: "注意控制成本！优先使用便宜的直线段，谨慎使用昂贵的桥梁"
-                            .to_string(),
-                        icon: "💰".to_string(),
-                        color: Color::srgb(0.9, 0.3, 0.2),
-                    },
-                    GameTip {
-                        tip_type: TipType::Strategy,
-                        title: "跨河策略".to_string(),
-                        content: "河流阻挡了直接路径，使用桥梁路段跨越水面".to_string(),
-                        icon: "🌉".to_string(),
-                        color: Color::srgb(0.2, 0.7, 0.9),
-                    },
-                ];
-            }
-            "level_04_time_pressure" => {
-                self.current_tips = vec![
-                    GameTip {
-                        tip_type: TipType::LevelGoal,
-                        title: "关卡目标".to_string(),
-                        content: "在60秒内完成网络建设，快速响应是关键".to_string(),
-                        icon: "⏰".to_string(),
-                        color: Color::srgb(0.2, 0.8, 0.2),
-                    },
-                    GameTip {
-                        tip_type: TipType::Strategy,
-                        title: "快速建设".to_string(),
-                        content: "优先建设主要路线，不要追求完美的网络设计".to_string(),
-                        icon: "⚡".to_string(),
-                        color: Color::srgb(0.9, 0.7, 0.2),
-                    },
-                    GameTip {
-                        tip_type: TipType::Warning,
-                        title: "时间压力".to_string(),
-                        content: "乘客耐心较短，延误可能导致大量乘客放弃！".to_string(),
-                        icon: "🚨".to_string(),
-                        color: Color::srgb(0.9, 0.3, 0.2),
-                    },
-                    GameTip {
-                        tip_type: TipType::Strategy,
-                        title: "穿山隧道".to_string(),
-                        content: "山脉阻挡了路径，使用隧道路段穿越山区".to_string(),
-                        icon: "🏔️".to_string(),
-                        color: Color::srgb(0.6, 0.4, 0.2),
-                    },
-                ];
-            }
-            _ => {
-                // 默认通用提示
-                self.current_tips = vec![
-                    GameTip {
-                        tip_type: TipType::Strategy,
-                        title: "基本策略".to_string(),
-                        content: "观察乘客需求，规划最短有效路径".to_string(),
-                        icon: "💡".to_string(),
-                        color: Color::srgb(0.9, 0.7, 0.2),
-                    },
-                    GameTip {
-                        tip_type: TipType::Controls,
-                        title: "操作提示".to_string(),
-                        content: "F4发现公交路线，F6查看乘客状态".to_string(),
-                        icon: "🎮".to_string(),
-                        color: Color::srgb(0.2, 0.6, 0.9),
-                    },
-                ];
-            }
-        }
-
-        self.last_level_id = level_data.id.clone();
-        info!("生成 {} 条关卡提示", self.current_tips.len());
-    }
-
-    pub fn get_segment_tips(&self) -> Vec<GameTip> {
-        vec![
-            GameTip {
-                tip_type: TipType::Strategy,
-                title: "路段选择".to_string(),
-                content: "直线段(成本1) < 转弯段(成本2) < T型(成本3) < 十字(成本4)".to_string(),
-                icon: "🛤️".to_string(),
-                color: Color::srgb(0.7, 0.7, 0.7),
-            },
-            GameTip {
-                tip_type: TipType::Strategy,
-                title: "特殊路段".to_string(),
-                content: "桥梁跨越水面(成本5)，隧道穿越山脉(成本6)".to_string(),
-                icon: "🌉".to_string(),
-                color: Color::srgb(0.2, 0.7, 0.9),
-            },
-        ]
-    }
-}
-
-// ============ Tips 更新系统 ============
-
-fn update_tips_for_level(mut tips_manager: ResMut<TipsManager>, game_state: Res<GameState>) {
-    if let Some(level_data) = &game_state.current_level {
-        // 只在关卡改变时更新提示
-        if tips_manager.last_level_id != level_data.id {
-            tips_manager.generate_tips_for_level(level_data);
-        }
-    }
-}
-
-fn handle_tips_panel_toggle(
-    keyboard_input: Res<ButtonInput<KeyCode>>,
-    mut tips_manager: ResMut<TipsManager>,
-) {
-    if keyboard_input.just_pressed(KeyCode::F1) {
-        tips_manager.is_expanded = !tips_manager.is_expanded;
-        info!(
-            "Tips面板切换: {}",
-            if tips_manager.is_expanded {
-                "展开"
-            } else {
-                "收起"
-            }
-        );
-    }
-}
-
-fn update_tips_display(
-    tips_manager: Res<TipsManager>,
-    mut tips_panels: Query<(&mut Visibility, &Children), With<TipsPanel>>,
-    mut tip_items: Query<&mut Visibility, Without<TipsPanel>>,
-) {
-    for (mut visibility, children) in tips_panels.iter_mut() {
-        *visibility = if tips_manager.is_expanded {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
-
-        for child in children {
-            if let Ok(mut child_visibility) = tip_items.get_mut(*child) {
-                *child_visibility = *visibility;
-            }
-        }
-    }
-}
-
-// ============ Tips UI 组件创建 ============
-
-pub fn create_tips_panel(
-    parent: &mut ChildSpawnerCommands,
-    ui_assets: &crate::bus_puzzle::UIAssets,
-    tips_manager: &TipsManager,
-) {
-    // 标题栏（为1280x720优化）
-    parent
-        .spawn((Node {
-            width: Percent(100.0),
-            height: Px(24.0), // 缩小标题栏高度
-            justify_content: JustifyContent::SpaceBetween,
-            align_items: AlignItems::Center,
-            margin: UiRect::bottom(Px(6.0)), // 减少底部边距
-            ..default()
-        },))
-        .with_children(|parent| {
-            parent.spawn((
-                Text::new("💡 关卡提示"),
-                TextFont {
-                    font: ui_assets.font.clone(),
-                    font_size: 15.0, // 缩小字体
-                    ..default()
-                },
-                TextColor(Color::srgb(0.9, 0.9, 0.3)),
-            ));
-
-            parent.spawn((
-                Text::new("F1 切换"),
-                TextFont {
-                    font: ui_assets.font.clone(),
-                    font_size: 10.0, // 缩小字体
-                    ..default()
-                },
-                TextColor(Color::srgb(0.7, 0.7, 0.7)),
-            ));
-        });
-
-    // 提示内容滚动区域（为1280x720优化）
-    parent
-        .spawn((
-            Node {
-                width: Percent(100.0),
-                height: Px(280.0), // 设置固定高度，适应面板大小
-                flex_direction: FlexDirection::Column,
-                row_gap: Px(8.0), // 减少间距
-                overflow: Overflow::clip_y(),
-                ..default()
-            },
-            Visibility::Visible, // 默认显示
-        ))
-        .with_children(|parent| {
-            // 当前关卡提示
-            for tip in &tips_manager.current_tips {
-                create_tip_item(parent, ui_assets, tip);
-            }
-
-            // 分隔线（适应小窗口）
-            if !tips_manager.current_tips.is_empty() {
-                parent.spawn((
-                    Node {
-                        width: Percent(100.0),
-                        height: Px(1.0),
-                        margin: UiRect::vertical(Px(6.0)), // 减少间距
-                        ..default()
-                    },
-                    BackgroundColor(Color::srgb(0.4, 0.4, 0.4)),
-                ));
-            }
-
-            // 通用路段提示
-            let segment_tips = tips_manager.get_segment_tips();
-            for tip in &segment_tips {
-                create_tip_item(parent, ui_assets, tip);
-            }
-        });
-}
-
-fn create_tip_item(
-    parent: &mut ChildSpawnerCommands,
-    ui_assets: &crate::bus_puzzle::UIAssets,
-    tip: &GameTip,
-) {
-    parent
-        .spawn((
-            Node {
-                width: Percent(100.0),
-                flex_direction: FlexDirection::Column,
-                padding: UiRect::all(Px(6.0)), // 减少内边距
-                row_gap: Px(3.0),              // 减少间距
-                border: UiRect::all(Px(1.0)),
-                ..default()
-            },
-            BackgroundColor(Color::srgba(0.2, 0.2, 0.3, 0.7)),
-            BorderColor(tip.color),
-            TipText {
-                tip_type: tip.tip_type.clone(),
-            },
-        ))
-        .with_children(|parent| {
-            // 标题行
-            parent
-                .spawn((Node {
-                    width: Percent(100.0),
-                    flex_direction: FlexDirection::Row,
-                    align_items: AlignItems::Center,
-                    column_gap: Px(4.0), // 减少间距
-                    ..default()
-                },))
-                .with_children(|parent| {
-                    // 图标
-                    parent.spawn((
-                        Text::new(&tip.icon),
-                        TextFont {
-                            font: ui_assets.font.clone(),
-                            font_size: 14.0, // 缩小图标字体
-                            ..default()
-                        },
-                        TextColor(tip.color),
-                    ));
-
-                    // 标题
-                    parent.spawn((
-                        Text::new(&tip.title),
-                        TextFont {
-                            font: ui_assets.font.clone(),
-                            font_size: 12.0, // 缩小标题字体
-                            ..default()
-                        },
-                        TextColor(Color::WHITE),
-                        Node {
-                            flex_grow: 1.0,
-                            ..default()
-                        },
-                    ));
-                });
-
-            // 内容
-            parent.spawn((
-                Text::new(&tip.content),
-                TextFont {
-                    font: ui_assets.font.clone(),
-                    font_size: 10.0, // 缩小内容字体
-                    ..default()
-                },
-                TextColor(Color::srgb(0.9, 0.9, 0.9)),
-                Node {
-                    width: Percent(100.0),
-                    ..default()
-                },
-            ));
-        });
-}
-
 // ============ 动态提示系统 ============
 
 pub fn show_contextual_tip(
@@ -453,7 +47,7 @@ pub fn show_contextual_tip(
         .spawn((
             Node {
                 position_type: PositionType::Absolute,
-                right: Px(70.0),               // 调整位置，避免与右侧面板重叠
+                right: Px(70.0),                // 调整位置，避免与右侧面板重叠
                 top: Px(450.0),                 // 调整位置，适应1280x720窗口
                 width: Px(250.0),               // 稍微缩小宽度
                 padding: UiRect::all(Px(10.0)), // 减少内边距
@@ -584,6 +178,536 @@ pub fn check_and_show_contextual_tips(
                     );
                     *last_tip_time = time.elapsed_secs();
                 }
+            }
+        }
+    }
+}
+
+// ============ 本地化的游戏提示结构 ============
+
+#[derive(Debug, Clone)]
+pub struct LocalizedGameTip {
+    pub tip_type: TipType,
+    pub title_zh: String,   // 中文标题
+    pub title_en: String,   // 英文标题
+    pub content_zh: String, // 中文内容
+    pub content_en: String, // 英文内容
+    pub icon: String,
+    pub color: Color,
+}
+
+impl LocalizedGameTip {
+    pub fn new(
+        tip_type: TipType,
+        title_zh: &str,
+        title_en: &str,
+        content_zh: &str,
+        content_en: &str,
+        icon: &str,
+        color: Color,
+    ) -> Self {
+        Self {
+            tip_type,
+            title_zh: title_zh.to_string(),
+            title_en: title_en.to_string(),
+            content_zh: content_zh.to_string(),
+            content_en: content_en.to_string(),
+            icon: icon.to_string(),
+            color,
+        }
+    }
+
+    pub fn get_title(&self, language: Language) -> &str {
+        match language {
+            Language::Chinese => &self.title_zh,
+            Language::English => &self.title_en,
+        }
+    }
+
+    pub fn get_content(&self, language: Language) -> &str {
+        match language {
+            Language::Chinese => &self.content_zh,
+            Language::English => &self.content_en,
+        }
+    }
+}
+
+// ============ 本地化的 Tips 管理器 ============
+
+#[derive(Resource, Default)]
+pub struct LocalizedTipsManager {
+    pub current_tips: Vec<LocalizedGameTip>,
+    pub is_expanded: bool,
+    pub last_level_id: String,
+}
+
+impl LocalizedTipsManager {
+    pub fn generate_localized_tips_for_level(&mut self, level_data: &LevelData) {
+        self.current_tips.clear();
+
+        match level_data.id.as_str() {
+            "tutorial_01" => {
+                self.current_tips = vec![
+                    LocalizedGameTip::new(
+                        TipType::LevelGoal,
+                        "关卡目标",
+                        "Level Goal",
+                        "连接A站和B站，让红色乘客能够到达目的地",
+                        "Connect Station A and B, allowing red passengers to reach their destination",
+                        "🎯",
+                        Color::srgb(0.2, 0.8, 0.2),
+                    ),
+                    LocalizedGameTip::new(
+                        TipType::Strategy,
+                        "建设策略",
+                        "Building Strategy",
+                        "使用直线段是最经济的选择，只需要简单的直线连接即可",
+                        "Using straight segments is the most economical choice, only simple straight connections are needed",
+                        "💡",
+                        Color::srgb(0.9, 0.7, 0.2),
+                    ),
+                    LocalizedGameTip::new(
+                        TipType::Controls,
+                        "操作提示",
+                        "Controls",
+                        "左键放置路段，右键旋转方向，Delete键删除路段",
+                        "Left click to place segments, right click to rotate, Delete key to remove segments",
+                        "🎮",
+                        Color::srgb(0.2, 0.6, 0.9),
+                    ),
+                ];
+            }
+            "level_02_transfer" => {
+                self.current_tips = vec![
+                    LocalizedGameTip::new(
+                        TipType::LevelGoal,
+                        "关卡目标",
+                        "Level Goal",
+                        "学会使用换乘：乘客需要在中转站换乘前往不同目的地",
+                        "Learn to use transfers: passengers need to transfer at hub stations to reach different destinations",
+                        "🎯",
+                        Color::srgb(0.2, 0.8, 0.2),
+                    ),
+                    LocalizedGameTip::new(
+                        TipType::Strategy,
+                        "换乘策略",
+                        "Transfer Strategy",
+                        "规划两条路线：A站→中转站，中转站→B站/C站，让乘客在中转站换乘",
+                        "Plan two routes: Station A → Transfer Hub, Transfer Hub → Station B/C, let passengers transfer at the hub",
+                        "🔄",
+                        Color::srgb(0.9, 0.7, 0.2),
+                    ),
+                    LocalizedGameTip::new(
+                        TipType::Warning,
+                        "避免绕路",
+                        "Avoid Detours",
+                        "避免让乘客换乘太多次，每次换乘都会增加等待时间",
+                        "Avoid making passengers transfer too many times, each transfer increases waiting time",
+                        "⚠️",
+                        Color::srgb(0.9, 0.3, 0.2),
+                    ),
+                ];
+            }
+            "level_03_multiple_routes" => {
+                self.current_tips = vec![
+                    LocalizedGameTip::new(
+                        TipType::LevelGoal,
+                        "关卡目标",
+                        "Level Goal",
+                        "管理多条路线，优化整个交通网络的效率",
+                        "Manage multiple routes and optimize the entire transportation network efficiency",
+                        "🎯",
+                        Color::srgb(0.2, 0.8, 0.2),
+                    ),
+                    LocalizedGameTip::new(
+                        TipType::Strategy,
+                        "网络规划",
+                        "Network Planning",
+                        "善用中央枢纽作为换乘点，可以减少总的路线段数量",
+                        "Make good use of the central hub as a transfer point to reduce the total number of route segments",
+                        "🗺️",
+                        Color::srgb(0.9, 0.7, 0.2),
+                    ),
+                    LocalizedGameTip::new(
+                        TipType::Warning,
+                        "预算控制",
+                        "Budget Control",
+                        "注意控制成本！优先使用便宜的直线段，谨慎使用昂贵的桥梁",
+                        "Pay attention to cost control! Prioritize cheap straight segments, use expensive bridges carefully",
+                        "💰",
+                        Color::srgb(0.9, 0.3, 0.2),
+                    ),
+                    LocalizedGameTip::new(
+                        TipType::Strategy,
+                        "跨河策略",
+                        "River Crossing Strategy",
+                        "河流阻挡了直接路径，使用桥梁路段跨越水面",
+                        "Rivers block direct paths, use bridge segments to cross water",
+                        "🌉",
+                        Color::srgb(0.2, 0.7, 0.9),
+                    ),
+                ];
+            }
+            "level_04_time_pressure" => {
+                self.current_tips = vec![
+                    LocalizedGameTip::new(
+                        TipType::LevelGoal,
+                        "关卡目标",
+                        "Level Goal",
+                        "在60秒内完成网络建设，快速响应是关键",
+                        "Complete network construction within 60 seconds, quick response is key",
+                        "⏰",
+                        Color::srgb(0.2, 0.8, 0.2),
+                    ),
+                    LocalizedGameTip::new(
+                        TipType::Strategy,
+                        "快速建设",
+                        "Fast Construction",
+                        "优先建设主要路线，不要追求完美的网络设计",
+                        "Prioritize building main routes, don't pursue perfect network design",
+                        "⚡",
+                        Color::srgb(0.9, 0.7, 0.2),
+                    ),
+                    LocalizedGameTip::new(
+                        TipType::Warning,
+                        "时间压力",
+                        "Time Pressure",
+                        "乘客耐心较短，延误可能导致大量乘客放弃！",
+                        "Passengers have short patience, delays may cause many passengers to give up!",
+                        "🚨",
+                        Color::srgb(0.9, 0.3, 0.2),
+                    ),
+                    LocalizedGameTip::new(
+                        TipType::Strategy,
+                        "穿山隧道",
+                        "Mountain Tunnel",
+                        "山脉阻挡了路径，使用隧道路段穿越山区",
+                        "Mountains block the path, use tunnel segments to cross mountainous areas",
+                        "🏔️",
+                        Color::srgb(0.6, 0.4, 0.2),
+                    ),
+                ];
+            }
+            _ => {
+                // 默认通用提示
+                self.current_tips = vec![
+                    LocalizedGameTip::new(
+                        TipType::Strategy,
+                        "基本策略",
+                        "Basic Strategy",
+                        "观察乘客需求，规划最短有效路径",
+                        "Observe passenger demands, plan the shortest effective paths",
+                        "💡",
+                        Color::srgb(0.9, 0.7, 0.2),
+                    ),
+                    LocalizedGameTip::new(
+                        TipType::Controls,
+                        "操作提示",
+                        "Control Tips",
+                        "F4发现公交路线，F6查看乘客状态",
+                        "F4 to discover bus routes, F6 to view passenger status",
+                        "🎮",
+                        Color::srgb(0.2, 0.6, 0.9),
+                    ),
+                ];
+            }
+        }
+
+        self.last_level_id = level_data.id.clone();
+        info!("生成 {} 条本地化关卡提示", self.current_tips.len());
+    }
+
+    pub fn get_localized_segment_tips(&self) -> Vec<LocalizedGameTip> {
+        vec![
+            LocalizedGameTip::new(
+                TipType::Strategy,
+                "路段选择",
+                "Segment Selection",
+                "直线段(成本1) < 转弯段(成本2) < T型(成本3) < 十字(成本4)",
+                "Straight(Cost 1) < Curve(Cost 2) < T-Split(Cost 3) < Cross(Cost 4)",
+                "🛤️",
+                Color::srgb(0.7, 0.7, 0.7),
+            ),
+            LocalizedGameTip::new(
+                TipType::Strategy,
+                "特殊路段",
+                "Special Segments",
+                "桥梁跨越水面(成本5)，隧道穿越山脉(成本6)",
+                "Bridge crosses water(Cost 5), Tunnel crosses mountains(Cost 6)",
+                "🌉",
+                Color::srgb(0.2, 0.7, 0.9),
+            ),
+        ]
+    }
+}
+
+// ============ 本地化的 Tips UI 创建 ============
+
+pub fn create_localized_tips_panel(
+    parent: &mut ChildSpawnerCommands,
+    ui_assets: &crate::bus_puzzle::UIAssets,
+    tips_manager: &LocalizedTipsManager,
+    current_language: &CurrentLanguage,
+) {
+    // 标题栏（本地化）
+    parent
+        .spawn((Node {
+            width: Percent(100.0),
+            height: Px(24.0),
+            justify_content: JustifyContent::SpaceBetween,
+            align_items: AlignItems::Center,
+            margin: UiRect::bottom(Px(6.0)),
+            ..default()
+        },))
+        .with_children(|parent| {
+            let title_text = match current_language.language {
+                Language::Chinese => "💡 关卡提示",
+                Language::English => "💡 Level Tips",
+            };
+
+            parent.spawn((
+                Text::new(title_text),
+                TextFont {
+                    font: ui_assets.font.clone(),
+                    font_size: 15.0,
+                    ..default()
+                },
+                TextColor(Color::srgb(0.9, 0.9, 0.3)),
+            ));
+
+            let toggle_text = match current_language.language {
+                Language::Chinese => "F1 切换",
+                Language::English => "F1 Toggle",
+            };
+
+            parent.spawn((
+                Text::new(toggle_text),
+                TextFont {
+                    font: ui_assets.font.clone(),
+                    font_size: 10.0,
+                    ..default()
+                },
+                TextColor(Color::srgb(0.7, 0.7, 0.7)),
+            ));
+        });
+
+    // 提示内容滚动区域
+    parent
+        .spawn((
+            Node {
+                width: Percent(100.0),
+                height: Px(280.0),
+                flex_direction: FlexDirection::Column,
+                row_gap: Px(8.0),
+                overflow: Overflow::clip_y(),
+                ..default()
+            },
+            Visibility::Visible,
+        ))
+        .with_children(|parent| {
+            // 当前关卡提示
+            for tip in &tips_manager.current_tips {
+                create_localized_tip_item(parent, ui_assets, tip, current_language.language);
+            }
+
+            // 分隔线
+            if !tips_manager.current_tips.is_empty() {
+                parent.spawn((
+                    Node {
+                        width: Percent(100.0),
+                        height: Px(1.0),
+                        margin: UiRect::vertical(Px(6.0)),
+                        ..default()
+                    },
+                    BackgroundColor(Color::srgb(0.4, 0.4, 0.4)),
+                ));
+            }
+
+            // 通用路段提示
+            let segment_tips = tips_manager.get_localized_segment_tips();
+            for tip in &segment_tips {
+                create_localized_tip_item(parent, ui_assets, tip, current_language.language);
+            }
+        });
+}
+
+fn create_localized_tip_item(
+    parent: &mut ChildSpawnerCommands,
+    ui_assets: &crate::bus_puzzle::UIAssets,
+    tip: &LocalizedGameTip,
+    language: Language,
+) {
+    parent
+        .spawn((
+            Node {
+                width: Percent(100.0),
+                flex_direction: FlexDirection::Column,
+                padding: UiRect::all(Px(6.0)),
+                row_gap: Px(3.0),
+                border: UiRect::all(Px(1.0)),
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.2, 0.2, 0.3, 0.7)),
+            BorderColor(tip.color),
+            LocalizedTipText {
+                tip_type: tip.tip_type.clone(),
+            },
+        ))
+        .with_children(|parent| {
+            // 标题行
+            parent
+                .spawn((Node {
+                    width: Percent(100.0),
+                    flex_direction: FlexDirection::Row,
+                    align_items: AlignItems::Center,
+                    column_gap: Px(4.0),
+                    ..default()
+                },))
+                .with_children(|parent| {
+                    // 图标
+                    parent.spawn((
+                        Text::new(&tip.icon),
+                        TextFont {
+                            font: ui_assets.font.clone(),
+                            font_size: 14.0,
+                            ..default()
+                        },
+                        TextColor(tip.color),
+                    ));
+
+                    // 标题（本地化）
+                    parent.spawn((
+                        Text::new(tip.get_title(language)),
+                        TextFont {
+                            font: ui_assets.font.clone(),
+                            font_size: 12.0,
+                            ..default()
+                        },
+                        TextColor(Color::WHITE),
+                        Node {
+                            flex_grow: 1.0,
+                            ..default()
+                        },
+                    ));
+                });
+
+            // 内容（本地化）
+            parent.spawn((
+                Text::new(tip.get_content(language)),
+                TextFont {
+                    font: ui_assets.font.clone(),
+                    font_size: 10.0,
+                    ..default()
+                },
+                TextColor(Color::srgb(0.9, 0.9, 0.9)),
+                Node {
+                    width: Percent(100.0),
+                    ..default()
+                },
+            ));
+        });
+}
+
+// ============ 语言切换响应系统 ============
+
+#[derive(Component)]
+#[allow(dead_code)]
+pub struct LocalizedTipText {
+    pub tip_type: TipType,
+}
+
+#[derive(Component)]
+pub struct LocalizedTipsPanel;
+
+// 响应语言切换的更新系统
+fn update_tips_panel_language(
+    current_language: Res<CurrentLanguage>,
+    tips_manager: Res<LocalizedTipsManager>,
+    mut commands: Commands,
+    ui_assets: Res<crate::bus_puzzle::UIAssets>,
+    existing_panels: Query<Entity, With<LocalizedTipsPanel>>,
+) {
+    // 如果语言发生变化，重新创建整个面板
+    if current_language.is_changed() {
+        for entity in existing_panels.iter() {
+            commands.entity(entity).despawn();
+
+            // 重新创建面板内容
+            commands.entity(entity).with_children(|parent| {
+                create_localized_tips_panel(parent, &ui_assets, &tips_manager, &current_language);
+            });
+        }
+
+        info!("Tips面板语言已更新为: {:?}", current_language.language);
+    }
+}
+
+// ============ 完整的本地化 Tips 系统插件 ============
+
+pub struct LocalizedTipsSystemPlugin;
+
+impl Plugin for LocalizedTipsSystemPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<LocalizedTipsManager>().add_systems(
+            Update,
+            (
+                update_localized_tips_for_level,
+                handle_tips_panel_toggle,
+                update_tips_display,
+                update_tips_panel_language, // 新增：语言切换响应
+                cleanup_expired_tips,
+            )
+                .run_if(in_state(GameStateEnum::Playing)),
+        );
+    }
+}
+
+// ============ 修改后的 Tips 更新系统 ============
+
+fn update_localized_tips_for_level(
+    mut tips_manager: ResMut<LocalizedTipsManager>,
+    game_state: Res<GameState>,
+) {
+    if let Some(level_data) = &game_state.current_level {
+        // 只在关卡改变时更新提示
+        if tips_manager.last_level_id != level_data.id {
+            tips_manager.generate_localized_tips_for_level(level_data);
+        }
+    }
+}
+
+fn handle_tips_panel_toggle(
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    mut tips_manager: ResMut<LocalizedTipsManager>,
+) {
+    if keyboard_input.just_pressed(KeyCode::F1) {
+        tips_manager.is_expanded = !tips_manager.is_expanded;
+        info!(
+            "Tips面板切换: {}",
+            if tips_manager.is_expanded {
+                "展开"
+            } else {
+                "收起"
+            }
+        );
+    }
+}
+
+fn update_tips_display(
+    tips_manager: Res<LocalizedTipsManager>,
+    mut tips_panels: Query<(&mut Visibility, &Children), With<LocalizedTipsPanel>>,
+    mut tip_items: Query<&mut Visibility, (Without<LocalizedTipsPanel>, With<LocalizedTipText>)>,
+) {
+    for (mut visibility, children) in tips_panels.iter_mut() {
+        *visibility = if tips_manager.is_expanded {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        };
+
+        for child in children {
+            if let Ok(mut child_visibility) = tip_items.get_mut(*child) {
+                *child_visibility = *visibility;
             }
         }
     }

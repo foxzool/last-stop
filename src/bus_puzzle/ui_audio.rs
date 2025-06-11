@@ -2,20 +2,21 @@
 
 // 使用相对路径引用同模块下的其他文件
 use super::{
-    ease_out_back, format_time, get_text, get_text_with_args, localized_text,
-    localized_text_with_args, AgentState, AudioAssets, CostText, CurrentLanguage, GameState,
-    GameStateEnum, InventoryCountText, InventorySlot, Language, LanguageChangedEvent,
+    create_localized_tips_panel, ease_out_back, format_time, get_text, get_text_with_args,
+    localized_text, localized_text_with_args, AgentState, AudioAssets, CostText, CurrentLanguage,
+    GameState, GameStateEnum, InventoryCountText, InventorySlot, Language, LanguageChangedEvent,
     LevelCompletedEvent, LevelData, LevelManager, LocalizedText, LocalizedTextComponent,
-    ObjectiveCompletedEvent, ObjectiveCondition, ObjectiveType, PassengerColor, PassengerCountText,
-    PathfindingAgent, RouteSegmentType, ScoreText, SegmentPlacedEvent, SegmentRemovedEvent,
-    TimerText, TipsPanel, UIElement, ALL_LEVELS_COMPLETE, ARRIVED, COMPLETION_TIME,
-    CONGRATULATIONS, COST, DONT_GIVE_UP, FAILURE_REASON, FINAL_SCORE, GAME_DURATION, GAME_PAUSED,
-    GAME_STATISTICS, GAME_TITLE, GAME_VERSION, INVENTORY_SLOT_SIZE, LEVEL_COMPLETE, MAIN_MENU,
-    MISSION_FAILED, NEXT_LEVEL, OBJECTIVES, PASSENGERS, PASSENGERS_GAVE_UP, PASSENGER_STATUS,
-    PAUSE, QUIT_GAME, RESTART_LEVEL, RESUME_GAME, RETRY, ROUTE_SEGMENTS, SCORE, SCORE_BREAKDOWN,
-    SCORE_EARNED, START_GAME, THANK_YOU, TIME, TOTAL_COST, WAITING,
+    LocalizedTipsManager, ObjectiveCompletedEvent, ObjectiveCondition, ObjectiveType,
+    PassengerColor, PassengerCountText, PathfindingAgent, RouteSegmentType, ScoreText,
+    SegmentPlacedEvent, SegmentRemovedEvent, TimerText, TipsPanel, UIElement, ALL_LEVELS_COMPLETE,
+    ARRIVED, COMPLETION_TIME, CONGRATULATIONS, COST, DONT_GIVE_UP, FAILURE_REASON, FINAL_SCORE,
+    GAME_DURATION, GAME_PAUSED, GAME_STATISTICS, GAME_TITLE, GAME_VERSION, INVENTORY_SLOT_SIZE,
+    LEVEL_COMPLETE, MAIN_MENU, MISSION_FAILED, NEXT_LEVEL, OBJECTIVES, PASSENGERS,
+    PASSENGERS_GAVE_UP, PASSENGER_STATUS, PAUSE, QUIT_GAME, RESTART_LEVEL, RESUME_GAME, RETRY,
+    ROUTE_SEGMENTS, SCORE, SCORE_BREAKDOWN, SCORE_EARNED, START_GAME, THANK_YOU, TIME, TOTAL_COST,
+    WAITING,
 };
-use crate::bus_puzzle::{check_and_show_contextual_tips, create_tips_panel, TipsManager};
+use crate::bus_puzzle::check_and_show_contextual_tips;
 use bevy::{
     audio::{PlaybackMode, Volume},
     platform::collections::HashMap,
@@ -471,7 +472,7 @@ fn setup_gameplay_ui(
     mut commands: Commands,
     ui_assets: Res<UIAssets>,
     game_state: Res<GameState>,
-    tips_manager: Res<TipsManager>,
+    tips_manager: Res<LocalizedTipsManager>,
     current_language: Res<CurrentLanguage>,
 ) {
     // 顶部状态栏
@@ -932,7 +933,7 @@ fn setup_gameplay_ui(
             Name::new("Tips Panel"),
         ))
         .with_children(|parent| {
-            create_tips_panel(parent, &ui_assets, &tips_manager);
+            create_localized_tips_panel(parent, &ui_assets, &tips_manager, &current_language);
         });
 }
 
