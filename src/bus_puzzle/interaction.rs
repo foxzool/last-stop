@@ -6,7 +6,8 @@ use crate::bus_puzzle::{
     GameState, GameStateEnum, GridPos, InputState, InventoryCountText, InventorySlot,
     InventoryUpdatedEvent, LevelCompletedEvent, LevelManager, ObjectiveCompletedEvent,
     ObjectiveCondition, ObjectiveTracker, ObjectiveType, PathNode, PathfindingAgent, PlacedSegment,
-    RouteSegment, RouteSegmentType, SegmentPlacedEvent, SegmentPreview, SegmentRemovedEvent,
+    RotationHintUI, RouteSegment, RouteSegmentType, SegmentPlacedEvent, SegmentPreview,
+    SegmentRemovedEvent,
 };
 use bevy::{
     input::mouse::MouseWheel,
@@ -36,8 +37,12 @@ impl Plugin for PuzzleInteractionPlugin {
                     update_objectives,
                     update_game_timer,
                     handle_level_completion,
-                    handle_segment_hover_effects, // 新增：悬停效果
-                    update_hover_tooltip,         // 新增：悬停提示
+                    handle_segment_hover_effects,       // 新增：悬停效果
+                    update_hover_tooltip,               // 新增：悬停提示
+                    reset_preview_rotation_on_deselect, // 改进的取消选择
+                    show_rotation_hint_ui,              // 旋转提示UI
+                    handle_inventory_selection,
+                    handle_quick_rotation_keys,
                 )
                     .chain()
                     .run_if(in_state(GameStateEnum::Playing))
@@ -258,7 +263,7 @@ fn handle_button_interactions(
 
 fn handle_segment_placement(
     mut commands: Commands,
-    input_state: ResMut<InputState>,
+    mut input_state: ResMut<InputState>,
     mut game_state: ResMut<GameState>,
     mouse_button_input: Res<ButtonInput<MouseButton>>,
     asset_server: Res<AssetServer>,
@@ -273,7 +278,8 @@ fn handle_segment_placement(
             if is_valid_placement(&game_state, grid_pos, &segment_type) {
                 if let Some(&available_count) = game_state.player_inventory.get(&segment_type) {
                     if available_count > 0 {
-                        let rotation = 0;
+                        // 使用预览旋转角度
+                        let rotation = input_state.preview_rotation;
                         let cost = segment_type.get_cost();
 
                         let entity = spawn_route_segment(
@@ -309,7 +315,13 @@ fn handle_segment_placement(
                             new_count: game_state.player_inventory[&segment_type],
                         });
 
-                        info!("在 {:?} 放置了 {:?}", grid_pos, segment_type);
+                        info!(
+                            "在 {:?} 放置了 {:?}，旋转角度: {}°",
+                            grid_pos, segment_type, rotation
+                        );
+
+                        // 放置后重置预览旋转
+                        input_state.preview_rotation = 0;
                     } else {
                         warn!("库存不足：{:?}", segment_type);
                     }
@@ -324,17 +336,23 @@ fn handle_segment_placement(
 }
 
 fn handle_segment_rotation(
+    mut input_state: ResMut<InputState>,
     mut game_state: ResMut<GameState>,
     mut route_segments: Query<(&mut Transform, &mut RouteSegment)>,
     mouse_button_input: Res<ButtonInput<MouseButton>>,
-    input_state: Res<InputState>,
+    keyboard_input: Res<ButtonInput<KeyCode>>, // 新增：键盘输入
 ) {
-    if mouse_button_input.just_pressed(MouseButton::Right) {
+    let should_rotate = mouse_button_input.just_pressed(MouseButton::Right)
+        || keyboard_input.just_pressed(KeyCode::KeyR)
+        || keyboard_input.just_pressed(KeyCode::Space); // 多种旋转方式
+
+    if should_rotate {
         if let Some(grid_pos) = input_state.grid_cursor_pos {
+            // 检查是否有已放置的路线段
             if let Some(placed_segment) = game_state.placed_segments.get_mut(&grid_pos) {
+                // 旋转已放置的路线段
                 placed_segment.rotation = (placed_segment.rotation + 90) % 360;
 
-                // 同时更新Transform和RouteSegment组件
                 if let Ok((mut transform, mut route_segment)) =
                     route_segments.get_mut(placed_segment.entity)
                 {
@@ -345,9 +363,13 @@ fn handle_segment_rotation(
                 }
 
                 info!(
-                    "Rotated route segment to {} degrees at {:?}",
+                    "旋转已放置路线段到 {} 度，位置 {:?}",
                     placed_segment.rotation, grid_pos
                 );
+            } else if input_state.selected_segment.is_some() {
+                // 旋转预览中的路线段
+                input_state.preview_rotation = (input_state.preview_rotation + 90) % 360;
+                info!("旋转预览路线段到 {} 度", input_state.preview_rotation);
             }
         }
     }
@@ -384,6 +406,7 @@ fn handle_segment_removal(
     }
 }
 
+// 改进的预览验证函数，支持旋转预览
 fn update_grid_preview(
     mut commands: Commands,
     input_state: Res<InputState>,
@@ -401,9 +424,15 @@ fn update_grid_preview(
     if let (Some(segment_type), Some(grid_pos)) =
         (input_state.selected_segment, input_state.grid_cursor_pos)
     {
-        let is_valid = is_valid_placement(&game_state, grid_pos, &segment_type);
+        // 使用增强的验证函数，考虑旋转角度
+        let is_valid = is_valid_placement_with_rotation(
+            &game_state,
+            grid_pos,
+            &segment_type,
+            input_state.preview_rotation,
+        );
 
-        // 获取世界坐标，需要网格尺寸信息
+        // 获取世界坐标
         let world_pos = if let Some(level_data) = &game_state.current_level {
             grid_pos.to_world_pos(
                 level_manager.tile_size,
@@ -411,29 +440,94 @@ fn update_grid_preview(
                 level_data.grid_size.1,
             )
         } else {
-            grid_pos.to_world_pos(level_manager.tile_size, 10, 8) // 默认尺寸
+            grid_pos.to_world_pos(level_manager.tile_size, 10, 8)
         };
 
-        // 选择预览材质颜色
-        let color = if is_valid {
+        // 根据验证结果选择颜色，还可以添加连接点可视化
+        let base_color = if is_valid {
             Color::srgba(0.0, 1.0, 0.0, 0.7) // 绿色半透明
         } else {
             Color::srgba(1.0, 0.0, 0.0, 0.7) // 红色半透明
         };
 
+        // 应用预览旋转
+        let rotation_quat = Quat::from_rotation_z(
+            (input_state.preview_rotation as f32) * std::f32::consts::PI / 180.0,
+        );
+
+        // 生成主预览
         commands.spawn((
             Sprite {
                 image: asset_server.load(segment_type.get_texture_path()),
-                color,
+                color: base_color,
                 ..default()
             },
-            Transform::from_translation(world_pos + Vec3::Z * 0.1),
+            Transform::from_translation(world_pos + Vec3::Z * 0.1).with_rotation(rotation_quat),
             SegmentPreview {
                 segment_type,
-                rotation: 0,
+                rotation: input_state.preview_rotation,
                 target_position: grid_pos,
             },
         ));
+
+        // 可选：显示连接点预览（小圆点）
+        let connection_positions =
+            segment_type.get_connection_positions(grid_pos, input_state.preview_rotation);
+
+        for conn_pos in connection_positions {
+            let conn_world_pos = if let Some(level_data) = &game_state.current_level {
+                conn_pos.to_world_pos(
+                    level_manager.tile_size,
+                    level_data.grid_size.0,
+                    level_data.grid_size.1,
+                )
+            } else {
+                conn_pos.to_world_pos(level_manager.tile_size, 10, 8)
+            };
+
+            // 检查这个连接点是否有效
+            let connection_valid = game_state
+                .placed_segments
+                .get(&conn_pos)
+                .map(|seg| {
+                    seg.segment_type
+                        .has_connection_to(conn_pos, grid_pos, seg.rotation)
+                })
+                .unwrap_or(true); // 如果没有路线段则认为有效
+
+            let connection_color = if connection_valid {
+                Color::srgba(0.0, 1.0, 1.0, 0.8) // 青色：有效连接
+            } else {
+                Color::srgba(1.0, 1.0, 0.0, 0.8) // 黄色：可能的连接冲突
+            };
+
+            commands.spawn((
+                Sprite {
+                    color: connection_color,
+                    custom_size: Some(Vec2::new(8.0, 8.0)), // 小圆点
+                    ..default()
+                },
+                Transform::from_translation(conn_world_pos + Vec3::Z * 0.2),
+                SegmentPreview {
+                    segment_type,
+                    rotation: input_state.preview_rotation,
+                    target_position: conn_pos, // 连接点位置
+                },
+            ));
+        }
+    }
+}
+
+// 重置预览旋转的辅助函数（当取消选择时调用）
+fn reset_preview_rotation_on_deselect(
+    mut input_state: ResMut<InputState>,
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+) {
+    // 按 ESC 键取消选择并重置旋转
+    if keyboard_input.just_pressed(KeyCode::Escape) {
+        input_state.selected_segment = None;
+        input_state.preview_rotation = 0;
+        info!("取消选择，重置预览旋转");
     }
 }
 
@@ -607,7 +701,7 @@ fn update_objectives_ui(
     }
 }
 
-fn is_valid_placement(
+pub fn is_valid_placement(
     game_state: &GameState,
     position: GridPos,
     segment_type: &RouteSegmentType,
@@ -997,4 +1091,146 @@ fn clear_segment_selection(
     }
 
     info!("已清理所有路线段选择状态、预览和库存UI状态（包括边框）");
+}
+
+// 增强的预览连接验证函数
+fn is_valid_placement_with_rotation(
+    game_state: &GameState,
+    position: GridPos,
+    segment_type: &RouteSegmentType,
+    rotation: u32,
+) -> bool {
+    // 基础验证
+    if !is_valid_placement(game_state, position, segment_type) {
+        return false;
+    }
+
+    // 可选：验证旋转后的连接是否合理
+    // 这里可以添加更复杂的连接验证逻辑
+    // 比如检查旋转后的路线段是否能与周围的路线段正确连接
+
+    let connection_positions = segment_type.get_connection_positions(position, rotation);
+
+    // 检查连接点是否与现有路线段匹配
+    for conn_pos in connection_positions {
+        if let Some(existing_segment) = game_state.placed_segments.get(&conn_pos) {
+            // 检查现有路线段是否有朝向当前位置的连接口
+            if !existing_segment.segment_type.has_connection_to(
+                conn_pos,
+                position,
+                existing_segment.rotation,
+            ) {
+                // 有冲突的连接，但这可能是用户想要的，所以只是警告而不阻止
+                trace!(
+                    "警告：{:?} 在 {:?} (旋转{}°) 与 {:?} 在 {:?} 的连接可能不匹配",
+                    segment_type,
+                    position,
+                    rotation,
+                    existing_segment.segment_type,
+                    conn_pos
+                );
+            }
+        }
+    }
+
+    true
+}
+
+// 数字键快速旋转系统（可选的高级功能）
+fn handle_quick_rotation_keys(
+    mut input_state: ResMut<InputState>,
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+) {
+    if input_state.selected_segment.is_some() {
+        // 数字键1-4对应0°, 90°, 180°, 270°
+        if keyboard_input.just_pressed(KeyCode::Digit1) {
+            input_state.preview_rotation = 0;
+            info!("快速旋转到 0°");
+        } else if keyboard_input.just_pressed(KeyCode::Digit2) {
+            input_state.preview_rotation = 90;
+            info!("快速旋转到 90°");
+        } else if keyboard_input.just_pressed(KeyCode::Digit3) {
+            input_state.preview_rotation = 180;
+            info!("快速旋转到 180°");
+        } else if keyboard_input.just_pressed(KeyCode::Digit4) {
+            input_state.preview_rotation = 270;
+            info!("快速旋转到 270°");
+        }
+    }
+}
+
+// 改进的库存槽位处理，重置旋转当切换路线段类型时
+fn handle_inventory_selection(
+    mut input_state: ResMut<InputState>,
+    button_query: Query<(&Interaction, &ButtonComponent), (Changed<Interaction>, With<Button>)>,
+    game_state: Res<GameState>,
+) {
+    for (interaction, button_component) in button_query.iter() {
+        if matches!(*interaction, Interaction::Pressed) {
+            if let ButtonType::InventorySlot(segment_type) = &button_component.button_type {
+                let available_count = game_state
+                    .player_inventory
+                    .get(segment_type)
+                    .copied()
+                    .unwrap_or(0);
+
+                if available_count > 0 {
+                    // 如果选择了不同的路线段类型，重置旋转
+                    if input_state.selected_segment != Some(*segment_type) {
+                        input_state.preview_rotation = 0;
+                        info!("选择新路线段类型，重置旋转角度");
+                    }
+
+                    input_state.selected_segment = Some(*segment_type);
+                    info!("选择路线段: {:?}", segment_type);
+                } else {
+                    warn!("库存不足: {:?}", segment_type);
+                }
+            }
+        }
+    }
+}
+
+// 添加旋转提示UI的系统
+fn show_rotation_hint_ui(
+    mut commands: Commands,
+    input_state: Res<InputState>,
+    ui_assets: Res<crate::bus_puzzle::UIAssets>,
+    existing_hints: Query<Entity, With<RotationHintUI>>,
+) {
+    // 清除现有提示
+    for entity in existing_hints.iter() {
+        commands.entity(entity).despawn();
+    }
+
+    // 如果有选中的路线段，显示旋转提示
+    if input_state.selected_segment.is_some() {
+        commands
+            .spawn((
+                Node {
+                    position_type: PositionType::Absolute,
+                    bottom: Px(20.0),
+                    left: Px(50.0),
+                    padding: UiRect::all(Px(10.0)),
+                    ..default()
+                },
+                BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.7)),
+                ZIndex(100),
+                RotationHintUI,
+            ))
+            .with_children(|parent| {
+                parent.spawn((
+                    Text::new(format!(
+                        "右键/R键/空格旋转 (当前: {}°) | 左键放置 | ESC取消",
+                        input_state.preview_rotation
+                    )),
+                    TextFont {
+                        font: ui_assets.font.clone(),
+                        font_size: 16.0,
+                        ..default()
+                    },
+                    TextColor(Color::WHITE),
+                ));
+            });
+    }
 }

@@ -360,7 +360,7 @@ fn spawn_passenger_with_icon(
     commands: &mut Commands,
     asset_server: &Res<AssetServer>,
     demand: &PassengerDemand,
-    level_data: &crate::bus_puzzle::LevelData,
+    level_data: &LevelData,
 ) {
     if let Some(origin_station) = level_data.stations.iter().find(|s| s.name == demand.origin) {
         let tile_size = DEFAULT_TILE_SIZE;

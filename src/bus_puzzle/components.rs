@@ -341,3 +341,7 @@ pub struct ObjectiveTracker {
     pub objective_index: usize,
     pub is_completed: bool,
 }
+
+// 显示旋转提示的UI组件
+#[derive(Component)]
+pub struct RotationHintUI;

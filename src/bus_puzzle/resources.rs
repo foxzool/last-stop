@@ -58,6 +58,7 @@ pub struct GameScore {
 pub struct InputState {
     pub mouse_world_pos: Vec3,
     pub selected_segment: Option<RouteSegmentType>,
+    pub preview_rotation: u32, // 新增：预览旋转角度
     pub is_dragging: bool,
     pub drag_entity: Option<Entity>,
     pub grid_cursor_pos: Option<GridPos>,
