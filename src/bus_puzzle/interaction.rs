@@ -506,10 +506,11 @@ fn update_grid_preview(
             commands.spawn((
                 Sprite {
                     color: connection_color,
-                    custom_size: Some(Vec2::new(8.0, 8.0)), // 小圆点
+                    custom_size: Some(Vec2::new(8.0, 8.0)), // 小方块
                     ..default()
                 },
-                Transform::from_translation(conn_world_pos + Vec3::Z * 0.2),
+                Transform::from_translation(conn_world_pos + Vec3::Z * 0.2)
+                    .with_rotation(rotation_quat),
                 SegmentPreview {
                     segment_type,
                     rotation: input_state.preview_rotation,
