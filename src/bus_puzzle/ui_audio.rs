@@ -41,6 +41,13 @@ pub struct LevelCompleteUI;
 #[derive(Component)]
 pub struct GameOverUI;
 
+// 音乐标记组件
+#[derive(Component)]
+pub struct BackgroundMusic;
+
+#[derive(Component)]
+pub struct StateMusic;
+
 #[derive(Component)]
 #[allow(dead_code)]
 pub struct ObjectiveUI {
@@ -183,7 +190,6 @@ impl Plugin for GameUIPlugin {
                     update_progress_bars,
                     update_passenger_stats_ui, // 新增：更新乘客统计UI
                     handle_audio_events,
-                    update_background_music,
                     capture_level_complete_data, // 新增：捕获关卡完成数据
                     check_and_show_contextual_tips, // 新增：上下文感知提示
                     update_inventory_selection_state, // 新增：更新库存选中状态
@@ -214,7 +220,8 @@ impl Plugin for GameUIPlugin {
                 (handle_game_over_buttons, handle_button_interactions)
                     .run_if(in_state(GameStateEnum::GameOver)),
             )
-            .add_systems(Update, handle_language_toggle_button);
+            .add_systems(Update, handle_language_toggle_button)
+            .add_systems(Update, (update_background_music,)); // 全局音频系统
     }
 }
 
@@ -1640,22 +1647,39 @@ fn update_background_music(
     audio_assets: Res<AudioAssets>,
     audio_settings: Res<AudioSettings>,
     current_state: Res<State<GameStateEnum>>,
-    music_query: Query<Entity, With<AudioSink>>,
+    background_music_query: Query<Entity, (With<AudioSink>, With<BackgroundMusic>)>,
 ) {
-    // 简化的背景音乐管理
-    // 在实际实现中，你可能需要更复杂的音乐状态管理
-    if music_query.is_empty()
-        && matches!(current_state.get(), GameStateEnum::Playing)
-        && !audio_settings.is_muted
-    {
-        commands.spawn((
-            AudioPlayer::new(audio_assets.background_music.clone()),
-            PlaybackSettings {
-                mode: PlaybackMode::Despawn,
-                volume: Volume::Linear(audio_settings.music_volume * audio_settings.master_volume),
-                ..default()
-            },
-        ));
+    if audio_settings.is_muted {
+        return;
+    }
+
+    // 只在游戏进行状态播放背景音乐
+    match current_state.get() {
+        GameStateEnum::Playing => {
+            // 如果没有背景音乐在播放，则开始播放
+            if background_music_query.is_empty() {
+                commands.spawn((
+                    AudioPlayer::new(audio_assets.background_music.clone()),
+                    PlaybackSettings {
+                        mode: PlaybackMode::Loop,
+                        volume: Volume::Linear(
+                            audio_settings.music_volume * audio_settings.master_volume,
+                        ),
+                        ..default()
+                    },
+                    BackgroundMusic, // 标记为背景音乐
+                ));
+            }
+        }
+        GameStateEnum::LevelComplete | GameStateEnum::GameOver => {
+            // 在胜利/失败状态下停止背景音乐
+            for entity in background_music_query.iter() {
+                commands.entity(entity).despawn();
+            }
+        }
+        _ => {
+            // 其他状态下保持背景音乐播放
+        }
     }
 }
 
