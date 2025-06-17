@@ -220,7 +220,6 @@ impl Plugin for GameUIPlugin {
                 (handle_game_over_buttons, handle_button_interactions)
                     .run_if(in_state(GameStateEnum::GameOver)),
             )
-            .add_systems(Update, handle_language_toggle_button)
             .add_systems(Update, (update_background_music,)); // 全局音频系统
     }
 }
@@ -2111,36 +2110,6 @@ fn setup_level_complete_ui(
 
 #[derive(Component)]
 pub struct LanguageToggleText;
-
-fn handle_language_toggle_button(
-    button_query: Query<(&Interaction, &ButtonComponent), (Changed<Interaction>, With<Button>)>,
-    current_language: Res<CurrentLanguage>,
-    mut language_events: EventWriter<LanguageChangedEvent>,
-    mut toggle_texts: Query<&mut Text, With<LanguageToggleText>>,
-) {
-    for (interaction, button_component) in button_query.iter() {
-        if matches!(*interaction, Interaction::Pressed) {
-            if let ButtonType::ToggleLanguage = button_component.button_type {
-                let new_language = match current_language.language {
-                    Language::English => Language::Chinese,
-                    Language::Chinese => Language::English,
-                };
-
-                // 发送语言切换事件
-                language_events.write(LanguageChangedEvent { new_language });
-
-                // 立即更新语言切换按钮的文本
-                for mut text in toggle_texts.iter_mut() {
-                    let next_language_text = match new_language {
-                        Language::English => "中文",
-                        Language::Chinese => "English",
-                    };
-                    *text = Text::new(next_language_text);
-                }
-            }
-        }
-    }
-}
 
 // ============ 动态文本更新系统 ============
 
